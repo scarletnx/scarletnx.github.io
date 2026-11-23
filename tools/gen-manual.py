@@ -305,6 +305,17 @@ def code(text, links, here, with_links=True, linked=None):
     return '<pre>' + ''.join(out) + '</pre>'
 
 
+# What a diagram's cell is, for its colour (manual.css, and LEGEND): a fixed bit, a field, a bit of a field the
+# encoding fixes, a bit that should be a value
+LEGEND = ('<p class="legend"><span class="b">fixed bit</span> <span class="f">field</span> '
+          '<span class="x">field the encoding fixes</span> <span class="s">should be</span></p>')
+
+
+def cell(text, box, kind, span=1):
+    cls = ' '.join(c for c in (box, kind) if c)
+    return (f'<td colspan="{span}"' if span > 1 else '<td') + (f' class="{cls}">' if cls else '>') + f'{text}</td>'
+
+
 def diagram(c):
     """Arm's register diagram of an encoding: the bit numbers, the bits (fields boxed), the names of fixed fields;
     a word wider than 32 bits in rows of 32, its high bits first"""
@@ -324,14 +335,14 @@ def diagram(c):
                 span = range(b, end - 1, -1)
                 fixed = [c.bits.get(k) for k in span]
                 if all(v is None for v in fixed) and not any(k in c.should for k in span):
-                    first.append(f'<td colspan="{len(span)}" class="lr">{name}</td>' if len(span) > 1 else
-                                 f'<td class="lr">{name}</td>')
+                    first.append(cell(name, 'lr', 'f', len(span)))
                     second.append((len(span), ''))
                 else:
                     for k, v in zip(span, fixed):
                         cls = 'lr' if len(span) == 1 else 'l' if k == span[0] else 'r' if k == end else ''
+                        kind = 's' if not v and k in c.should else 'x'
                         v = v or (f'({c.should[k]})' if k in c.should else 'x')
-                        first.append(f'<td class="{cls}">{v}</td>' if cls else f'<td>{v}</td>')
+                        first.append(cell(v, cls, kind))
                     second.append((len(span), name))
                 b = end - 1
                 continue
@@ -341,8 +352,9 @@ def diagram(c):
                 b -= 1
             for k in run:
                 cls = 'lr' if len(run) == 1 else 'l' if k == run[0] else 'r' if k == run[-1] else ''
+                kind = 'b' if c.bits.get(k) else 's' if k in c.should else ''
                 v = c.bits.get(k) or (f'({c.should[k]})' if k in c.should else '')
-                first.append(f'<td class="{cls}">{v}</td>' if cls else f'<td>{v}</td>')
+                first.append(cell(v, cls, kind))
             second.append((len(run), ''))
         row2 = []
         for n, name in second:
@@ -432,7 +444,7 @@ def build_arch(site, root, arch, out_rows):
             parts = [f'<h1>{html.escape(page["title"])}</h1>',
                      '<p class="groups">' + ' / '.join(
                          f'<a href="{g[len("__Decode"):]}.html">{html.escape(arch["groups"][g])}</a>'
-                         for g in sorted(page['groups'])) + '</p>']
+                         for g in sorted(page['groups'])) + '</p>', LEGEND]
             executes = []
             for heading, c in page['classes']:
                 anchor = re.sub(r'\W+', '_', heading)
@@ -887,7 +899,7 @@ def build_gpu(site, root, g, out_rows):
         for with_links, linked in ((True, None), (True, set()), (False, None)):
             parts = [f'<h1>{html.escape(page["title"])}</h1>',
                      '<p class="groups">' + ' / '.join(f'<a href="{gslug[grp]}.html">{html.escape(grp)}</a>'
-                                                       for grp in page['groups']) + '</p>']
+                                                       for grp in page['groups']) + '</p>', LEGEND]
             if gid == 'sm53':
                 for heading, p in page['pats']:
                     fields = fields_for(p)
