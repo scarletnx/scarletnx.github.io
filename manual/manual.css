@@ -17,3 +17,16 @@ table.regdiagram { border-collapse: collapse; border: 0; font-family: monospace;
 #search input { width: 100%; max-width: 30em; font-size: 1.1em; }
 table.fields { border-collapse: collapse; }
 .fields td, .fields th { border: 1px solid #8888; padding: .1em .5em; text-align: left; }
+/* the diagrams' cells by what they are (LEGEND): pastels, deeper in the dark */
+.regdiagram td.b, .legend .b { background: #dce8f7; }
+.regdiagram td.f, .legend .f { background: #dcf2df; }
+.regdiagram td.x, .legend .x { background: #fbecd2; }
+.regdiagram td.s, .legend .s { background: #f6dbe7; }
+.legend { font-size: smaller; }
+.legend span { padding: 0 .4em; border: 1px solid #8886; }
+@media (prefers-color-scheme: dark) {
+  .regdiagram td.b, .legend .b { background: #263a52; }
+  .regdiagram td.f, .legend .f { background: #24402c; }
+  .regdiagram td.x, .legend .x { background: #4a3c22; }
+  .regdiagram td.s, .legend .s { background: #4b2738; }
+}
