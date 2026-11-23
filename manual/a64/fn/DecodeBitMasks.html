@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>DecodeBitMasks - ScarletNX ARM manual</title>
+<link rel="stylesheet" href="../../manual.css">
+</head>
+<body>
+<p class="nav"><a href="../../../">ScarletNX</a> / <a href="../../">ARM manual</a></p>
+<h1>DecodeBitMasks</h1>
+<h2>sail-arm's definition <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/aarch64/sail/a64.sail#L22759">a64.sail</a></h2>
+<pre>val DecodeBitMasks : forall &#x27;M (&#x27;immediate : Bool), &#x27;M &gt;= 0.
+  (bits(1), bits(6), bits(6), bool(&#x27;immediate), int(&#x27;M)) -&gt; (bits(&#x27;M), bits(&#x27;M))
+
+function DecodeBitMasks (immN, imms, immr, immediate, M) = {
+    let &#x27;len = HighestSetBit(immN @ not_vec(imms));
+    if len &lt; 1 then {
+        throw(Error_Undefined())
+    };
+    assert(M &gt;= (1 &lt;&lt; len));
+    assert(constraint(6 &gt;= &#x27;len));
+    let levels : bits(6) = ZeroExtend(Ones(len), 6);
+    if immediate &amp; (imms &amp; levels) == levels then {
+        throw(Error_Undefined())
+    };
+    let &#x27;s = UInt(imms &amp; levels);
+    let &#x27;r = UInt(immr &amp; levels);
+    let &#x27;diff = s - r;
+    let &#x27;esize = (1 &lt;&lt; len);
+    let &#x27;d = UInt(diff[len - 1 .. 0]);
+    assert(constraint(&#x27;esize &gt;= &#x27;s + 1));
+    let welem : bits(&#x27;esize) = ZeroExtend(Ones(s + 1), esize);
+    assert(constraint(&#x27;esize &gt;= &#x27;d + 1));
+    let telem : bits(&#x27;esize) = ZeroExtend(Ones(d + 1), esize);
+    assert(constraint(&#x27;esize * div(&#x27;M, &#x27;esize) == &#x27;M));
+    let wmask : bits(&#x27;M) = Replicate(ROR(welem, r), DIV(M, esize));
+    let tmask : bits(&#x27;M) = Replicate(telem, DIV(M, esize));
+    return((wmask, tmask))
+}</pre>
+<h2>Used by</h2><ul class="cols"><li><a href="../and_log_imm.html">AND (immediate)</a></li><li><a href="../ands_log_imm.html">ANDS (immediate)</a></li><li><a href="../bfm.html">BFM</a></li><li><a href="../eor_log_imm.html">EOR (immediate)</a></li><li><a href="../orr_log_imm.html">ORR (immediate)</a></li><li><a href="../sbfm.html">SBFM</a></li><li><a href="../ubfm.html">UBFM</a></li></ul>
+<hr>
+<p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. sail-arm's definitions are Arm's ASL in Sail (BSD 3-Clause Clear, <a href="../../LICENSE-sail-arm.txt">license</a>); ScarletNX's fixups are GPL-3.0-or-later.</p>
+</body>
+</html>

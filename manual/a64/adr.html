@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>ADR - ScarletNX ARM manual</title>
+<link rel="stylesheet" href="../manual.css">
+</head>
+<body>
+<p class="nav"><a href="../../">ScarletNX</a> / <a href="../">ARM manual</a></p>
+<h1>ADR</h1>
+<p class="groups"><a href="A64_DataProcImm.html">Data processing (immediate)</a></p>
+<h2 class="classheading" id="Integer_arithmetic_address_PC_relative">Integer arithmetic address PC relative</h2>
+<table class="regdiagram" border="1" cellspacing="0"><thead><tr><td>31</td><td>30</td><td>29</td><td>28</td><td>27</td><td>26</td><td>25</td><td>24</td><td>23</td><td>22</td><td>21</td><td>20</td><td>19</td><td>18</td><td>17</td><td>16</td><td>15</td><td>14</td><td>13</td><td>12</td><td>11</td><td>10</td><td>9</td><td>8</td><td>7</td><td>6</td><td>5</td><td>4</td><td>3</td><td>2</td><td>1</td><td>0</td></tr></thead><tbody><tr class="firstrow"><td class="lr">0</td><td colspan="2" class="lr">immlo</td><td class="l">1</td><td>0</td><td>0</td><td>0</td><td class="r">0</td><td colspan="19" class="lr">immhi</td><td colspan="5" class="lr">Rd</td></tr><tr class="secondrow"><td colspan="1" class="droppedname">op</td><td colspan="31"></td></tr></tbody></table>
+<p class="bits">0xx10000xxxxxxxxxxxxxxxxxxxxxxxx</p>
+<h3>Decode <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/aarch64/sail/a64.sail#L826">Sail</a></h3>
+<pre>let &#x27;d = UInt(Rd);
+let page : bool = op == 0b1;
+imm : bits(64) = undefined;
+if page then {
+    imm = SignExtend((immhi @ immlo) @ Zeros(12), 64)
+} else {
+    imm = SignExtend(immhi @ immlo, 64)
+};
+execute_aarch64_instrs_integer_arithmetic_address_pc_rel(d, imm, page)</pre>
+<h2 class="pseudocode">Operation <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/aarch64/sail/a64.sail#L815">Sail</a></h2>
+<pre>base : bits(64) = <a href="fn/PC_read.html">PC_read</a>();
+if page then {
+    base[11 .. 0] = Zeros(12)
+};
+<a href="fn/X_set.html">X_set</a>(d, 64) = base + imm</pre>
+<hr>
+<p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. sail-arm's definitions are Arm's ASL in Sail (BSD 3-Clause Clear, <a href="../LICENSE-sail-arm.txt">license</a>); ScarletNX's fixups are GPL-3.0-or-later.</p>
+</body>
+</html>

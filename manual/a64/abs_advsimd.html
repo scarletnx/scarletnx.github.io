@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>ABS (vector) - ScarletNX ARM manual</title>
+<link rel="stylesheet" href="../manual.css">
+</head>
+<body>
+<p class="nav"><a href="../../">ScarletNX</a> / <a href="../">ARM manual</a></p>
+<h1>ABS (vector)</h1>
+<p class="groups"><a href="A64_DataProcFPSIMD.html">Data processing (scalar floating-point and Advanced SIMD)</a></p>
+<h2 class="classheading" id="Vector_arithmetic_unary_diff_neg_int_SIMD">Vector arithmetic unary diff neg int SIMD</h2>
+<table class="regdiagram" border="1" cellspacing="0"><thead><tr><td>31</td><td>30</td><td>29</td><td>28</td><td>27</td><td>26</td><td>25</td><td>24</td><td>23</td><td>22</td><td>21</td><td>20</td><td>19</td><td>18</td><td>17</td><td>16</td><td>15</td><td>14</td><td>13</td><td>12</td><td>11</td><td>10</td><td>9</td><td>8</td><td>7</td><td>6</td><td>5</td><td>4</td><td>3</td><td>2</td><td>1</td><td>0</td></tr></thead><tbody><tr class="firstrow"><td class="lr">0</td><td colspan="1" class="lr">Q</td><td class="lr">0</td><td class="l">0</td><td>1</td><td>1</td><td>1</td><td class="r">0</td><td colspan="2" class="lr">size</td><td class="l">1</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>1</td><td>0</td><td>1</td><td>1</td><td>1</td><td class="r">0</td><td colspan="5" class="lr">Rn</td><td colspan="5" class="lr">Rd</td></tr><tr class="secondrow"><td colspan="2"></td><td colspan="1" class="droppedname">U</td><td colspan="29"></td></tr></tbody></table>
+<p class="bits">0x001110xx100000101110xxxxxxxxxx</p>
+<h3>Decode <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/aarch64/sail/a64.sail#L28">Sail</a></h3>
+<pre>let &#x27;d = UInt(Rd);
+let &#x27;n = UInt(Rn);
+if (size @ Q) == 0b110 then {
+    throw(Error_Undefined())
+};
+let &#x27;esize = (8 &lt;&lt; UInt(size));
+let &#x27;datasize = if Q == 0b1 then 128 else 64;
+let &#x27;elements = DIV(datasize, esize);
+let neg : bool = U == 0b1;
+execute_aarch64_instrs_vector_arithmetic_unary_diff_neg_int_sisd(d, datasize, elements, esize, n, neg)</pre>
+<h2 class="pseudocode">Operation <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/aarch64/sail/a64.sail#L7">Sail</a></h2>
+<pre><a href="fn/CheckFPAdvSIMDEnabled64.html">CheckFPAdvSIMDEnabled64</a>();
+let operand : bits(&#x27;datasize) = <a href="fn/V_read.html">V_read</a>(n, datasize);
+result : bits(&#x27;datasize) = undefined;
+element : int = undefined;
+foreach (e from 0 to (elements - 1) by 1 in inc) {
+    element = SInt(Elem_read(operand, e, esize));
+    if neg then {
+        element = negate(element)
+    } else {
+        element = Abs(element)
+    };
+    result = Elem_set(result, e, esize, element[esize - 1 .. 0])
+};
+<a href="fn/V_set.html">V_set</a>(d, datasize) = result</pre>
+<hr>
+<p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. sail-arm's definitions are Arm's ASL in Sail (BSD 3-Clause Clear, <a href="../LICENSE-sail-arm.txt">license</a>); ScarletNX's fixups are GPL-3.0-or-later.</p>
+</body>
+</html>

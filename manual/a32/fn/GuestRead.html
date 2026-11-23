@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>GuestRead - ScarletNX ARM manual</title>
+<link rel="stylesheet" href="../../manual.css">
+</head>
+<body>
+<p class="nav"><a href="../../../">ScarletNX</a> / <a href="../../">ARM manual</a></p>
+<h1>GuestRead</h1>
+<h2>ScarletNX's fixup <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/arm/sail/arm.sail#L62">arm.sail</a></h2>
+<p>---- guest memory ---- Guest memory is the board&#x27;s own (llvm.c&#x27;s readmem and writemem: flat, checked or hosted, with the ARM7TDMI&#x27;s and the ARM946E-S&#x27;s bus rules and hook). GuestRead and GuestWrite are one access of size bytes; aligned is MemA&#x27;s and MemS&#x27;s (the multiple transfers&#x27;, whose alignment the ARMv4T and ARMv5TE buses do not check) against MemU&#x27;s, which takes any address</p>
+<pre>val GuestRead : forall &#x27;size. (bits(32), int(&#x27;size), bool) -&gt; bits(&#x27;size * 8)</pre>
+<h2>Used by</h2><ul class="cols"><li><a href="MemA_read.html">MemA_read</a></li><li><a href="MemS_read.html">MemS_read</a></li><li><a href="MemU_read.html">MemU_read</a></li></ul>
+<hr>
+<p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. sail-arm's definitions are Arm's ASL in Sail (BSD 3-Clause Clear, <a href="../../LICENSE-sail-arm.txt">license</a>); ScarletNX's fixups are GPL-3.0-or-later.</p>
+</body>
+</html>

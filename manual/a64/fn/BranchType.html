@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>BranchType - ScarletNX ARM manual</title>
+<link rel="stylesheet" href="../../manual.css">
+</head>
+<body>
+<p class="nav"><a href="../../../">ScarletNX</a> / <a href="../../">ARM manual</a></p>
+<h1>BranchType</h1>
+<h2>sail-arm's definition <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/aarch64/sail/a64.sail#L21997">a64.sail</a></h2>
+<pre>enum BranchType = {
+  BranchType_DIRCALL,
+  BranchType_INDCALL,
+  BranchType_ERET,
+  BranchType_DBGEXIT,
+  BranchType_RET,
+  BranchType_DIR,
+  BranchType_INDIR,
+  BranchType_EXCEPTION,
+  BranchType_TMFAIL,
+  BranchType_RESET,
+  BranchType_UNKNOWN
+}</pre>
+<h2>Used by</h2><ul class="cols"><li><a href="../b_cond.html">B.cond</a></li><li><a href="../bc_cond.html">BC.cond</a></li><li><a href="../blr.html">BLR</a></li><li><a href="../blra.html">BLRA</a></li><li><a href="../br.html">BR</a></li><li><a href="../bra.html">BRA</a></li><li><a href="../cbnz.html">CBNZ</a></li><li><a href="../ret.html">RET</a></li><li><a href="../reta.html">RETA</a></li><li><a href="../tbnz.html">TBNZ</a></li><li><a href="BranchType.html">BranchType</a></li></ul>
+<hr>
+<p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. sail-arm's definitions are Arm's ASL in Sail (BSD 3-Clause Clear, <a href="../../LICENSE-sail-arm.txt">license</a>); ScarletNX's fixups are GPL-3.0-or-later.</p>
+</body>
+</html>

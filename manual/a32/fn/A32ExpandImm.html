@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>A32ExpandImm - ScarletNX ARM manual</title>
+<link rel="stylesheet" href="../../manual.css">
+</head>
+<body>
+<p class="nav"><a href="../../../">ScarletNX</a> / <a href="../../">ARM manual</a></p>
+<h1>A32ExpandImm</h1>
+<h2>sail-arm's definition <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/arm/sail/a32.sail#L5461">a32.sail</a></h2>
+<pre>val A32ExpandImm : bits(12) -&gt; bits(32)
+
+function A32ExpandImm imm12 = {
+    imm32 : bits(32) = undefined;
+    let (__tup_0 : bits(32), _) = <a href="../fn/A32ExpandImm_C.html">A32ExpandImm_C</a>(imm12, <a href="../fn/PSTATE.html">PSTATE</a>.C) in
+      {
+          imm32 = __tup_0
+      };
+    return(imm32)
+}</pre>
+<h2>Used by</h2><ul class="cols"><li><a href="../ADC_i.html">ADC (immediate)</a></li><li><a href="../ADD_i.html">ADD (immediate)</a></li><li><a href="../ADD_SP_i.html">ADD (SP plus immediate)</a></li><li><a href="../ADR.html">ADR</a></li><li><a href="../CMN_i.html">CMN (immediate)</a></li><li><a href="../CMP_i.html">CMP (immediate)</a></li><li><a href="../RSB_i.html">RSB (immediate)</a></li><li><a href="../RSC_i.html">RSC (immediate)</a></li><li><a href="../SBC_i.html">SBC (immediate)</a></li><li><a href="../SUB_i.html">SUB (immediate)</a></li><li><a href="../SUB_SP_i.html">SUB (SP plus immediate)</a></li></ul>
+<hr>
+<p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. sail-arm's definitions are Arm's ASL in Sail (BSD 3-Clause Clear, <a href="../../LICENSE-sail-arm.txt">license</a>); ScarletNX's fixups are GPL-3.0-or-later.</p>
+</body>
+</html>

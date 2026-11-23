@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>FPDecodeRounding - ScarletNX ARM manual</title>
+<link rel="stylesheet" href="../../manual.css">
+</head>
+<body>
+<p class="nav"><a href="../../../">ScarletNX</a> / <a href="../../">ARM manual</a></p>
+<h1>FPDecodeRounding</h1>
+<h2>sail-arm's definition <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/aarch64/sail/a64.sail#L22407">a64.sail</a></h2>
+<pre>val FPDecodeRounding : bits(2) -&gt; <a href="../fn/FPRounding.html">FPRounding</a>
+
+function FPDecodeRounding rmode = {
+    match rmode {
+      0b00 =&gt; {
+          return(<a href="../fn/FPRounding.html">FPRounding_TIEEVEN</a>)
+      },
+      0b01 =&gt; {
+          return(<a href="../fn/FPRounding.html">FPRounding_POSINF</a>)
+      },
+      0b10 =&gt; {
+          return(<a href="../fn/FPRounding.html">FPRounding_NEGINF</a>)
+      },
+      0b11 =&gt; {
+          return(<a href="../fn/FPRounding.html">FPRounding_ZERO</a>)
+      },
+      _ =&gt; {
+          return(undefined : <a href="../fn/FPRounding.html">FPRounding</a>)
+      }
+    }
+}</pre>
+<h2>Used by</h2><ul class="cols"><li><a href="../fcvtas_float.html">FCVTAS (scalar)</a></li><li><a href="../fcvtau_float.html">FCVTAU (scalar)</a></li><li><a href="../fcvtms_float.html">FCVTMS (scalar)</a></li><li><a href="../fcvtmu_float.html">FCVTMU (scalar)</a></li><li><a href="../fcvtns_float.html">FCVTNS (scalar)</a></li><li><a href="../fcvtnu_float.html">FCVTNU (scalar)</a></li><li><a href="../fcvtps_float.html">FCVTPS (scalar)</a></li><li><a href="../fcvtpu_float.html">FCVTPU (scalar)</a></li><li><a href="../fcvtzs_float_int.html">FCVTZS (scalar, integer)</a></li><li><a href="../fcvtzu_float_int.html">FCVTZU (scalar, integer)</a></li><li><a href="../fjcvtzs.html">FJCVTZS</a></li><li><a href="../fmov_float_gen.html">FMOV (general)</a></li><li><a href="../frinta_float.html">FRINTA (scalar)</a></li><li><a href="../frinti_float.html">FRINTI (scalar)</a></li><li><a href="../frintm_float.html">FRINTM (scalar)</a></li><li><a href="../frintn_float.html">FRINTN (scalar)</a></li><li><a href="../frintp_float.html">FRINTP (scalar)</a></li><li><a href="../frintx_float.html">FRINTX (scalar)</a></li><li><a href="../frintz_float.html">FRINTZ (scalar)</a></li><li><a href="../scvtf_float_int.html">SCVTF (scalar, integer)</a></li><li><a href="../ucvtf_float_int.html">UCVTF (scalar, integer)</a></li></ul>
+<hr>
+<p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. sail-arm's definitions are Arm's ASL in Sail (BSD 3-Clause Clear, <a href="../../LICENSE-sail-arm.txt">license</a>); ScarletNX's fixups are GPL-3.0-or-later.</p>
+</body>
+</html>

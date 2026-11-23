@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>SP_set - ScarletNX ARM manual</title>
+<link rel="stylesheet" href="../../manual.css">
+</head>
+<body>
+<p class="nav"><a href="../../../">ScarletNX</a> / <a href="../../">ARM manual</a></p>
+<h1>SP_set</h1>
+<h2>ScarletNX's fixup <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/aarch64/sail/nx.sail#L26">nx.sail</a></h2>
+<pre>val SP_set : bits(64) -&gt; unit
+
+function SP_set value_name = {
+    <a href="../fn/GPR.html">GPR</a>[31] = value_name
+}</pre>
+<h2>sail-arm's definition, which the fixup replaces <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/aarch64/sail/a64.sail#L22138">a64.sail</a></h2>
+<pre>val SP_set : bits(64) -&gt; unit
+
+function SP_set value_name = {
+    if <a href="../fn/PSTATE.html">PSTATE</a>.SP == 0b0 then {
+        SP_EL0 = value_name
+    } else {
+        match <a href="../fn/PSTATE.html">PSTATE</a>.EL {
+          ? if ? == <a href="../fn/EL0.html">EL0</a> =&gt; {
+              SP_EL0 = value_name
+          },
+          ? if ? == <a href="../fn/EL1.html">EL1</a> =&gt; {
+              SP_EL1 = value_name
+          },
+          ? if ? == <a href="../fn/EL2.html">EL2</a> =&gt; {
+              SP_EL2 = value_name
+          },
+          ? if ? == <a href="../fn/EL3.html">EL3</a> =&gt; {
+              SP_EL3 = value_name
+          },
+          _ =&gt; ()
+        }
+    };
+    return()
+}</pre>
+<h2>Used by</h2><ul class="cols"><li><a href="../add_addsub_ext.html">ADD (extended register)</a></li><li><a href="../add_addsub_imm.html">ADD (immediate)</a></li><li><a href="../and_log_imm.html">AND (immediate)</a></li><li><a href="../ldapr.html">LDAPR</a></li><li><a href="../ldapur_gen.html">LDAPUR</a></li><li><a href="../ldar.html">LDAR</a></li><li><a href="../ldnp_gen.html">LDNP</a></li><li><a href="../ldp_gen.html">LDP</a></li><li><a href="../ldr_imm_gen.html">LDR (immediate)</a></li><li><a href="../ldr_reg_gen.html">LDR (register)</a></li><li><a href="../ldtr.html">LDTR</a></li><li><a href="../ldur_gen.html">LDUR</a></li><li><a href="../prfm_imm.html">PRFM (immediate)</a></li></ul>
+<hr>
+<p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. sail-arm's definitions are Arm's ASL in Sail (BSD 3-Clause Clear, <a href="../../LICENSE-sail-arm.txt">license</a>); ScarletNX's fixups are GPL-3.0-or-later.</p>
+</body>
+</html>

@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>DecodeImmShift - ScarletNX ARM manual</title>
+<link rel="stylesheet" href="../../manual.css">
+</head>
+<body>
+<p class="nav"><a href="../../../">ScarletNX</a> / <a href="../../">ARM manual</a></p>
+<h1>DecodeImmShift</h1>
+<h2>sail-arm's definition <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/arm/sail/a32.sail#L5472">a32.sail</a></h2>
+<pre>val DecodeImmShift : (bits(2), bits(5)) -&gt; (<a href="../fn/SRType.html">SRType</a>, int)
+
+function DecodeImmShift (srtype, imm5) = {
+    shift_t : <a href="../fn/SRType.html">SRType</a> = undefined;
+    shift_n : range(0, 32) = undefined;
+    match srtype {
+      0b00 =&gt; {
+          shift_t = <a href="../fn/SRType.html">SRType_LSL</a>;
+          shift_n = UInt(imm5)
+      },
+      0b01 =&gt; {
+          shift_t = <a href="../fn/SRType.html">SRType_LSR</a>;
+          shift_n = if imm5 == 0b00000 then 32 else UInt(imm5)
+      },
+      0b10 =&gt; {
+          shift_t = <a href="../fn/SRType.html">SRType_ASR</a>;
+          shift_n = if imm5 == 0b00000 then 32 else UInt(imm5)
+      },
+      0b11 =&gt; {
+          if imm5 == 0b00000 then {
+              shift_t = <a href="../fn/SRType.html">SRType_RRX</a>;
+              shift_n = 1
+          } else {
+              shift_t = <a href="../fn/SRType.html">SRType_ROR</a>;
+              shift_n = UInt(imm5)
+          }
+      }
+    };
+    let &#x27;shift_n = shift_n;
+    return((shift_t, shift_n))
+}</pre>
+<h2>Used by</h2><ul class="cols"><li><a href="../ADC_r.html">ADC (register)</a></li><li><a href="../ADD_r.html">ADD (register)</a></li><li><a href="../ADD_SP_r.html">ADD (SP plus register)</a></li><li><a href="../AND_r.html">AND (register)</a></li><li><a href="../ASR_i.html">ASR (immediate)</a></li><li><a href="../BIC_r.html">BIC (register)</a></li><li><a href="../CMN_r.html">CMN (register)</a></li><li><a href="../CMP_r.html">CMP (register)</a></li><li><a href="../EOR_r.html">EOR (register)</a></li><li><a href="../LSL_i.html">LSL (immediate)</a></li><li><a href="../LSR_i.html">LSR (immediate)</a></li><li><a href="../MOV_r.html">MOV (register)</a></li><li><a href="../MVN_r.html">MVN (register)</a></li><li><a href="../ORR_r.html">ORR (register)</a></li><li><a href="../RSB_r.html">RSB (register)</a></li><li><a href="../RSC_r.html">RSC (register)</a></li><li><a href="../SBC_r.html">SBC (register)</a></li><li><a href="../SUB_r.html">SUB (register)</a></li><li><a href="../SUB_SP_r.html">SUB (SP plus register)</a></li><li><a href="../TEQ_r.html">TEQ (register)</a></li><li><a href="../TST_r.html">TST (register)</a></li></ul>
+<hr>
+<p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. sail-arm's definitions are Arm's ASL in Sail (BSD 3-Clause Clear, <a href="../../LICENSE-sail-arm.txt">license</a>); ScarletNX's fixups are GPL-3.0-or-later.</p>
+</body>
+</html>

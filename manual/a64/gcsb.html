@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>GCSB - ScarletNX ARM manual</title>
+<link rel="stylesheet" href="../manual.css">
+</head>
+<body>
+<p class="nav"><a href="../../">ScarletNX</a> / <a href="../">ARM manual</a></p>
+<h1>GCSB</h1>
+<p class="groups"><a href="A64_BranchExcSys.html">Branches, exception generating and system instructions</a></p>
+<h2 class="classheading" id="System_hints">System hints</h2>
+<table class="regdiagram" border="1" cellspacing="0"><thead><tr><td>31</td><td>30</td><td>29</td><td>28</td><td>27</td><td>26</td><td>25</td><td>24</td><td>23</td><td>22</td><td>21</td><td>20</td><td>19</td><td>18</td><td>17</td><td>16</td><td>15</td><td>14</td><td>13</td><td>12</td><td>11</td><td>10</td><td>9</td><td>8</td><td>7</td><td>6</td><td>5</td><td>4</td><td>3</td><td>2</td><td>1</td><td>0</td></tr></thead><tbody><tr class="firstrow"><td class="l">1</td><td>1</td><td>0</td><td>1</td><td>0</td><td>1</td><td>0</td><td>1</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>1</td><td>1</td><td>0</td><td>0</td><td>1</td><td class="r">0</td><td class="l">0</td><td>0</td><td>1</td><td class="r">0</td><td class="l">0</td><td>1</td><td class="r">1</td><td class="l">1</td><td>1</td><td>1</td><td>1</td><td class="r">1</td></tr><tr class="secondrow"><td colspan="20"></td><td colspan="4" class="droppedname">CRm</td><td colspan="3" class="droppedname">op2</td><td colspan="5"></td></tr></tbody></table>
+<p class="bits">11010101000000110010001001111111</p>
+<h3>Decode <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/aarch64/sail/a64.sail#L3492">Sail</a></h3>
+<pre>op : <a href="fn/SystemHintOp.html">SystemHintOp</a> = undefined;
+match CRm @ op2 {
+  0b0000000 =&gt; {
+      op = <a href="fn/SystemHintOp.html">SystemHintOp_NOP</a>
+  },
+  0b0000001 =&gt; {
+      op = <a href="fn/SystemHintOp.html">SystemHintOp_YIELD</a>
+  },
+  0b0000010 =&gt; {
+      op = <a href="fn/SystemHintOp.html">SystemHintOp_WFE</a>
+  },
+  0b0000011 =&gt; {
+      op = <a href="fn/SystemHintOp.html">SystemHintOp_WFI</a>
+  },
+  0b0000100 =&gt; {
+      op = <a href="fn/SystemHintOp.html">SystemHintOp_SEV</a>
+  },
+  0b0000101 =&gt; {
+      op = <a href="fn/SystemHintOp.html">SystemHintOp_SEVL</a>
+  },
+  0b0000110 =&gt; {
+      if not_bool(<a href="fn/HaveDGHExt.html">HaveDGHExt</a>()) then {
+          EndOfInstruction()
+      };
+      op = <a href="fn/SystemHintOp.html">SystemHintOp_DGH</a>
+  },
+  0b0000111 =&gt; {
+      throw(Error_See(&quot;XPACLRI&quot;))
+  },
+  [bitzero, bitzero, bitzero, bitone, _, _, _] =&gt; {
+      match op2 {
+        0b000 =&gt; {
+            throw(Error_See(&quot;PACIA1716&quot;))
+        },
+        0b010 =&gt; {
+            throw(Error_See(&quot;PACIB1716&quot;))
+        },
+        0b100 =&gt; {
+            throw(Error_See(&quot;AUTIA1716&quot;))
+        },
+        0b110 =&gt; {
+            throw(Error_See(&quot;AUTIB1716&quot;))
+        },
+        _ =&gt; {
+            EndOfInstruction()
+        }
+      }
+  },
+  0b0010000 =&gt; {
+      if not_bool(<a href="fn/HaveRASExt.html">HaveRASExt</a>()) then {
+          EndOfInstruction()
+      };
+      op = <a href="fn/SystemHintOp.html">SystemHintOp_ESB</a>
+  },
+  0b0010001 =&gt; {
+      if not_bool(<a href="fn/HaveStatisticalProfiling.html">HaveStatisticalProfiling</a>()) then {
+          EndOfInstruction()
+      };
+      op = <a href="fn/SystemHintOp.html">SystemHintOp_PSB</a>
+  },
+  0b0010010 =&gt; {
+      if not_bool(<a href="fn/HaveSelfHostedTrace.html">HaveSelfHostedTrace</a>()) then {
+          EndOfInstruction()
+      };
+      op = <a href="fn/SystemHintOp.html">SystemHintOp_TSB</a>
+  },
+  0b0010011 =&gt; {
+      if not_bool(IsFeatureImplemented(<a href="fn/Feature.html">FEAT_GCS</a>)) then {
+          EndOfInstruction()
+      };
+      op = <a href="fn/SystemHintOp.html">SystemHintOp_GCSB</a>
+  },
+  0b0010100 =&gt; {
+      op = <a href="fn/SystemHintOp.html">SystemHintOp_CSDB</a>
+  },
+  0b0010110 =&gt; {
+      if not_bool(<a href="fn/HaveFeatCLRBHB.html">HaveFeatCLRBHB</a>()) then {
+          EndOfInstruction()
+      };
+      op = <a href="fn/SystemHintOp.html">SystemHintOp_CLRBHB</a>
+  },
+  [bitzero, bitzero, bitone, bitone, _, _, _] =&gt; {
+      match op2 {
+        0b000 =&gt; {
+            throw(Error_See(&quot;PACIAZ&quot;))
+        },
+        0b001 =&gt; {
+            throw(Error_See(&quot;PACIASP&quot;))
+        },
+        0b010 =&gt; {
+            throw(Error_See(&quot;PACIBZ&quot;))
+        },
+        0b011 =&gt; {
+            throw(Error_See(&quot;PACIBSP&quot;))
+        },
+        0b100 =&gt; {
+            throw(Error_See(&quot;AUTIAZ&quot;))
+        },
+        0b101 =&gt; {
+            throw(Error_See(&quot;AUTIASP&quot;))
+        },
+        0b110 =&gt; {
+            throw(Error_See(&quot;AUTIBZ&quot;))
+        },
+        0b111 =&gt; {
+            throw(Error_See(&quot;AUTIBSP&quot;))
+        }
+      }
+  },
+  [bitzero, bitone, bitzero, bitzero, _, _, bitzero] =&gt; {
+      op = <a href="fn/SystemHintOp.html">SystemHintOp_BTI</a>;
+      <a href="fn/SetBTypeCompatible.html">SetBTypeCompatible</a>(<a href="fn/BTypeCompatible_BTI.html">BTypeCompatible_BTI</a>(op2[2 .. 1]))
+  },
+  0b0101000 =&gt; {
+      if not_bool(IsFeatureImplemented(<a href="fn/Feature.html">FEAT_CHK</a>)) then {
+          EndOfInstruction()
+      };
+      op = <a href="fn/SystemHintOp.html">SystemHintOp_CHKFEAT</a>
+  },
+  _ =&gt; {
+      EndOfInstruction()
+  }
+};
+<a href="bti.html">execute_aarch64_instrs_system_hints</a>(op)</pre>
+<h2 class="pseudocode">Operation <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/aarch64/sail/a64.sail#L2611">Sail</a></h2>
+<pre>match op {
+  <a href="fn/SystemHintOp.html">SystemHintOp_YIELD</a> =&gt; {
+      Hint_Yield()
+  },
+  <a href="fn/SystemHintOp.html">SystemHintOp_DGH</a> =&gt; {
+      Hint_DGH()
+  },
+  <a href="fn/SystemHintOp.html">SystemHintOp_WFE</a> =&gt; {
+      let &#x27;localtimeout = (1 &lt;&lt; 64);
+      Hint_WFE(localtimeout, <a href="fn/WFxType.html">WFxType_WFE</a>)
+  },
+  <a href="fn/SystemHintOp.html">SystemHintOp_WFI</a> =&gt; {
+      let &#x27;localtimeout = (1 &lt;&lt; 64);
+      Hint_WFI(localtimeout, <a href="fn/WFxType.html">WFxType_WFI</a>)
+  },
+  <a href="fn/SystemHintOp.html">SystemHintOp_SEV</a> =&gt; {
+      SendEvent()
+  },
+  <a href="fn/SystemHintOp.html">SystemHintOp_SEVL</a> =&gt; {
+      SendEventLocal()
+  },
+  <a href="fn/SystemHintOp.html">SystemHintOp_ESB</a> =&gt; {
+      if <a href="fn/HaveTME.html">HaveTME</a>() &amp; TSTATE.depth &gt; 0 then {
+          FailTransaction(<a href="fn/TMFailure.html">TMFailure_ERR</a>, false)
+      };
+      SynchronizeErrors();
+      <a href="fn/AArch64_ESBOperation.html">AArch64_ESBOperation</a>();
+      if (<a href="fn/PSTATE.html">PSTATE</a>.EL == <a href="fn/EL0.html">EL0</a> | <a href="fn/PSTATE.html">PSTATE</a>.EL == <a href="fn/EL1.html">EL1</a>) &amp; <a href="fn/EL2Enabled.html">EL2Enabled</a>() then {
+          AArch64_vESBOperation()
+      };
+      TakeUnmaskedSErrorInterrupts()
+  },
+  <a href="fn/SystemHintOp.html">SystemHintOp_PSB</a> =&gt; {
+      ProfilingSynchronizationBarrier()
+  },
+  <a href="fn/SystemHintOp.html">SystemHintOp_TSB</a> =&gt; {
+      TraceSynchronizationBarrier()
+  },
+  <a href="fn/SystemHintOp.html">SystemHintOp_GCSB</a> =&gt; {
+      <a href="fn/GCSSynchronizationBarrier.html">GCSSynchronizationBarrier</a>()
+  },
+  <a href="fn/SystemHintOp.html">SystemHintOp_CHKFEAT</a> =&gt; {
+      <a href="fn/X_set.html">X_set</a>(16, 64) = <a href="fn/AArch64_ChkFeat.html">AArch64_ChkFeat</a>(<a href="fn/X_read.html">X_read</a>(16, 64))
+  },
+  <a href="fn/SystemHintOp.html">SystemHintOp_CSDB</a> =&gt; {
+      ConsumptionOfSpeculativeDataBarrier()
+  },
+  <a href="fn/SystemHintOp.html">SystemHintOp_CLRBHB</a> =&gt; {
+      Hint_CLRBHB()
+  },
+  <a href="fn/SystemHintOp.html">SystemHintOp_BTI</a> =&gt; {
+      <a href="fn/SetBTypeNext.html">SetBTypeNext</a>(0b00)
+  },
+  <a href="fn/SystemHintOp.html">SystemHintOp_NOP</a> =&gt; {
+      return()
+  },
+  _ =&gt; {
+      <a href="fn/Unreachable.html">Unreachable</a>()
+  }
+}</pre>
+<hr>
+<p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. sail-arm's definitions are Arm's ASL in Sail (BSD 3-Clause Clear, <a href="../LICENSE-sail-arm.txt">license</a>); ScarletNX's fixups are GPL-3.0-or-later.</p>
+</body>
+</html>

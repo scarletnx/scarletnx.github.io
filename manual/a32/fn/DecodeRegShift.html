@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>DecodeRegShift - ScarletNX ARM manual</title>
+<link rel="stylesheet" href="../../manual.css">
+</head>
+<body>
+<p class="nav"><a href="../../../">ScarletNX</a> / <a href="../../">ARM manual</a></p>
+<h1>DecodeRegShift</h1>
+<h2>sail-arm's definition <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/arm/sail/a32.sail#L5504">a32.sail</a></h2>
+<pre>val DecodeRegShift : bits(2) -&gt; <a href="../fn/SRType.html">SRType</a>
+
+function DecodeRegShift srtype = {
+    shift_t : <a href="../fn/SRType.html">SRType</a> = undefined;
+    match srtype {
+      0b00 =&gt; {
+          shift_t = <a href="../fn/SRType.html">SRType_LSL</a>
+      },
+      0b01 =&gt; {
+          shift_t = <a href="../fn/SRType.html">SRType_LSR</a>
+      },
+      0b10 =&gt; {
+          shift_t = <a href="../fn/SRType.html">SRType_ASR</a>
+      },
+      0b11 =&gt; {
+          shift_t = <a href="../fn/SRType.html">SRType_ROR</a>
+      }
+    };
+    let shift_t = shift_t;
+    return(shift_t)
+}</pre>
+<h2>Used by</h2><ul class="cols"><li><a href="../ADC_rr.html">ADC (register-shifted register)</a></li><li><a href="../ADD_rr.html">ADD (register-shifted register)</a></li><li><a href="../AND_rr.html">AND (register-shifted register)</a></li><li><a href="../BIC_rr.html">BIC (register-shifted register)</a></li><li><a href="../CMN_rr.html">CMN (register-shifted register)</a></li><li><a href="../CMP_rr.html">CMP (register-shifted register)</a></li><li><a href="../EOR_rr.html">EOR (register-shifted register)</a></li><li><a href="../MOV_rr.html">MOV (register-shifted register)</a></li><li><a href="../MVN_rr.html">MVN (register-shifted register)</a></li><li><a href="../ORR_rr.html">ORR (register-shifted register)</a></li><li><a href="../RSB_rr.html">RSB (register-shifted register)</a></li><li><a href="../RSC_rr.html">RSC (register-shifted register)</a></li><li><a href="../SBC_rr.html">SBC (register-shifted register)</a></li><li><a href="../SUB_rr.html">SUB (register-shifted register)</a></li><li><a href="../TEQ_rr.html">TEQ (register-shifted register)</a></li><li><a href="../TST_rr.html">TST (register-shifted register)</a></li></ul>
+<hr>
+<p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. sail-arm's definitions are Arm's ASL in Sail (BSD 3-Clause Clear, <a href="../../LICENSE-sail-arm.txt">license</a>); ScarletNX's fixups are GPL-3.0-or-later.</p>
+</body>
+</html>

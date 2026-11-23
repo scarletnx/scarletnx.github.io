@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>CBNZ - ScarletNX ARM manual</title>
+<link rel="stylesheet" href="../manual.css">
+</head>
+<body>
+<p class="nav"><a href="../../">ScarletNX</a> / <a href="../">ARM manual</a></p>
+<h1>CBNZ</h1>
+<p class="groups"><a href="T16.html">T32: 16-bit instructions</a></p>
+<h2 class="classheading" id="T1">T1</h2>
+<table class="regdiagram" border="1" cellspacing="0"><thead><tr><td>15</td><td>14</td><td>13</td><td>12</td><td>11</td><td>10</td><td>9</td><td>8</td><td>7</td><td>6</td><td>5</td><td>4</td><td>3</td><td>2</td><td>1</td><td>0</td></tr></thead><tbody><tr class="firstrow"><td class="l">1</td><td>0</td><td>1</td><td class="r">1</td><td colspan="1" class="lr">op</td><td class="lr">0</td><td colspan="1" class="lr">i</td><td class="lr">1</td><td colspan="5" class="lr">imm5</td><td colspan="3" class="lr">Rn</td></tr><tr class="secondrow"><td colspan="16"></td></tr></tbody></table>
+<p class="bits">1011x0x1xxxxxxxx</p>
+<h3>Decode <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/arm/sail/a32.sail#L1430">Sail</a></h3>
+<pre>let &#x27;n = UInt(Rn);
+let imm32 : bits(32) = ZeroExtend((i @ imm5) @ 0b0, 32);
+let nonzero : bool = op == 0b1;
+if <a href="fn/InITBlock.html">InITBlock</a>() then {
+    throw(Error_Unpredictable())
+};
+execute_aarch32_instrs_CBNZ_Op_A_txt(imm32, n, nonzero)</pre>
+<h2 class="pseudocode">Operation <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/arm/sail/a32.sail#L1419">Sail</a></h2>
+<pre>if nonzero != IsZero(<a href="fn/R_read.html">R_read</a>(n)) then {
+    <a href="fn/CBWritePC.html">CBWritePC</a>(<a href="fn/PC_read__1.html">PC_read__1</a>() + imm32)
+};
+()</pre>
+<hr>
+<p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. sail-arm's definitions are Arm's ASL in Sail (BSD 3-Clause Clear, <a href="../LICENSE-sail-arm.txt">license</a>); ScarletNX's fixups are GPL-3.0-or-later.</p>
+</body>
+</html>

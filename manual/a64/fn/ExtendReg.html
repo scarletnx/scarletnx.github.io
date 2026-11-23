@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>ExtendReg - ScarletNX ARM manual</title>
+<link rel="stylesheet" href="../../manual.css">
+</head>
+<body>
+<p class="nav"><a href="../../../">ScarletNX</a> / <a href="../../">ARM manual</a></p>
+<h1>ExtendReg</h1>
+<h2>sail-arm's definition <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/aarch64/sail/a64.sail#L22831">a64.sail</a></h2>
+<pre>val ExtendReg : forall &#x27;N &#x27;reg &#x27;shift,
+  &#x27;N &gt;= 0 &amp; (&#x27;N == 8 | &#x27;N == 16 | &#x27;N == 32 | &#x27;N == 64 | not((&#x27;shift &gt;= 0 &amp; &#x27;shift &lt;= 4))).
+  (int(&#x27;reg), <a href="../fn/ExtendType.html">ExtendType</a>, int(&#x27;shift), int(&#x27;N)) -&gt; bits(&#x27;N)
+
+function ExtendReg (reg, exttype, shift, N) = {
+    assert(shift &gt;= 0 &amp; shift &lt;= 4);
+    let val_name : bits(&#x27;N) = <a href="../fn/X_read.html">X_read</a>(reg, N);
+    is_unsigned : bool = undefined;
+    len : int = undefined;
+    match exttype {
+      <a href="../fn/ExtendType.html">ExtendType_SXTB</a> =&gt; {
+          is_unsigned = false;
+          len = 8
+      },
+      <a href="../fn/ExtendType.html">ExtendType_SXTH</a> =&gt; {
+          is_unsigned = false;
+          len = 16
+      },
+      <a href="../fn/ExtendType.html">ExtendType_SXTW</a> =&gt; {
+          is_unsigned = false;
+          len = 32
+      },
+      <a href="../fn/ExtendType.html">ExtendType_SXTX</a> =&gt; {
+          is_unsigned = false;
+          len = 64
+      },
+      <a href="../fn/ExtendType.html">ExtendType_UXTB</a> =&gt; {
+          is_unsigned = true;
+          len = 8
+      },
+      <a href="../fn/ExtendType.html">ExtendType_UXTH</a> =&gt; {
+          is_unsigned = true;
+          len = 16
+      },
+      <a href="../fn/ExtendType.html">ExtendType_UXTW</a> =&gt; {
+          is_unsigned = true;
+          len = 32
+      },
+      <a href="../fn/ExtendType.html">ExtendType_UXTX</a> =&gt; {
+          is_unsigned = true;
+          len = 64
+      }
+    };
+    let is_unsigned = is_unsigned;
+    let &#x27;len = Min(len, N - shift);
+    assert(constraint((0 &lt;= &#x27;len - 1 | not((&#x27;shift &gt;= 0 &amp; &#x27;shift &lt;= 4)))));
+    return(Extend(val_name[len - 1 .. 0] @ Zeros(shift), N, is_unsigned))
+}</pre>
+<h2>Used by</h2><ul class="cols"><li><a href="../add_addsub_ext.html">ADD (extended register)</a></li><li><a href="../ldr_reg_gen.html">LDR (register)</a></li></ul>
+<hr>
+<p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. sail-arm's definitions are Arm's ASL in Sail (BSD 3-Clause Clear, <a href="../../LICENSE-sail-arm.txt">license</a>); ScarletNX's fixups are GPL-3.0-or-later.</p>
+</body>
+</html>

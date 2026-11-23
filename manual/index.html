@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>ARM manual - ScarletNX ARM manual</title>
+<link rel="stylesheet" href="manual.css">
+</head>
+<body>
+<p class="nav"><a href="../">ScarletNX</a> / <a href="./">ARM manual</a></p>
+<h1>ARM manual</h1><p>The instructions ScarletNX recompiles, laid out as Arm's reference lays them out and made from the Sail it recompiles them from: <a href="https://github.com/rems-project/sail-arm">sail-arm</a>'s model of Armv9.4-A, and ScarletNX's fixups of it. Each instruction has its encodings, their decode and its operation; every name they use is a page of the shared pseudocode.</p><div id="search" data-root=""></div><ul><li><a href="a64/">A64</a>: the AArch64 instruction set, as a Switch program runs it (303 instructions, 332 encodings)</li><li><a href="a32/">A32 and T32</a>: the AArch32 instruction sets, from the ARM7TDMI to the Cortex-A57 (109 instructions, 149 encodings)</li></ul><p>The search takes a name (the nearest when none is the same) or an instruction word in hex (<code>0x1a020020</code>, or a Thumb halfword <code>0x4148</code>): it lists every encoding it matches.</p>
+<hr>
+<p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. sail-arm's definitions are Arm's ASL in Sail (BSD 3-Clause Clear, <a href="LICENSE-sail-arm.txt">license</a>); ScarletNX's fixups are GPL-3.0-or-later.</p>
+<script src="a64/data.js"></script><script src="a32/data.js"></script><script src="search.js"></script></body>
+</html>

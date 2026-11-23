@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>AUTDB - ScarletNX ARM manual</title>
+<link rel="stylesheet" href="../manual.css">
+</head>
+<body>
+<p class="nav"><a href="../../">ScarletNX</a> / <a href="../">ARM manual</a></p>
+<h1>AUTDB</h1>
+<p class="groups"><a href="A64_DataProcReg.html">Data processing (register)</a></p>
+<h2 class="classheading" id="Integer_PAC_autdb_data_processing_1_source">Integer PAC autdb data processing 1 source</h2>
+<table class="regdiagram" border="1" cellspacing="0"><thead><tr><td>31</td><td>30</td><td>29</td><td>28</td><td>27</td><td>26</td><td>25</td><td>24</td><td>23</td><td>22</td><td>21</td><td>20</td><td>19</td><td>18</td><td>17</td><td>16</td><td>15</td><td>14</td><td>13</td><td>12</td><td>11</td><td>10</td><td>9</td><td>8</td><td>7</td><td>6</td><td>5</td><td>4</td><td>3</td><td>2</td><td>1</td><td>0</td></tr></thead><tbody><tr class="firstrow"><td class="l">1</td><td>1</td><td>0</td><td>1</td><td>1</td><td>0</td><td>1</td><td>0</td><td>1</td><td>1</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>1</td><td>0</td><td class="r">0</td><td colspan="1" class="lr">Z</td><td class="l">1</td><td>1</td><td class="r">1</td><td colspan="5" class="lr">Rn</td><td colspan="5" class="lr">Rd</td></tr><tr class="secondrow"><td colspan="32"></td></tr></tbody></table>
+<p class="bits">110110101100000100x111xxxxxxxxxx</p>
+<h3>Decode <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/aarch64/sail/a64.sail#L1708">Sail</a></h3>
+<pre>source_is_sp : bool = false;
+let &#x27;d = UInt(Rd);
+let &#x27;n = UInt(Rn);
+if not_bool(<a href="fn/HavePACExt.html">HavePACExt</a>()) then {
+    throw(Error_Undefined())
+};
+if Z == 0b0 then {
+    if n == 31 then {
+        source_is_sp = true
+    };
+    ()
+} else {
+    if n != 31 then {
+        throw(Error_Undefined())
+    };
+    ()
+};
+execute_aarch64_instrs_integer_pac_autdb_dp_1src(d, n, source_is_sp)</pre>
+<h2 class="pseudocode">Operation <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/aarch64/sail/a64.sail#L1692">Sail</a></h2>
+<pre>let auth_then_branch : bool = false;
+if <a href="fn/HavePACExt.html">HavePACExt</a>() then {
+    if source_is_sp then {
+        <a href="fn/X_set.html">X_set</a>(d, 64) = <a href="fn/AuthDB.html">AuthDB</a>(<a href="fn/X_read.html">X_read</a>(d, 64), <a href="fn/SP_read.html">SP_read</a>(), auth_then_branch)
+    } else {
+        <a href="fn/X_set.html">X_set</a>(d, 64) = <a href="fn/AuthDB.html">AuthDB</a>(<a href="fn/X_read.html">X_read</a>(d, 64), <a href="fn/X_read.html">X_read</a>(n, 64), auth_then_branch)
+    }
+};
+()</pre>
+<hr>
+<p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. sail-arm's definitions are Arm's ASL in Sail (BSD 3-Clause Clear, <a href="../LICENSE-sail-arm.txt">license</a>); ScarletNX's fixups are GPL-3.0-or-later.</p>
+</body>
+</html>

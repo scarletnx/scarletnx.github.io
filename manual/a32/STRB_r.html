@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>STRB (register) - ScarletNX ARM manual</title>
+<link rel="stylesheet" href="../manual.css">
+</head>
+<body>
+<p class="nav"><a href="../../">ScarletNX</a> / <a href="../">ARM manual</a></p>
+<h1>STRB (register)</h1>
+<p class="groups"><a href="T16.html">T32: 16-bit instructions</a></p>
+<h2 class="classheading" id="T1">T1</h2>
+<table class="regdiagram" border="1" cellspacing="0"><thead><tr><td>15</td><td>14</td><td>13</td><td>12</td><td>11</td><td>10</td><td>9</td><td>8</td><td>7</td><td>6</td><td>5</td><td>4</td><td>3</td><td>2</td><td>1</td><td>0</td></tr></thead><tbody><tr class="firstrow"><td class="l">0</td><td>1</td><td>0</td><td>1</td><td>0</td><td>1</td><td class="r">0</td><td colspan="3" class="lr">Rm</td><td colspan="3" class="lr">Rn</td><td colspan="3" class="lr">Rt</td></tr><tr class="secondrow"><td colspan="16"></td></tr></tbody></table>
+<p class="bits">0101010xxxxxxxxx</p>
+<h3>Decode <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/arm/sail/a32.sail#L4064">Sail</a></h3>
+<pre>if <a href="fn/ConditionPassed.html">ConditionPassed</a>() then {
+    shift_n : int = undefined;
+    shift_t : <a href="fn/SRType.html">SRType</a> = undefined;
+    let &#x27;t = UInt(Rt);
+    let &#x27;n = UInt(Rn);
+    let &#x27;m = UInt(Rm);
+    let index : bool = true;
+    let add : bool = true;
+    let wback : bool = false;
+    (shift_t, shift_n) = (<a href="fn/SRType.html">SRType_LSL</a>, 0);
+    let &#x27;shift_n = shift_n;
+    execute_aarch32_instrs_STRB_r_Op_A_txt(add, index, m, n, shift_n, shift_t, t, wback)
+};
+()</pre>
+<h2 class="pseudocode">Operation <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/arm/sail/a32.sail#L4045">Sail</a></h2>
+<pre>let offset : bits(32) = <a href="fn/Shift.html">Shift</a>(<a href="fn/R_read.html">R_read</a>(m), shift_t, shift_n, <a href="fn/PSTATE.html">PSTATE</a>.C);
+let offset_addr : bits(32) = if add then <a href="fn/R_read.html">R_read</a>(n) + offset else
+  <a href="fn/R_read.html">R_read</a>(n) - offset;
+let address : bits(32) = if index then offset_addr else <a href="fn/R_read.html">R_read</a>(n);
+if not_bool(wback) &amp; t != 15 then {
+    <a href="fn/AArch32_SetLSInstructionSyndrome.html">AArch32_SetLSInstructionSyndrome</a>(1, false, t, false)
+};
+<a href="fn/MemU_set.html">MemU_set</a>(address, 1) = <a href="fn/R_read.html">R_read</a>(t)[7 .. 0];
+if wback then {
+    <a href="fn/R_set.html">R_set</a>(n) = offset_addr
+};
+()</pre>
+<hr>
+<p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. sail-arm's definitions are Arm's ASL in Sail (BSD 3-Clause Clear, <a href="../LICENSE-sail-arm.txt">license</a>); ScarletNX's fixups are GPL-3.0-or-later.</p>
+</body>
+</html>

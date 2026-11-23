@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>ExtendType - ScarletNX ARM manual</title>
+<link rel="stylesheet" href="../../manual.css">
+</head>
+<body>
+<p class="nav"><a href="../../../">ScarletNX</a> / <a href="../../">ARM manual</a></p>
+<h1>ExtendType</h1>
+<h2>sail-arm's definition <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/aarch64/sail/a64.sail#L22039">a64.sail</a></h2>
+<pre>enum ExtendType = {
+  ExtendType_SXTB,
+  ExtendType_SXTH,
+  ExtendType_SXTW,
+  ExtendType_SXTX,
+  ExtendType_UXTB,
+  ExtendType_UXTH,
+  ExtendType_UXTW,
+  ExtendType_UXTX
+}</pre>
+<h2>Used by</h2><ul class="cols"><li><a href="../add_addsub_ext.html">ADD (extended register)</a></li><li><a href="../adds_addsub_ext.html">ADDS (extended register)</a></li><li><a href="../ldr_reg_gen.html">LDR (register)</a></li><li><a href="../ldrb_reg.html">LDRB (register)</a></li><li><a href="../ldrh_reg.html">LDRH (register)</a></li><li><a href="../ldrsb_reg.html">LDRSB (register)</a></li><li><a href="../ldrsh_reg.html">LDRSH (register)</a></li><li><a href="../ldrsw_reg.html">LDRSW (register)</a></li><li><a href="../prfm_reg.html">PRFM (register)</a></li><li><a href="../str_reg_gen.html">STR (register)</a></li><li><a href="../strb_reg.html">STRB (register)</a></li><li><a href="../strh_reg.html">STRH (register)</a></li><li><a href="../sub_addsub_ext.html">SUB (extended register)</a></li><li><a href="../subs_addsub_ext.html">SUBS (extended register)</a></li><li><a href="DecodeRegExtend.html">DecodeRegExtend</a></li><li><a href="ExtendReg.html">ExtendReg</a></li><li><a href="ExtendType.html">ExtendType</a></li></ul>
+<hr>
+<p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. sail-arm's definitions are Arm's ASL in Sail (BSD 3-Clause Clear, <a href="../../LICENSE-sail-arm.txt">license</a>); ScarletNX's fixups are GPL-3.0-or-later.</p>
+</body>
+</html>

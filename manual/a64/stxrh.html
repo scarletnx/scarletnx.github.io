@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>STXRH - ScarletNX ARM manual</title>
+<link rel="stylesheet" href="../manual.css">
+</head>
+<body>
+<p class="nav"><a href="../../">ScarletNX</a> / <a href="../">ARM manual</a></p>
+<h1>STXRH</h1>
+<p class="groups"><a href="A64_LoadStore.html">Loads and stores</a></p>
+<h2 class="classheading" id="Memory_exclusive_single">Memory exclusive single</h2>
+<table class="regdiagram" border="1" cellspacing="0"><thead><tr><td>31</td><td>30</td><td>29</td><td>28</td><td>27</td><td>26</td><td>25</td><td>24</td><td>23</td><td>22</td><td>21</td><td>20</td><td>19</td><td>18</td><td>17</td><td>16</td><td>15</td><td>14</td><td>13</td><td>12</td><td>11</td><td>10</td><td>9</td><td>8</td><td>7</td><td>6</td><td>5</td><td>4</td><td>3</td><td>2</td><td>1</td><td>0</td></tr></thead><tbody><tr class="firstrow"><td class="l">0</td><td class="r">1</td><td class="l">0</td><td>0</td><td>1</td><td>0</td><td>0</td><td>0</td><td class="r">0</td><td class="lr">0</td><td class="lr">0</td><td colspan="5" class="lr">Rs</td><td class="lr">0</td><td class="l">1</td><td>1</td><td>1</td><td>1</td><td class="r">1</td><td colspan="5" class="lr">Rn</td><td colspan="5" class="lr">Rt</td></tr><tr class="secondrow"><td colspan="2" class="droppedname">size</td><td colspan="7"></td><td colspan="1" class="droppedname">L</td><td colspan="6"></td><td colspan="1" class="droppedname">o0</td><td colspan="5" class="droppedname">Rt2</td><td colspan="10"></td></tr></tbody></table>
+<p class="bits">01001000000xxxxx011111xxxxxxxxxx</p>
+<h3>Decode <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/aarch64/sail/a64.sail#L12938">Sail</a></h3>
+<pre>let &#x27;n = UInt(Rn);
+let &#x27;t = UInt(Rt);
+let &#x27;t2 = UInt(Rt2);
+let &#x27;s = UInt(Rs);
+let acqrel : bool = o0 == 0b1;
+let pair : bool = false;
+let memop : <a href="fn/MemOp.html">MemOp</a> = if L == 0b1 then <a href="fn/MemOp.html">MemOp_LOAD</a> else <a href="fn/MemOp.html">MemOp_STORE</a>;
+let &#x27;elsize = (8 &lt;&lt; UInt(size));
+let &#x27;regsize = if elsize == 64 then 64 else 32;
+let &#x27;datasize = if pair then elsize * 2 else elsize;
+let tagchecked : bool = n != 31;
+rt_unknown : bool = false;
+rn_unknown : bool = false;
+if (memop == <a href="fn/MemOp.html">MemOp_LOAD</a> &amp; pair) &amp; t == t2 then {
+    let c : <a href="fn/Constraint.html">Constraint</a> = <a href="fn/ConstrainUnpredictable.html">ConstrainUnpredictable</a>(<a href="fn/Unpredictable.html">Unpredictable_LDPOVERLAP</a>);
+    assert(c == <a href="fn/Constraint.html">Constraint_UNKNOWN</a> | c == <a href="fn/Constraint.html">Constraint_UNDEF</a> | c == <a href="fn/Constraint.html">Constraint_NOP</a>);
+    match c {
+      <a href="fn/Constraint.html">Constraint_UNKNOWN</a> =&gt; {
+          rt_unknown = true
+      },
+      <a href="fn/Constraint.html">Constraint_UNDEF</a> =&gt; {
+          throw(Error_Undefined())
+      },
+      <a href="fn/Constraint.html">Constraint_NOP</a> =&gt; {
+          EndOfInstruction()
+      },
+      _ =&gt; ()
+    }
+};
+if memop == <a href="fn/MemOp.html">MemOp_STORE</a> then {
+    if s == t | pair &amp; s == t2 then {
+        let c : <a href="fn/Constraint.html">Constraint</a> = <a href="fn/ConstrainUnpredictable.html">ConstrainUnpredictable</a>(<a href="fn/Unpredictable.html">Unpredictable_DATAOVERLAP</a>);
+        assert(c == <a href="fn/Constraint.html">Constraint_UNKNOWN</a> | c == <a href="fn/Constraint.html">Constraint_UNDEF</a> | c == <a href="fn/Constraint.html">Constraint_NOP</a>);
+        match c {
+          <a href="fn/Constraint.html">Constraint_UNKNOWN</a> =&gt; {
+              rt_unknown = true
+          },
+          <a href="fn/Constraint.html">Constraint_UNDEF</a> =&gt; {
+              throw(Error_Undefined())
+          },
+          <a href="fn/Constraint.html">Constraint_NOP</a> =&gt; {
+              EndOfInstruction()
+          },
+          _ =&gt; ()
+        }
+    };
+    if s == n &amp; n != 31 then {
+        let c : <a href="fn/Constraint.html">Constraint</a> = <a href="fn/ConstrainUnpredictable.html">ConstrainUnpredictable</a>(<a href="fn/Unpredictable.html">Unpredictable_BASEOVERLAP</a>);
+        assert(c == <a href="fn/Constraint.html">Constraint_UNKNOWN</a> | c == <a href="fn/Constraint.html">Constraint_UNDEF</a> | c == <a href="fn/Constraint.html">Constraint_NOP</a>);
+        match c {
+          <a href="fn/Constraint.html">Constraint_UNKNOWN</a> =&gt; {
+              rn_unknown = true
+          },
+          <a href="fn/Constraint.html">Constraint_UNDEF</a> =&gt; {
+              throw(Error_Undefined())
+          },
+          <a href="fn/Constraint.html">Constraint_NOP</a> =&gt; {
+              EndOfInstruction()
+          },
+          _ =&gt; ()
+        }
+    };
+    ()
+};
+<a href="ldaxr.html">execute_aarch64_instrs_memory_exclusive_single</a>(acqrel, datasize, elsize, memop, n, pair, regsize, rn_unknown, rt_unknown, s, t, t2, tagchecked)</pre>
+<h2 class="pseudocode">Operation <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/aarch64/sail/a64.sail#L11908">Sail</a></h2>
+<pre>address : bits(64) = undefined;
+data : bits(&#x27;datasize) = undefined;
+let &#x27;dbytes = DIV(datasize, 8);
+let accdesc : <a href="fn/AccessDescriptor.html">AccessDescriptor</a> = <a href="fn/CreateAccDescExLDST.html">CreateAccDescExLDST</a>(memop, acqrel, tagchecked);
+if n == 31 then {
+    <a href="fn/CheckSPAlignment.html">CheckSPAlignment</a>();
+    address = <a href="fn/SP_read.html">SP_read</a>()
+} else if rn_unknown then {
+    address = <a href="fn/__UNKNOWN_bits.html">__UNKNOWN_bits</a>(64)
+} else {
+    address = <a href="fn/X_read.html">X_read</a>(n, 64)
+};
+match memop {
+  <a href="fn/MemOp.html">MemOp_STORE</a> =&gt; {
+      if rt_unknown then {
+          data = <a href="fn/__UNKNOWN_bits.html">__UNKNOWN_bits</a>(datasize)
+      } else if pair then {
+          assert(constraint((div(&#x27;datasize, 2) == 8 | div(&#x27;datasize, 2) == 16 | div(&#x27;datasize, 2) == 32 | div(&#x27;datasize, 2) == 64)));
+          let el1 : bits(div(&#x27;datasize, 2)) = <a href="fn/X_read.html">X_read</a>(t, DIV(datasize, 2));
+          let el2 : bits(div(&#x27;datasize, 2)) = <a href="fn/X_read.html">X_read</a>(t2, DIV(datasize, 2));
+          data = if <a href="fn/BigEndian.html">BigEndian</a>(accdesc.acctype) then el1 @ el2 else el2 @ el1
+      } else {
+          assert(constraint(&#x27;datasize in {8, 16, 32, 64}));
+          data = <a href="fn/X_read.html">X_read</a>(t, datasize)
+      };
+      status : bits(1) = 0b1;
+      if <a href="fn/AArch64_ExclusiveMonitorsPass.html">AArch64_ExclusiveMonitorsPass</a>(address, dbytes) then {
+          <a href="fn/Mem_set.html">Mem_set</a>(address, dbytes, accdesc) = data;
+          status = <a href="fn/ExclusiveMonitorsStatus.html">ExclusiveMonitorsStatus</a>()
+      } else if <a href="fn/SPESampleInFlight.html">SPESampleInFlight</a> then {
+          SPESetDataVirtualAddress(address)
+      } else ();
+      <a href="fn/X_set.html">X_set</a>(s, 32) = ZeroExtend(status, 32)
+  },
+  <a href="fn/MemOp.html">MemOp_LOAD</a> =&gt; {
+      <a href="fn/AArch64_SetExclusiveMonitors.html">AArch64_SetExclusiveMonitors</a>(address, dbytes);
+      if pair then {
+          if rt_unknown then {
+              assert(constraint(&#x27;datasize in {32, 64}));
+              <a href="fn/X_set.html">X_set</a>(t, datasize) = <a href="fn/__UNKNOWN_bits.html">__UNKNOWN_bits</a>(datasize)
+          } else if elsize == 32 then {
+              let data : bits(&#x27;datasize) = <a href="fn/Mem_read.html">Mem_read</a>(address, dbytes, accdesc);
+              if <a href="fn/BigEndian.html">BigEndian</a>(accdesc.acctype) then {
+                  assert(constraint((0 &lt;= &#x27;elsize &amp; &#x27;elsize &lt;= &#x27;datasize - 1 &amp; &#x27;datasize - 1 &lt; &#x27;datasize)));
+                  assert(constraint((&#x27;datasize - &#x27;elsize == 32 | &#x27;datasize - &#x27;elsize == 64)));
+                  <a href="fn/X_set.html">X_set</a>(t, datasize - elsize) = data[datasize - 1 .. elsize];
+                  <a href="fn/X_set.html">X_set</a>(t2, elsize) = data[elsize - 1 .. 0]
+              } else {
+                  assert(constraint((0 &lt;= &#x27;elsize - 1 &amp; &#x27;elsize - 1 &lt; &#x27;datasize)));
+                  <a href="fn/X_set.html">X_set</a>(t, elsize) = data[elsize - 1 .. 0];
+                  assert(constraint((0 &lt;= &#x27;elsize &amp; &#x27;elsize &lt;= &#x27;datasize - 1 &amp; &#x27;datasize - 1 &lt; &#x27;datasize)));
+                  assert(constraint((&#x27;datasize - &#x27;elsize == 32 | &#x27;datasize - &#x27;elsize == 64)));
+                  <a href="fn/X_set.html">X_set</a>(t2, datasize - elsize) = data[datasize - 1 .. elsize]
+              }
+          } else {
+              if not_bool(<a href="fn/IsAligned__1.html">IsAligned__1</a>(address, dbytes)) then {
+                  AArch64_Abort(address, AlignmentFault(accdesc))
+              };
+              <a href="fn/X_set.html">X_set</a>(t, 64) = <a href="fn/Mem_read.html">Mem_read</a>(address + 0, 8, accdesc);
+              <a href="fn/X_set.html">X_set</a>(t2, 64) = <a href="fn/Mem_read.html">Mem_read</a>(address + 8, 8, accdesc)
+          }
+      } else {
+          let data : bits(&#x27;datasize) = <a href="fn/Mem_read.html">Mem_read</a>(address, dbytes, accdesc);
+          assert(constraint((&#x27;datasize &gt;= 0 &amp; &#x27;regsize &gt;= &#x27;datasize)));
+          <a href="fn/X_set.html">X_set</a>(t, regsize) = ZeroExtend(data, regsize)
+      }
+  },
+  _ =&gt; ()
+};
+if <a href="fn/SPESampleInFlight.html">SPESampleInFlight</a> then {
+    let ar : bits(1) = if acqrel then 0b1 else 0b0;
+    let excl : bits(1) = 0b1;
+    let at : bits(1) = 0b0;
+    let is_load : bool = memop == <a href="fn/MemOp.html">MemOp_LOAD</a>;
+    SPESampleExtendedLoadStore(ar, excl, at, is_load)
+};
+()</pre>
+<hr>
+<p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. sail-arm's definitions are Arm's ASL in Sail (BSD 3-Clause Clear, <a href="../LICENSE-sail-arm.txt">license</a>); ScarletNX's fixups are GPL-3.0-or-later.</p>
+</body>
+</html>

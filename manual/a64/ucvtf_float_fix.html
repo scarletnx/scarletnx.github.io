@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>UCVTF (scalar, fixed-point) - ScarletNX ARM manual</title>
+<link rel="stylesheet" href="../manual.css">
+</head>
+<body>
+<p class="nav"><a href="../../">ScarletNX</a> / <a href="../">ARM manual</a></p>
+<h1>UCVTF (scalar, fixed-point)</h1>
+<p class="groups"><a href="A64_DataProcFPSIMD.html">Data processing (scalar floating-point and Advanced SIMD)</a></p>
+<h2 class="classheading" id="Float_convert_fix">Float convert fix</h2>
+<table class="regdiagram" border="1" cellspacing="0"><thead><tr><td>31</td><td>30</td><td>29</td><td>28</td><td>27</td><td>26</td><td>25</td><td>24</td><td>23</td><td>22</td><td>21</td><td>20</td><td>19</td><td>18</td><td>17</td><td>16</td><td>15</td><td>14</td><td>13</td><td>12</td><td>11</td><td>10</td><td>9</td><td>8</td><td>7</td><td>6</td><td>5</td><td>4</td><td>3</td><td>2</td><td>1</td><td>0</td></tr></thead><tbody><tr class="firstrow"><td colspan="1" class="lr">sf</td><td class="l">0</td><td>0</td><td>1</td><td>1</td><td>1</td><td>1</td><td class="r">0</td><td colspan="2" class="lr">ftype</td><td class="lr">0</td><td class="l">0</td><td class="r">0</td><td class="l">0</td><td>1</td><td class="r">1</td><td colspan="6" class="lr">scale</td><td colspan="5" class="lr">Rn</td><td colspan="5" class="lr">Rd</td></tr><tr class="secondrow"><td colspan="11"></td><td colspan="2" class="droppedname">rmode</td><td colspan="3" class="droppedname">opcode</td><td colspan="16"></td></tr></tbody></table>
+<p class="bits">x0011110xx000011xxxxxxxxxxxxxxxx</p>
+<h3>Decode <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/aarch64/sail/a64.sail#L7320">Sail</a></h3>
+<pre>let &#x27;d = UInt(Rd);
+let &#x27;n = UInt(Rn);
+let &#x27;intsize = if sf == 0b1 then 64 else 32;
+fltsize : {16, 32, 64} = 16;
+op : <a href="fn/FPConvOp.html">FPConvOp</a> = undefined;
+rounding : <a href="fn/FPRounding.html">FPRounding</a> = undefined;
+is_unsigned : bool = undefined;
+match ftype {
+  0b00 =&gt; {
+      fltsize = 32
+  },
+  0b01 =&gt; {
+      fltsize = 64
+  },
+  0b10 =&gt; {
+      throw(Error_Undefined())
+  },
+  0b11 =&gt; {
+      if <a href="fn/HaveFP16Ext.html">HaveFP16Ext</a>() then {
+          fltsize = 16
+      } else {
+          throw(Error_Undefined())
+      }
+  }
+};
+let &#x27;fltsize = fltsize;
+if sf == 0b0 &amp; [scale[5]] == 0b0 then {
+    throw(Error_Undefined())
+};
+let &#x27;fracbits = 64 - UInt(scale);
+match opcode[2 .. 1] @ rmode {
+  0b0011 =&gt; {
+      rounding = <a href="fn/FPRounding.html">FPRounding_ZERO</a>;
+      is_unsigned = [opcode[0]] == 0b1;
+      op = <a href="fn/FPConvOp.html">FPConvOp_CVT_FtoI</a>
+  },
+  0b0100 =&gt; {
+      rounding = <a href="fn/FPRoundingMode.html">FPRoundingMode</a>(<a href="fn/FPCR_read.html">FPCR_read</a>());
+      is_unsigned = [opcode[0]] == 0b1;
+      op = <a href="fn/FPConvOp.html">FPConvOp_CVT_ItoF</a>
+  },
+  _ =&gt; {
+      throw(Error_Undefined())
+  }
+};
+<a href="fcvtzs_float_fix.html">execute_aarch64_instrs_float_convert_fix</a>(d, fltsize, fracbits, intsize, n, op, rounding, is_unsigned)</pre>
+<h2 class="pseudocode">Operation <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/aarch64/sail/a64.sail#L7102">Sail</a></h2>
+<pre><a href="fn/CheckFPEnabled64.html">CheckFPEnabled64</a>();
+let fpcr : <a href="fn/FPCRType.html">FPCRType</a> = <a href="fn/FPCR_read.html">FPCR_read</a>();
+let merge : bool = <a href="fn/IsMerging.html">IsMerging</a>(fpcr);
+let &#x27;fsize = if op == <a href="fn/FPConvOp.html">FPConvOp_CVT_ItoF</a> &amp; merge then 128 else fltsize;
+fltval : bits(&#x27;fsize) = undefined;
+intval : bits(&#x27;intsize) = undefined;
+match op {
+  <a href="fn/FPConvOp.html">FPConvOp_CVT_FtoI</a> =&gt; {
+      let fltval : bits(&#x27;fsize) = <a href="fn/V_read.html">V_read</a>(n, fsize);
+      assert(constraint((&#x27;fsize in {16, 32, 64} &amp; &#x27;intsize in {16, 32, 64})));
+      let intval : bits(&#x27;intsize) = <a href="fn/FPToFixed.html">FPToFixed</a>(fltval, fracbits, is_unsigned, fpcr, rounding, intsize);
+      <a href="fn/X_set.html">X_set</a>(d, intsize) = intval
+  },
+  <a href="fn/FPConvOp.html">FPConvOp_CVT_ItoF</a> =&gt; {
+      let intval : bits(&#x27;intsize) = <a href="fn/X_read.html">X_read</a>(n, intsize);
+      fltval : bits(&#x27;fsize) = if merge then <a href="fn/V_read.html">V_read</a>(d, fsize) else
+        Zeros(fsize);
+      fltval = Elem_set(fltval, 0, fltsize, <a href="fn/FixedToFP.html">FixedToFP</a>(intval, fracbits, is_unsigned, fpcr, rounding, fltsize));
+      <a href="fn/V_set.html">V_set</a>(d, fsize) = fltval
+  },
+  _ =&gt; ()
+}</pre>
+<hr>
+<p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. sail-arm's definitions are Arm's ASL in Sail (BSD 3-Clause Clear, <a href="../LICENSE-sail-arm.txt">license</a>); ScarletNX's fixups are GPL-3.0-or-later.</p>
+</body>
+</html>

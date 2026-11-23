@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>FPCRType - ScarletNX ARM manual</title>
+<link rel="stylesheet" href="../../manual.css">
+</head>
+<body>
+<p class="nav"><a href="../../../">ScarletNX</a> / <a href="../../">ARM manual</a></p>
+<h1>FPCRType</h1>
+<h2>sail-arm's definition <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/aarch64/sail/a64.sail#L21668">a64.sail</a></h2>
+<pre>bitfield FPCRType : bits(64) =
+  {
+    FIZ : 0,
+    AH : 1,
+    NEP : 2,
+    IOE : 8,
+    DZE : 9,
+    OFE : 10,
+    UFE : 11,
+    IXE : 12,
+    EBF : 13,
+    IDE : 15,
+    length : 18..16,
+    FZ16 : 19,
+    Stride : 21..20,
+    RMode : 23..22,
+    FZ : 24,
+    DN : 25,
+    AHP : 26,
+    IOC : 32,
+    DZC : 33,
+    OFC : 34
+  }</pre>
+<h2>Used by</h2><ul class="cols"><li><a href="../bfcvt_float.html">BFCVT (scalar)</a></li><li><a href="../fabs_float.html">FABS (scalar)</a></li><li><a href="../fadd_float.html">FADD (scalar)</a></li><li><a href="../fcvt_float.html">FCVT (scalar)</a></li><li><a href="../fcvtas_float.html">FCVTAS (scalar)</a></li><li><a href="../fcvtzs_float_fix.html">FCVTZS (scalar, fixed-point)</a></li><li><a href="../fdiv_float.html">FDIV (scalar)</a></li><li><a href="../fmadd_float.html">FMADD (scalar)</a></li><li><a href="../fmax_float.html">FMAX (scalar)</a></li><li><a href="../fmul_float.html">FMUL (scalar)</a></li><li><a href="../frint32x_float.html">FRINT32X (scalar)</a></li><li><a href="../frinta_float.html">FRINTA (scalar)</a></li><li><a href="FixedToFP.html">FixedToFP</a></li><li><a href="FPAbs.html">FPAbs</a></li><li><a href="FPAdd.html">FPAdd</a></li><li><a href="FPCompare.html">FPCompare</a></li><li><a href="FPConvert__1.html">FPConvert__1</a></li><li><a href="FPConvertBF__1.html">FPConvertBF__1</a></li><li><a href="FPDiv.html">FPDiv</a></li><li><a href="FPMax.html">FPMax</a></li><li><a href="FPMaxNum.html">FPMaxNum</a></li><li><a href="FPMin.html">FPMin</a></li><li><a href="FPMinNum.html">FPMinNum</a></li><li><a href="FPMul.html">FPMul</a></li><li><a href="FPMulAdd.html">FPMulAdd</a></li><li><a href="FPNeg.html">FPNeg</a></li><li><a href="FPRoundingMode.html">FPRoundingMode</a></li><li><a href="FPRoundInt.html">FPRoundInt</a></li><li><a href="FPRoundIntN.html">FPRoundIntN</a></li><li><a href="FPSqrt.html">FPSqrt</a></li><li><a href="FPSub.html">FPSub</a></li><li><a href="FPToFixed.html">FPToFixed</a></li><li><a href="FPToFixedJS.html">FPToFixedJS</a></li></ul>
+<hr>
+<p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. sail-arm's definitions are Arm's ASL in Sail (BSD 3-Clause Clear, <a href="../../LICENSE-sail-arm.txt">license</a>); ScarletNX's fixups are GPL-3.0-or-later.</p>
+</body>
+</html>

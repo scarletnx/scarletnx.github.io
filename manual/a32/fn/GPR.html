@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>GPR - ScarletNX ARM manual</title>
+<link rel="stylesheet" href="../../manual.css">
+</head>
+<body>
+<p class="nav"><a href="../../../">ScarletNX</a> / <a href="../../">ARM manual</a></p>
+<h1>GPR</h1>
+<h2>ScarletNX's fixup <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/arm/sail/arm.sail#L16">arm.sail</a></h2>
+<p>The AArch32 guests&#x27; fixups over a32.sail, each with why: what user mode on the 3DS&#x27;s ARM11, the GBA&#x27;s ARM7TDMI, the NDS&#x27;s ARM946E-S, the Vita&#x27;s Cortex-A9 and a 32-bit Switch program&#x27;s Cortex-A57 makes of the architecture, and where ScarletNX&#x27;s AArch32 CPU (arm.h&#x27;s SnxArmCPU) keeps the registers. sailgen reads this file after a32.sail (--overlay), and a definition here takes the place of a32.sail&#x27;s of the same name; a top-level let is a constant the generated code folds. a32.roots stops the extraction at the names defined here, so a32.sail holds only sail-arm&#x27;s own text. What differs from one architecture to the next asks ArchVersion(), the guest&#x27;s (llvm_arm.h), as the ARMv7 ARM&#x27;s ASL does; which encodings each one has is a32.profile&#x27;s ---- the registers ---- ScarletNX&#x27;s AArch32 CPU keeps R0 to R15 in one array (SnxArmCPU.r), and a guest runs in user mode alone, which banks none of them: sail-arm&#x27;s Rmode_read and Rmode_set pick a mode&#x27;s bank, here GPR&#x27;s elements, which the back end loads and stores where the CPU keeps them (sg_GPR_read). R15 is read through R_read, the pc of the instruction plus 8 or 4</p>
+<pre>register GPR : vector(16, bits(32))</pre>
+<h2>Used by</h2><ul class="cols"><li><a href="Rmode_read.html">Rmode_read</a></li><li><a href="Rmode_set.html">Rmode_set</a></li></ul>
+<hr>
+<p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. sail-arm's definitions are Arm's ASL in Sail (BSD 3-Clause Clear, <a href="../../LICENSE-sail-arm.txt">license</a>); ScarletNX's fixups are GPL-3.0-or-later.</p>
+</body>
+</html>

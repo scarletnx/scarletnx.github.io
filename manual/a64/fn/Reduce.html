@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Reduce - ScarletNX ARM manual</title>
+<link rel="stylesheet" href="../../manual.css">
+</head>
+<body>
+<p class="nav"><a href="../../../">ScarletNX</a> / <a href="../../">ARM manual</a></p>
+<h1>Reduce</h1>
+<h2>sail-arm's definition <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/aarch64/sail/a64.sail#L22708">a64.sail</a></h2>
+<pre>val Reduce : forall &#x27;N &#x27;esize,
+  (&#x27;N in {8, 16, 32, 64, 128, 256, 512, 1024, 2048} &amp; &#x27;esize in {8, 16, 32, 64} &amp; &#x27;N &gt;= &#x27;esize).
+  (<a href="../fn/ReduceOp.html">ReduceOp</a>, bits(&#x27;N), int(&#x27;esize)) -&gt; bits(&#x27;esize)</pre>
+<h2>sail-arm's definition <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/aarch64/sail/a64.sail#L22716">a64.sail</a></h2>
+<pre>function Reduce (op, input, esize) = {
+    let altfp : bool = (<a href="../fn/HaveAltFP.html">HaveAltFP</a>() &amp; not_bool(<a href="../fn/UsingAArch32.html">UsingAArch32</a>())) &amp; <a href="../fn/FPCR.html">FPCR</a>[AH] == 0b1;
+    return(<a href="../fn/Reduce__1.html">Reduce__1</a>(op, input, esize, altfp))
+}</pre>
+<h2>Used by</h2><ul class="cols"><li><a href="../addv_advsimd.html">ADDV (vector)</a></li></ul>
+<hr>
+<p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. sail-arm's definitions are Arm's ASL in Sail (BSD 3-Clause Clear, <a href="../../LICENSE-sail-arm.txt">license</a>); ScarletNX's fixups are GPL-3.0-or-later.</p>
+</body>
+</html>

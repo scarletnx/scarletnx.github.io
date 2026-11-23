@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>GPR - ScarletNX ARM manual</title>
+<link rel="stylesheet" href="../../manual.css">
+</head>
+<body>
+<p class="nav"><a href="../../../">ScarletNX</a> / <a href="../../">ARM manual</a></p>
+<h1>GPR</h1>
+<h2>ScarletNX's fixup <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/aarch64/sail/nx.sail#L11">nx.sail</a></h2>
+<p>The NX&#x27;s fixups over a64.sail, each with why: what Horizon&#x27;s EL0 makes of the architecture where it chooses, and where ScarletNX&#x27;s CPU keeps the registers. sailgen reads this file after a64.sail (--overlay), and a definition here takes the place of a64.sail&#x27;s of the same name; a top-level let is a constant the generated code folds. a64.roots stops the extraction at the names defined here, so a64.sail holds only sail-arm&#x27;s own text ScarletNX&#x27;s CPU keeps the general-purpose registers in one array of 32 (cpu.h&#x27;s CPU.x): X0 to X30, then the stack pointer. sail-arm has 31 registers R0 to R30, which get_R and set_R pick by a match on the number; here they are GPR&#x27;s elements, by that number, which the back end loads and stores where the CPU keeps them (sg_GPR_read)</p>
+<pre>register GPR : vector(32, bits(64))</pre>
+<h2>Used by</h2><ul class="cols"><li><a href="get_R.html">get_R</a></li><li><a href="set_R.html">set_R</a></li><li><a href="SP_read.html">SP_read</a></li><li><a href="SP_set.html">SP_set</a></li></ul>
+<hr>
+<p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. sail-arm's definitions are Arm's ASL in Sail (BSD 3-Clause Clear, <a href="../../LICENSE-sail-arm.txt">license</a>); ScarletNX's fixups are GPL-3.0-or-later.</p>
+</body>
+</html>

@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>MemAtomicOp - ScarletNX ARM manual</title>
+<link rel="stylesheet" href="../../manual.css">
+</head>
+<body>
+<p class="nav"><a href="../../../">ScarletNX</a> / <a href="../../">ARM manual</a></p>
+<h1>MemAtomicOp</h1>
+<h2>sail-arm's definition <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/aarch64/sail/a64.sail#L21781">a64.sail</a></h2>
+<pre>enum MemAtomicOp = {
+  MemAtomicOp_GCSSS1,
+  MemAtomicOp_ADD,
+  MemAtomicOp_BIC,
+  MemAtomicOp_EOR,
+  MemAtomicOp_ORR,
+  MemAtomicOp_SMAX,
+  MemAtomicOp_SMIN,
+  MemAtomicOp_UMAX,
+  MemAtomicOp_UMIN,
+  MemAtomicOp_SWP,
+  MemAtomicOp_CAS
+}</pre>
+<h2>Used by</h2><ul class="cols"><li><a href="../cas.html">CAS</a></li><li><a href="../casp.html">CASP</a></li><li><a href="../ldadd.html">LDADD</a></li><li><a href="../ldaddb.html">LDADDB</a></li><li><a href="../ldaddh.html">LDADDH</a></li><li><a href="../ldclr.html">LDCLR</a></li><li><a href="../ldclrb.html">LDCLRB</a></li><li><a href="../ldclrh.html">LDCLRH</a></li><li><a href="../ldeor.html">LDEOR</a></li><li><a href="../ldeorb.html">LDEORB</a></li><li><a href="../ldeorh.html">LDEORH</a></li><li><a href="../ldset.html">LDSET</a></li><li><a href="../ldsetb.html">LDSETB</a></li><li><a href="../ldseth.html">LDSETH</a></li><li><a href="../ldsmax.html">LDSMAX</a></li><li><a href="../ldsmaxb.html">LDSMAXB</a></li><li><a href="../ldsmaxh.html">LDSMAXH</a></li><li><a href="../ldsmin.html">LDSMIN</a></li><li><a href="../ldsminb.html">LDSMINB</a></li><li><a href="../ldsminh.html">LDSMINH</a></li><li><a href="../ldumax.html">LDUMAX</a></li><li><a href="../ldumaxb.html">LDUMAXB</a></li><li><a href="../ldumaxh.html">LDUMAXH</a></li><li><a href="../ldumin.html">LDUMIN</a></li><li><a href="../lduminb.html">LDUMINB</a></li><li><a href="../lduminh.html">LDUMINH</a></li><li><a href="../swp.html">SWP</a></li><li><a href="AccessDescriptor.html">AccessDescriptor</a></li><li><a href="CreateAccDescAtomicOp.html">CreateAccDescAtomicOp</a></li><li><a href="MemAtomic.html">MemAtomic</a></li><li><a href="MemAtomicOp.html">MemAtomicOp</a></li></ul>
+<hr>
+<p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. sail-arm's definitions are Arm's ASL in Sail (BSD 3-Clause Clear, <a href="../../LICENSE-sail-arm.txt">license</a>); ScarletNX's fixups are GPL-3.0-or-later.</p>
+</body>
+</html>

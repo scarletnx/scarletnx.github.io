@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>LDM - ScarletNX ARM manual</title>
+<link rel="stylesheet" href="../manual.css">
+</head>
+<body>
+<p class="nav"><a href="../../">ScarletNX</a> / <a href="../">ARM manual</a></p>
+<h1>LDM</h1>
+<p class="groups"><a href="T16.html">T32: 16-bit instructions</a></p>
+<h2 class="classheading" id="T1">T1</h2>
+<table class="regdiagram" border="1" cellspacing="0"><thead><tr><td>15</td><td>14</td><td>13</td><td>12</td><td>11</td><td>10</td><td>9</td><td>8</td><td>7</td><td>6</td><td>5</td><td>4</td><td>3</td><td>2</td><td>1</td><td>0</td></tr></thead><tbody><tr class="firstrow"><td class="l">1</td><td>1</td><td>0</td><td>0</td><td class="r">1</td><td colspan="3" class="lr">Rn</td><td colspan="8" class="lr">register_list</td></tr><tr class="secondrow"><td colspan="16"></td></tr></tbody></table>
+<p class="bits">11001xxxxxxxxxxx</p>
+<h3>Decode <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/arm/sail/a32.sail#L1985">Sail</a></h3>
+<pre>if <a href="fn/ConditionPassed.html">ConditionPassed</a>() then {
+    let &#x27;n = UInt(Rn);
+    let registers : bits(16) = 0b00000000 @ register_list;
+    let wback : bool = [registers[n]] == 0b0;
+    if BitCount(registers) &lt; 1 then {
+        throw(Error_Unpredictable())
+    };
+    execute_aarch32_instrs_LDM_Op_A_txt(n, registers, wback)
+};
+()</pre>
+<h2 class="pseudocode">Operation <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/arm/sail/arm.sail#L151">Sail</a></h2>
+<pre>if BitCount(registers) == 0 then {
+    throw(Error_Undefined())
+};
+address : bits(32) = <a href="fn/R_read.html">R_read</a>(n);
+<a href="fn/GuestTransfer.html">GuestTransfer</a>(address, 4 * BitCount(registers), false);
+foreach (i from 0 to 14 by 1 in inc) {
+    if [registers[i]] == 0b1 then {
+        <a href="fn/R_set.html">R_set</a>(i) = <a href="fn/MemS_read.html">MemS_read</a>(address, 4);
+        address = address + 4
+    };
+    ()
+};
+if [registers[15]] == 0b1 then {
+    <a href="fn/LoadWritePC.html">LoadWritePC</a>(<a href="fn/MemS_read.html">MemS_read</a>(address, 4))
+};
+if wback &amp; [registers[n]] == 0b0 then {
+    <a href="fn/R_set.html">R_set</a>(n) = <a href="fn/R_read.html">R_read</a>(n) + 4 * BitCount(registers)
+};
+if wback &amp; [registers[n]] == 0b1 then {
+    <a href="fn/R_set.html">R_set</a>(n) = <a href="fn/__UNKNOWN_bits.html">__UNKNOWN_bits</a>(32)
+};
+()</pre>
+<hr>
+<p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. sail-arm's definitions are Arm's ASL in Sail (BSD 3-Clause Clear, <a href="../LICENSE-sail-arm.txt">license</a>); ScarletNX's fixups are GPL-3.0-or-later.</p>
+</body>
+</html>

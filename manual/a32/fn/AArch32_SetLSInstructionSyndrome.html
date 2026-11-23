@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>AArch32_SetLSInstructionSyndrome - ScarletNX ARM manual</title>
+<link rel="stylesheet" href="../../manual.css">
+</head>
+<body>
+<p class="nav"><a href="../../../">ScarletNX</a> / <a href="../../">ARM manual</a></p>
+<h1>AArch32_SetLSInstructionSyndrome</h1>
+<h2>ScarletNX's fixup <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/arm/sail/arm.sail#L135">arm.sail</a></h2>
+<p>No data abort&#x27;s syndrome is recorded: the block stops with the address (arm.h&#x27;s SNX_ARM_DATA_ABORT)</p>
+<pre>val AArch32_SetLSInstructionSyndrome : forall &#x27;Rt (&#x27;acq_rel : Bool) (&#x27;sign_extend : Bool) &#x27;size.
+  (int(&#x27;size), bool(&#x27;sign_extend), int(&#x27;Rt), bool(&#x27;acq_rel)) -&gt; unit
+
+function AArch32_SetLSInstructionSyndrome (size, sign_extend, Rt, acq_rel) = ()</pre>
+<h2>Used by</h2><ul class="cols"><li><a href="../LDR_i.html">LDR (immediate)</a></li><li><a href="../LDR_l.html">LDR (literal)</a></li><li><a href="../LDR_r.html">LDR (register)</a></li><li><a href="../LDRB_i.html">LDRB (immediate)</a></li><li><a href="../LDRB_r.html">LDRB (register)</a></li><li><a href="../LDRH_i.html">LDRH (immediate)</a></li><li><a href="../LDRH_r.html">LDRH (register)</a></li><li><a href="../LDRSB_r.html">LDRSB (register)</a></li><li><a href="../LDRSH_r.html">LDRSH (register)</a></li><li><a href="../STR_i.html">STR (immediate)</a></li><li><a href="../STR_r.html">STR (register)</a></li><li><a href="../STRB_i.html">STRB (immediate)</a></li><li><a href="../STRB_r.html">STRB (register)</a></li><li><a href="../STRH_i.html">STRH (immediate)</a></li><li><a href="../STRH_r.html">STRH (register)</a></li></ul>
+<hr>
+<p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. sail-arm's definitions are Arm's ASL in Sail (BSD 3-Clause Clear, <a href="../../LICENSE-sail-arm.txt">license</a>); ScarletNX's fixups are GPL-3.0-or-later.</p>
+</body>
+</html>

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>MUL - ScarletNX ARM manual</title>
+<link rel="stylesheet" href="../manual.css">
+</head>
+<body>
+<p class="nav"><a href="../../">ScarletNX</a> / <a href="../">ARM manual</a></p>
+<h1>MUL</h1>
+<p class="groups"><a href="T16.html">T32: 16-bit instructions</a></p>
+<h2 class="classheading" id="T1">T1</h2>
+<table class="regdiagram" border="1" cellspacing="0"><thead><tr><td>15</td><td>14</td><td>13</td><td>12</td><td>11</td><td>10</td><td>9</td><td>8</td><td>7</td><td>6</td><td>5</td><td>4</td><td>3</td><td>2</td><td>1</td><td>0</td></tr></thead><tbody><tr class="firstrow"><td class="l">0</td><td>1</td><td>0</td><td>0</td><td>0</td><td>0</td><td>1</td><td>1</td><td>0</td><td class="r">1</td><td colspan="3" class="lr">Rn</td><td colspan="3" class="lr">Rdm</td></tr><tr class="secondrow"><td colspan="16"></td></tr></tbody></table>
+<p class="bits">0100001101xxxxxx</p>
+<h3>Decode <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/arm/sail/a32.sail#L2867">Sail</a></h3>
+<pre>if <a href="fn/ConditionPassed.html">ConditionPassed</a>() then {
+    let &#x27;d = UInt(Rdm);
+    let &#x27;n = UInt(Rn);
+    let &#x27;m = UInt(Rdm);
+    let setflags : bool = not_bool(<a href="fn/InITBlock.html">InITBlock</a>());
+    execute_aarch32_instrs_MUL_Op_A_txt(d, m, n, setflags)
+};
+()</pre>
+<h2 class="pseudocode">Operation <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/arm/sail/arm.sail#L311">Sail</a></h2>
+<pre>if <a href="fn/ArchVersion.html">ArchVersion</a>() == 4 then {
+    <a href="fn/TraceMultiplier.html">TraceMultiplier</a>(<a href="fn/R_read.html">R_read</a>(m));
+    if setflags then {
+        <a href="fn/MultiplyCarry.html">MultiplyCarry</a>()
+    }
+};
+let &#x27;operand1 = SInt(<a href="fn/R_read.html">R_read</a>(n));
+let &#x27;operand2 = SInt(<a href="fn/R_read.html">R_read</a>(m));
+let &#x27;result = operand1 * operand2;
+<a href="fn/R_set.html">R_set</a>(d) = result[31 .. 0];
+if setflags then {
+    <a href="fn/PSTATE.html">PSTATE</a>.N = [result[31]];
+    <a href="fn/PSTATE.html">PSTATE</a>.Z = IsZeroBit(result[31 .. 0])
+};
+()</pre>
+<hr>
+<p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. sail-arm's definitions are Arm's ASL in Sail (BSD 3-Clause Clear, <a href="../LICENSE-sail-arm.txt">license</a>); ScarletNX's fixups are GPL-3.0-or-later.</p>
+</body>
+</html>

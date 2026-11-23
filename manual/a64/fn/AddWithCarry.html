@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>AddWithCarry - ScarletNX ARM manual</title>
+<link rel="stylesheet" href="../../manual.css">
+</head>
+<body>
+<p class="nav"><a href="../../../">ScarletNX</a> / <a href="../../">ARM manual</a></p>
+<h1>AddWithCarry</h1>
+<h2>sail-arm's definition <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/aarch64/sail/a64.sail#L22363">a64.sail</a></h2>
+<pre>val AddWithCarry : forall &#x27;N, &#x27;N &gt; 0.
+  (bits(&#x27;N), bits(&#x27;N), bits(1)) -&gt; (bits(&#x27;N), bits(4))
+
+function AddWithCarry (x, y, carry_in) = {
+    let &#x27;unsigned_sum = UInt(x) + UInt(y) + UInt(carry_in);
+    let &#x27;signed_sum = SInt(x) + SInt(y) + UInt(carry_in);
+    let result : bits(&#x27;N) = unsigned_sum[&#x27;N - 1 .. 0];
+    let n : bits(1) = [result[&#x27;N - 1]];
+    let z : bits(1) = if IsZero(result) then 0b1 else 0b0;
+    let c : bits(1) = if UInt(result) == unsigned_sum then 0b0 else 0b1;
+    let v : bits(1) = if SInt(result) == signed_sum then 0b0 else 0b1;
+    return((result, ((n @ z) @ c) @ v))
+}</pre>
+<h2>Used by</h2><ul class="cols"><li><a href="../adc.html">ADC</a></li><li><a href="../add_addsub_ext.html">ADD (extended register)</a></li><li><a href="../add_addsub_imm.html">ADD (immediate)</a></li><li><a href="../add_addsub_shift.html">ADD (shifted register)</a></li><li><a href="../ccmn_imm.html">CCMN (immediate)</a></li><li><a href="../ccmn_reg.html">CCMN (register)</a></li></ul>
+<hr>
+<p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. sail-arm's definitions are Arm's ASL in Sail (BSD 3-Clause Clear, <a href="../../LICENSE-sail-arm.txt">license</a>); ScarletNX's fixups are GPL-3.0-or-later.</p>
+</body>
+</html>

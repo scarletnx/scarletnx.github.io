@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>ALUExceptionReturn - ScarletNX ARM manual</title>
+<link rel="stylesheet" href="../../manual.css">
+</head>
+<body>
+<p class="nav"><a href="../../../">ScarletNX</a> / <a href="../../">ARM manual</a></p>
+<h1>ALUExceptionReturn</h1>
+<h2>ScarletNX's fixup <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/arm/sail/arm.sail#L437">arm.sail</a></h2>
+<p>A write to the PC with an exception return (SUBS PC, LR) is a privileged mode&#x27;s: user mode has no SPSR</p>
+<pre>val ALUExceptionReturn : bits(32) -&gt; unit
+
+function ALUExceptionReturn address = throw(Error_Undefined())</pre>
+<h2>Used by</h2><ul class="cols"><li><a href="../ADC_i.html">ADC (immediate)</a></li><li><a href="../ADC_r.html">ADC (register)</a></li><li><a href="../ADD_i.html">ADD (immediate)</a></li><li><a href="../ADD_r.html">ADD (register)</a></li><li><a href="../ADD_SP_i.html">ADD (SP plus immediate)</a></li><li><a href="../ADD_SP_r.html">ADD (SP plus register)</a></li><li><a href="../AND_i.html">AND (immediate)</a></li><li><a href="../AND_r.html">AND (register)</a></li><li><a href="../BIC_i.html">BIC (immediate)</a></li><li><a href="../BIC_r.html">BIC (register)</a></li><li><a href="../EOR_i.html">EOR (immediate)</a></li><li><a href="../EOR_r.html">EOR (register)</a></li><li><a href="../MOV_i.html">MOV (immediate)</a></li><li><a href="../MOV_r.html">MOV (register)</a></li><li><a href="../MVN_i.html">MVN (immediate)</a></li><li><a href="../MVN_r.html">MVN (register)</a></li><li><a href="../ORR_i.html">ORR (immediate)</a></li><li><a href="../ORR_r.html">ORR (register)</a></li><li><a href="../RSB_i.html">RSB (immediate)</a></li><li><a href="../RSB_r.html">RSB (register)</a></li><li><a href="../RSC_i.html">RSC (immediate)</a></li><li><a href="../RSC_r.html">RSC (register)</a></li><li><a href="../SBC_i.html">SBC (immediate)</a></li><li><a href="../SBC_r.html">SBC (register)</a></li><li><a href="../SUB_i.html">SUB (immediate)</a></li><li><a href="../SUB_r.html">SUB (register)</a></li><li><a href="../SUB_SP_i.html">SUB (SP plus immediate)</a></li><li><a href="../SUB_SP_r.html">SUB (SP plus register)</a></li></ul>
+<hr>
+<p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. sail-arm's definitions are Arm's ASL in Sail (BSD 3-Clause Clear, <a href="../../LICENSE-sail-arm.txt">license</a>); ScarletNX's fixups are GPL-3.0-or-later.</p>
+</body>
+</html>

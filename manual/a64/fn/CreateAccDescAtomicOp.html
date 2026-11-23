@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>CreateAccDescAtomicOp - ScarletNX ARM manual</title>
+<link rel="stylesheet" href="../../manual.css">
+</head>
+<body>
+<p class="nav"><a href="../../../">ScarletNX</a> / <a href="../../">ARM manual</a></p>
+<h1>CreateAccDescAtomicOp</h1>
+<h2>sail-arm's definition <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/aarch64/sail/a64.sail#L22257">a64.sail</a></h2>
+<pre>val CreateAccDescAtomicOp : forall (&#x27;acquire : Bool) (&#x27;release : Bool) (&#x27;tagchecked : Bool).
+  (<a href="../fn/MemAtomicOp.html">MemAtomicOp</a>, bool(&#x27;acquire), bool(&#x27;release), bool(&#x27;tagchecked)) -&gt; <a href="../fn/AccessDescriptor.html">AccessDescriptor</a>
+
+function CreateAccDescAtomicOp (modop, acquire, release, tagchecked) = {
+    accdesc : <a href="../fn/AccessDescriptor.html">AccessDescriptor</a> = <a href="../fn/NewAccDesc.html">NewAccDesc</a>(<a href="../fn/AccessType.html">AccessType_GPR</a>);
+    accdesc.acqsc = acquire;
+    accdesc.relsc = release;
+    accdesc.atomicop = true;
+    accdesc.modop = modop;
+    accdesc.read = true;
+    accdesc.write = true;
+    accdesc.pan = true;
+    accdesc.tagchecked = tagchecked;
+    accdesc.transactional = <a href="../fn/HaveTME.html">HaveTME</a>() &amp; TSTATE.depth &gt; 0;
+    return(accdesc)
+}</pre>
+<h2>Used by</h2><ul class="cols"><li><a href="../cas.html">CAS</a></li><li><a href="../casp.html">CASP</a></li><li><a href="../ldadd.html">LDADD</a></li><li><a href="../swp.html">SWP</a></li></ul>
+<hr>
+<p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. sail-arm's definitions are Arm's ASL in Sail (BSD 3-Clause Clear, <a href="../../LICENSE-sail-arm.txt">license</a>); ScarletNX's fixups are GPL-3.0-or-later.</p>
+</body>
+</html>

@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>RETA - ScarletNX ARM manual</title>
+<link rel="stylesheet" href="../manual.css">
+</head>
+<body>
+<p class="nav"><a href="../../">ScarletNX</a> / <a href="../">ARM manual</a></p>
+<h1>RETA</h1>
+<p class="groups"><a href="A64_BranchExcSys.html">Branches, exception generating and system instructions</a></p>
+<h2 class="classheading" id="Branch_unconditional_register">Branch unconditional register</h2>
+<table class="regdiagram" border="1" cellspacing="0"><thead><tr><td>31</td><td>30</td><td>29</td><td>28</td><td>27</td><td>26</td><td>25</td><td>24</td><td>23</td><td>22</td><td>21</td><td>20</td><td>19</td><td>18</td><td>17</td><td>16</td><td>15</td><td>14</td><td>13</td><td>12</td><td>11</td><td>10</td><td>9</td><td>8</td><td>7</td><td>6</td><td>5</td><td>4</td><td>3</td><td>2</td><td>1</td><td>0</td></tr></thead><tbody><tr class="firstrow"><td class="l">1</td><td>1</td><td>0</td><td>1</td><td>0</td><td>1</td><td class="r">1</td><td class="lr">0</td><td class="lr">0</td><td class="l">1</td><td class="r">0</td><td class="l">1</td><td>1</td><td>1</td><td>1</td><td>1</td><td>0</td><td>0</td><td>0</td><td class="r">0</td><td class="lr">1</td><td colspan="1" class="lr">M</td><td class="l">1</td><td>1</td><td>1</td><td>1</td><td class="r">1</td><td class="l">1</td><td>1</td><td>1</td><td>1</td><td class="r">1</td></tr><tr class="secondrow"><td colspan="7"></td><td colspan="1" class="droppedname">Z</td><td></td><td colspan="2" class="droppedname">op</td><td colspan="9"></td><td colspan="1" class="droppedname">A</td><td></td><td colspan="5" class="droppedname">Rn</td><td colspan="5" class="droppedname">Rm</td></tr></tbody></table>
+<p class="bits">110101100101111100001x1111111111</p>
+<h3>Decode <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/aarch64/sail/a64.sail#L2554">Sail</a></h3>
+<pre>n : range(0, 31) = UInt(Rn);
+branch_type : <a href="fn/BranchType.html">BranchType</a> = undefined;
+let &#x27;m = UInt(Rm);
+let pac : bool = A == 0b1;
+let use_key_a : bool = M == 0b0;
+source_is_sp : bool = Z == 0b1 &amp; m == 31;
+if not_bool(pac) &amp; m != 0 then {
+    throw(Error_Undefined())
+} else if pac &amp; not_bool(<a href="fn/HavePACExt.html">HavePACExt</a>()) then {
+    throw(Error_Undefined())
+} else ();
+match op {
+  0b00 =&gt; {
+      branch_type = <a href="fn/BranchType.html">BranchType_INDIR</a>
+  },
+  0b01 =&gt; {
+      branch_type = <a href="fn/BranchType.html">BranchType_INDCALL</a>
+  },
+  0b10 =&gt; {
+      branch_type = <a href="fn/BranchType.html">BranchType_RET</a>
+  },
+  _ =&gt; {
+      throw(Error_Undefined())
+  }
+};
+let branch_type = branch_type;
+if pac then {
+    if Z == 0b0 &amp; m != 31 then {
+        throw(Error_Undefined())
+    };
+    if branch_type == <a href="fn/BranchType.html">BranchType_RET</a> then {
+        if n != 31 then {
+            throw(Error_Undefined())
+        };
+        n = 30;
+        source_is_sp = true
+    };
+    ()
+};
+let &#x27;n = n;
+<a href="blr.html">execute_aarch64_instrs_branch_unconditional_register</a>(branch_type, m, n, pac, source_is_sp, use_key_a)</pre>
+<h2 class="pseudocode">Operation <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/aarch64/sail/a64.sail#L2209">Sail</a></h2>
+<pre>inst_type : <a href="fn/GCSInstruction.html">GCSInstruction</a> = undefined;
+target : bits(64) = <a href="fn/X_read.html">X_read</a>(n, 64);
+let auth_then_branch : bool = true;
+if pac then {
+    let modifier : bits(64) = if source_is_sp then <a href="fn/SP_read.html">SP_read</a>() else
+      <a href="fn/X_read.html">X_read</a>(m, 64);
+    if use_key_a then {
+        target = <a href="fn/AuthIA.html">AuthIA</a>(target, modifier, auth_then_branch)
+    } else {
+        target = <a href="fn/AuthIB.html">AuthIB</a>(target, modifier, auth_then_branch)
+    }
+};
+if (branch_type == <a href="fn/BranchType.html">BranchType_RET</a> &amp; <a href="fn/HaveGCS.html">HaveGCS</a>()) &amp; GCSPCREnabled(<a href="fn/PSTATE.html">PSTATE</a>.EL) then {
+    if not_bool(pac) then {
+        inst_type = <a href="fn/GCSInstruction.html">GCSInstType_PRET</a>
+    } else {
+        if use_key_a then {
+            inst_type = <a href="fn/GCSInstruction.html">GCSInstType_PRETAA</a>
+        } else {
+            inst_type = <a href="fn/GCSInstruction.html">GCSInstType_PRETAB</a>
+        }
+    };
+    target = LoadCheckGCSRecord(target, inst_type);
+    SetCurrentGCSPointer(GetCurrentGCSPointer() + 8)
+};
+if branch_type == <a href="fn/BranchType.html">BranchType_INDCALL</a> then {
+    if <a href="fn/HaveGCS.html">HaveGCS</a>() &amp; GCSPCREnabled(<a href="fn/PSTATE.html">PSTATE</a>.EL) then {
+        AddGCSRecord(<a href="fn/PC_read.html">PC_read</a>() + 4)
+    };
+    <a href="fn/X_set.html">X_set</a>(30, 64) = <a href="fn/PC_read.html">PC_read</a>() + 4
+};
+match branch_type {
+  <a href="fn/BranchType.html">BranchType_INDIR</a> =&gt; {
+      if <a href="fn/InGuardedPage.html">InGuardedPage</a> then {
+          if n == 16 | n == 17 then {
+              <a href="fn/BTypeNext.html">BTypeNext</a> = 0b01
+          } else {
+              <a href="fn/BTypeNext.html">BTypeNext</a> = 0b11
+          }
+      } else {
+          <a href="fn/BTypeNext.html">BTypeNext</a> = 0b01
+      }
+  },
+  <a href="fn/BranchType.html">BranchType_INDCALL</a> =&gt; {
+      <a href="fn/BTypeNext.html">BTypeNext</a> = 0b10
+  },
+  <a href="fn/BranchType.html">BranchType_RET</a> =&gt; {
+      <a href="fn/BTypeNext.html">BTypeNext</a> = 0b00
+  },
+  _ =&gt; ()
+};
+let branch_conditional : bool = false;
+BranchTo(target, branch_type, branch_conditional)</pre>
+<hr>
+<p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. sail-arm's definitions are Arm's ASL in Sail (BSD 3-Clause Clear, <a href="../LICENSE-sail-arm.txt">license</a>); ScarletNX's fixups are GPL-3.0-or-later.</p>
+</body>
+</html>

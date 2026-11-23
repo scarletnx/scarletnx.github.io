@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>A32ExpandImm_C - ScarletNX ARM manual</title>
+<link rel="stylesheet" href="../../manual.css">
+</head>
+<body>
+<p class="nav"><a href="../../../">ScarletNX</a> / <a href="../../">ARM manual</a></p>
+<h1>A32ExpandImm_C</h1>
+<h2>sail-arm's definition <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/arm/sail/a32.sail#L5451">a32.sail</a></h2>
+<pre>val A32ExpandImm_C : (bits(12), bits(1)) -&gt; (bits(32), bits(1))
+
+function A32ExpandImm_C (imm12, carry_in) = {
+    carry_out : bits(1) = undefined;
+    imm32 : bits(32) = undefined;
+    let unrotated_value : bits(32) = ZeroExtend(imm12[7 .. 0], 32);
+    (imm32, carry_out) = <a href="../fn/Shift_C.html">Shift_C</a>(unrotated_value, <a href="../fn/SRType.html">SRType_ROR</a>, 2 * UInt(imm12[11 .. 8]), carry_in);
+    return((imm32, carry_out))
+}</pre>
+<h2>Used by</h2><ul class="cols"><li><a href="../AND_i.html">AND (immediate)</a></li><li><a href="../BIC_i.html">BIC (immediate)</a></li><li><a href="../EOR_i.html">EOR (immediate)</a></li><li><a href="../MOV_i.html">MOV (immediate)</a></li><li><a href="../MVN_i.html">MVN (immediate)</a></li><li><a href="../ORR_i.html">ORR (immediate)</a></li><li><a href="../TEQ_i.html">TEQ (immediate)</a></li><li><a href="../TST_i.html">TST (immediate)</a></li><li><a href="A32ExpandImm.html">A32ExpandImm</a></li></ul>
+<hr>
+<p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. sail-arm's definitions are Arm's ASL in Sail (BSD 3-Clause Clear, <a href="../../LICENSE-sail-arm.txt">license</a>); ScarletNX's fixups are GPL-3.0-or-later.</p>
+</body>
+</html>

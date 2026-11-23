@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>SP_read - ScarletNX ARM manual</title>
+<link rel="stylesheet" href="../../manual.css">
+</head>
+<body>
+<p class="nav"><a href="../../../">ScarletNX</a> / <a href="../../">ARM manual</a></p>
+<h1>SP_read</h1>
+<h2>ScarletNX's fixup <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/aarch64/sail/nx.sail#L23">nx.sail</a></h2>
+<p>Guest code runs at EL0 alone, where the stack pointer is always SP_EL0 (PSTATE.SP is 0 there and EL0 can&#x27;t set it), which the CPU keeps after X30, as GPR&#x27;s last element</p>
+<pre>val SP_read : unit -&gt; bits(64)
+
+function SP_read () = <a href="../fn/GPR.html">GPR</a>[31]</pre>
+<h2>sail-arm's definition, which the fixup replaces <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/aarch64/sail/a64.sail#L22682">a64.sail</a></h2>
+<pre>val SP_read : unit -&gt; bits(64)
+
+function SP_read () = {
+    if <a href="../fn/PSTATE.html">PSTATE</a>.SP == 0b0 then {
+        return(SP_EL0)
+    } else {
+        match <a href="../fn/PSTATE.html">PSTATE</a>.EL {
+          ? if ? == <a href="../fn/EL0.html">EL0</a> =&gt; {
+              return(SP_EL0)
+          },
+          ? if ? == <a href="../fn/EL1.html">EL1</a> =&gt; {
+              return(SP_EL1)
+          },
+          ? if ? == <a href="../fn/EL2.html">EL2</a> =&gt; {
+              return(SP_EL2)
+          },
+          ? if ? == <a href="../fn/EL3.html">EL3</a> =&gt; {
+              return(SP_EL3)
+          },
+          _ =&gt; {
+              return(undefined : bits(64))
+          }
+        }
+    }
+}</pre>
+<h2>Used by</h2><ul class="cols"><li><a href="../add_addsub_ext.html">ADD (extended register)</a></li><li><a href="../add_addsub_imm.html">ADD (immediate)</a></li><li><a href="../autda.html">AUTDA</a></li><li><a href="../autdb.html">AUTDB</a></li><li><a href="../autia.html">AUTIA</a></li><li><a href="../autib.html">AUTIB</a></li><li><a href="../blr.html">BLR</a></li><li><a href="../cas.html">CAS</a></li><li><a href="../casp.html">CASP</a></li><li><a href="../ldadd.html">LDADD</a></li><li><a href="../ldapr.html">LDAPR</a></li><li><a href="../ldapur_gen.html">LDAPUR</a></li><li><a href="../ldar.html">LDAR</a></li><li><a href="../ldaxp.html">LDAXP</a></li><li><a href="../ldaxr.html">LDAXR</a></li><li><a href="../ldnp_gen.html">LDNP</a></li><li><a href="../ldp_gen.html">LDP</a></li><li><a href="../ldr_imm_gen.html">LDR (immediate)</a></li><li><a href="../ldr_reg_gen.html">LDR (register)</a></li><li><a href="../ldtr.html">LDTR</a></li><li><a href="../ldur_gen.html">LDUR</a></li><li><a href="../pacda.html">PACDA</a></li><li><a href="../pacdb.html">PACDB</a></li><li><a href="../pacga.html">PACGA</a></li><li><a href="../pacia.html">PACIA</a></li><li><a href="../pacib.html">PACIB</a></li><li><a href="../prfm_imm.html">PRFM (immediate)</a></li><li><a href="../swp.html">SWP</a></li></ul>
+<hr>
+<p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. sail-arm's definitions are Arm's ASL in Sail (BSD 3-Clause Clear, <a href="../../LICENSE-sail-arm.txt">license</a>); ScarletNX's fixups are GPL-3.0-or-later.</p>
+</body>
+</html>

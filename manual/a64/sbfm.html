@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>SBFM - ScarletNX ARM manual</title>
+<link rel="stylesheet" href="../manual.css">
+</head>
+<body>
+<p class="nav"><a href="../../">ScarletNX</a> / <a href="../">ARM manual</a></p>
+<h1>SBFM</h1>
+<p class="groups"><a href="A64_DataProcImm.html">Data processing (immediate)</a></p>
+<h2 class="classheading" id="Integer_bitfield">Integer bitfield</h2>
+<table class="regdiagram" border="1" cellspacing="0"><thead><tr><td>31</td><td>30</td><td>29</td><td>28</td><td>27</td><td>26</td><td>25</td><td>24</td><td>23</td><td>22</td><td>21</td><td>20</td><td>19</td><td>18</td><td>17</td><td>16</td><td>15</td><td>14</td><td>13</td><td>12</td><td>11</td><td>10</td><td>9</td><td>8</td><td>7</td><td>6</td><td>5</td><td>4</td><td>3</td><td>2</td><td>1</td><td>0</td></tr></thead><tbody><tr class="firstrow"><td colspan="1" class="lr">sf</td><td class="l">0</td><td class="r">0</td><td class="l">1</td><td>0</td><td>0</td><td>1</td><td>1</td><td class="r">0</td><td colspan="1" class="lr">N</td><td colspan="6" class="lr">immr</td><td colspan="6" class="lr">imms</td><td colspan="5" class="lr">Rn</td><td colspan="5" class="lr">Rd</td></tr><tr class="secondrow"><td></td><td colspan="2" class="droppedname">opc</td><td colspan="29"></td></tr></tbody></table>
+<p class="bits">x00100110xxxxxxxxxxxxxxxxxxxxxxx</p>
+<h3>Decode <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/aarch64/sail/a64.sail#L2103">Sail</a></h3>
+<pre>let &#x27;d = UInt(Rd);
+let &#x27;n = UInt(Rn);
+let &#x27;datasize = if sf == 0b1 then 64 else 32;
+inzero : bool = undefined;
+extend : bool = undefined;
+wmask : bits(&#x27;datasize) = undefined;
+tmask : bits(&#x27;datasize) = undefined;
+match opc {
+  0b00 =&gt; {
+      inzero = true;
+      extend = true
+  },
+  0b01 =&gt; {
+      inzero = false;
+      extend = false
+  },
+  0b10 =&gt; {
+      inzero = true;
+      extend = false
+  },
+  0b11 =&gt; {
+      throw(Error_Undefined())
+  }
+};
+let extend = extend;
+let inzero = inzero;
+if sf == 0b1 &amp; N != 0b1 then {
+    throw(Error_Undefined())
+};
+if sf == 0b0 &amp; ((N != 0b0 | [immr[5]] != 0b0) | [imms[5]] != 0b0) then {
+    throw(Error_Undefined())
+};
+let &#x27;r = UInt(immr);
+let &#x27;s = UInt(imms);
+(wmask, tmask) = <a href="fn/DecodeBitMasks.html">DecodeBitMasks</a>(N, imms, immr, false, datasize);
+<a href="bfm.html">execute_aarch64_instrs_integer_bitfield</a>(d, datasize, extend, inzero, n, r, s, tmask, wmask)</pre>
+<h2 class="pseudocode">Operation <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/aarch64/sail/a64.sail#L2034">Sail</a></h2>
+<pre>let dst : bits(&#x27;datasize) = if inzero then Zeros(datasize) else
+  <a href="fn/X_read.html">X_read</a>(d, datasize);
+let src : bits(&#x27;datasize) = <a href="fn/X_read.html">X_read</a>(n, datasize);
+let bot : bits(&#x27;datasize) = dst &amp; not_vec(wmask) | ROR(src, r) &amp; wmask;
+let top : bits(&#x27;datasize) = if extend then {
+    assert(constraint((0 &lt;= &#x27;s &amp; &#x27;s &lt; &#x27;datasize)));
+    Replicate([src[s]], datasize)
+} else dst;
+<a href="fn/X_set.html">X_set</a>(d, datasize) = top &amp; not_vec(tmask) | bot &amp; tmask</pre>
+<hr>
+<p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. sail-arm's definitions are Arm's ASL in Sail (BSD 3-Clause Clear, <a href="../LICENSE-sail-arm.txt">license</a>); ScarletNX's fixups are GPL-3.0-or-later.</p>
+</body>
+</html>

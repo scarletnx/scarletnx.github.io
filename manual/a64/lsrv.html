@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>LSRV - ScarletNX ARM manual</title>
+<link rel="stylesheet" href="../manual.css">
+</head>
+<body>
+<p class="nav"><a href="../../">ScarletNX</a> / <a href="../">ARM manual</a></p>
+<h1>LSRV</h1>
+<p class="groups"><a href="A64_DataProcReg.html">Data processing (register)</a></p>
+<h2 class="classheading" id="Integer_shift_variable">Integer shift variable</h2>
+<table class="regdiagram" border="1" cellspacing="0"><thead><tr><td>31</td><td>30</td><td>29</td><td>28</td><td>27</td><td>26</td><td>25</td><td>24</td><td>23</td><td>22</td><td>21</td><td>20</td><td>19</td><td>18</td><td>17</td><td>16</td><td>15</td><td>14</td><td>13</td><td>12</td><td>11</td><td>10</td><td>9</td><td>8</td><td>7</td><td>6</td><td>5</td><td>4</td><td>3</td><td>2</td><td>1</td><td>0</td></tr></thead><tbody><tr class="firstrow"><td colspan="1" class="lr">sf</td><td class="l">0</td><td>0</td><td>1</td><td>1</td><td>0</td><td>1</td><td>0</td><td>1</td><td>1</td><td class="r">0</td><td colspan="5" class="lr">Rm</td><td class="l">0</td><td>0</td><td>1</td><td class="r">0</td><td class="l">0</td><td class="r">1</td><td colspan="5" class="lr">Rn</td><td colspan="5" class="lr">Rd</td></tr><tr class="secondrow"><td colspan="20"></td><td colspan="2" class="droppedname">op2</td><td colspan="10"></td></tr></tbody></table>
+<p class="bits">x0011010110xxxxx001001xxxxxxxxxx</p>
+<h3>Decode <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/aarch64/sail/a64.sail#L1603">Sail</a></h3>
+<pre>let &#x27;d = UInt(Rd);
+let &#x27;n = UInt(Rn);
+let &#x27;m = UInt(Rm);
+let &#x27;datasize = if sf == 0b1 then 64 else 32;
+let shift_type : <a href="fn/ShiftType.html">ShiftType</a> = <a href="fn/DecodeShift.html">DecodeShift</a>(op2);
+<a href="asrv.html">execute_aarch64_instrs_integer_shift_variable</a>(d, datasize, m, n, shift_type)</pre>
+<h2 class="pseudocode">Operation <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/aarch64/sail/a64.sail#L1551">Sail</a></h2>
+<pre>let operand2 : bits(&#x27;datasize) = <a href="fn/X_read.html">X_read</a>(m, datasize);
+let result : bits(&#x27;datasize) = <a href="fn/ShiftReg.html">ShiftReg</a>(n, shift_type, MOD(UInt(operand2), datasize), datasize);
+<a href="fn/X_set.html">X_set</a>(d, datasize) = result</pre>
+<hr>
+<p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. sail-arm's definitions are Arm's ASL in Sail (BSD 3-Clause Clear, <a href="../LICENSE-sail-arm.txt">license</a>); ScarletNX's fixups are GPL-3.0-or-later.</p>
+</body>
+</html>

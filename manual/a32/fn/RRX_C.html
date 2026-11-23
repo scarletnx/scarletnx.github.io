@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>RRX_C - ScarletNX ARM manual</title>
+<link rel="stylesheet" href="../../manual.css">
+</head>
+<body>
+<p class="nav"><a href="../../../">ScarletNX</a> / <a href="../../">ARM manual</a></p>
+<h1>RRX_C</h1>
+<h2>sail-arm's definition <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/arm/sail/a32.sail#L5409">a32.sail</a></h2>
+<pre>val RRX_C : forall &#x27;N, &#x27;N &gt; 1. (bits(&#x27;N), bits(1)) -&gt; (bits(&#x27;N), bits(1))
+
+function RRX_C (x, carry_in) = {
+    let result : bits(&#x27;N) = [(x &gt;&gt; 1) with (&#x27;N - 1) = Bit(carry_in)];
+    let carry_out : bits(1) = [x[0]];
+    return((result, carry_out))
+}</pre>
+<h2>Used by</h2><ul class="cols"><li><a href="Shift_C.html">Shift_C</a></li></ul>
+<hr>
+<p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. sail-arm's definitions are Arm's ASL in Sail (BSD 3-Clause Clear, <a href="../../LICENSE-sail-arm.txt">license</a>); ScarletNX's fixups are GPL-3.0-or-later.</p>
+</body>
+</html>

@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>MemAtomic - ScarletNX ARM manual</title>
+<link rel="stylesheet" href="../../manual.css">
+</head>
+<body>
+<p class="nav"><a href="../../../">ScarletNX</a> / <a href="../../">ARM manual</a></p>
+<h1>MemAtomic</h1>
+<h2>ScarletNX's fixup <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/aarch64/sail/nx.sail#L239">nx.sail</a></h2>
+<pre>val MemAtomic : forall &#x27;size, &#x27;size &gt;= 0.
+  (bits(64), bits(&#x27;size), bits(&#x27;size), <a href="../fn/AccessDescriptor.html">AccessDescriptor</a>) -&gt; bits(&#x27;size)
+
+function MemAtomic (address, cmpoperand, operand, accdesc_in) = match accdesc_in.modop {
+  <a href="../fn/MemAtomicOp.html">MemAtomicOp_ADD</a> =&gt; <a href="../fn/GuestAtomicAdd.html">GuestAtomicAdd</a>(address, operand),
+  <a href="../fn/MemAtomicOp.html">MemAtomicOp_BIC</a> =&gt; <a href="../fn/GuestAtomicAnd.html">GuestAtomicAnd</a>(address, not_vec(operand)),
+  <a href="../fn/MemAtomicOp.html">MemAtomicOp_EOR</a> =&gt; <a href="../fn/GuestAtomicXor.html">GuestAtomicXor</a>(address, operand),
+  <a href="../fn/MemAtomicOp.html">MemAtomicOp_ORR</a> =&gt; <a href="../fn/GuestAtomicOr.html">GuestAtomicOr</a>(address, operand),
+  <a href="../fn/MemAtomicOp.html">MemAtomicOp_SMAX</a> =&gt; <a href="../fn/GuestAtomicSMax.html">GuestAtomicSMax</a>(address, operand),
+  <a href="../fn/MemAtomicOp.html">MemAtomicOp_SMIN</a> =&gt; <a href="../fn/GuestAtomicSMin.html">GuestAtomicSMin</a>(address, operand),
+  <a href="../fn/MemAtomicOp.html">MemAtomicOp_UMAX</a> =&gt; <a href="../fn/GuestAtomicUMax.html">GuestAtomicUMax</a>(address, operand),
+  <a href="../fn/MemAtomicOp.html">MemAtomicOp_UMIN</a> =&gt; <a href="../fn/GuestAtomicUMin.html">GuestAtomicUMin</a>(address, operand),
+  <a href="../fn/MemAtomicOp.html">MemAtomicOp_SWP</a> =&gt; <a href="../fn/GuestAtomicSwap.html">GuestAtomicSwap</a>(address, operand),
+  <a href="../fn/MemAtomicOp.html">MemAtomicOp_CAS</a> =&gt; <a href="../fn/GuestCompareSwap.html">GuestCompareSwap</a>(address, cmpoperand, operand)
+}</pre>
+<h2>Used by</h2><ul class="cols"><li><a href="../cas.html">CAS</a></li><li><a href="../casp.html">CASP</a></li><li><a href="../ldadd.html">LDADD</a></li><li><a href="../swp.html">SWP</a></li></ul>
+<hr>
+<p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. sail-arm's definitions are Arm's ASL in Sail (BSD 3-Clause Clear, <a href="../../LICENSE-sail-arm.txt">license</a>); ScarletNX's fixups are GPL-3.0-or-later.</p>
+</body>
+</html>

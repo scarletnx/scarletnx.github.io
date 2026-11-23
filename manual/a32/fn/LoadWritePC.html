@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>LoadWritePC - ScarletNX ARM manual</title>
+<link rel="stylesheet" href="../../manual.css">
+</head>
+<body>
+<p class="nav"><a href="../../../">ScarletNX</a> / <a href="../../">ARM manual</a></p>
+<h1>LoadWritePC</h1>
+<h2>ScarletNX's fixup <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/arm/sail/arm.sail#L302">arm.sail</a></h2>
+<p>A load into the PC branches, with the state from bit 0 from ARMv5 on; the ARM7TDMI (ARMv4T) stays in its state, its bit 0 dropped (the ARMv7 ARM&#x27;s LoadWritePC, A2.3.2)</p>
+<pre>val LoadWritePC : bits(32) -&gt; unit
+
+function LoadWritePC address = if <a href="../fn/ArchVersion.html">ArchVersion</a>() &gt;= 5 then <a href="../fn/BXWritePC.html">BXWritePC</a>(address, <a href="../fn/BranchType.html">BranchType_INDIR</a>)
+                               else <a href="../fn/BranchWritePC.html">BranchWritePC</a>(address, <a href="../fn/BranchType.html">BranchType_INDIR</a>)</pre>
+<h2>Used by</h2><ul class="cols"><li><a href="../LDM.html">LDM</a></li><li><a href="../LDR_i.html">LDR (immediate)</a></li><li><a href="../LDR_l.html">LDR (literal)</a></li><li><a href="../LDR_r.html">LDR (register)</a></li><li><a href="../POP.html">POP</a></li></ul>
+<hr>
+<p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. sail-arm's definitions are Arm's ASL in Sail (BSD 3-Clause Clear, <a href="../../LICENSE-sail-arm.txt">license</a>); ScarletNX's fixups are GPL-3.0-or-later.</p>
+</body>
+</html>

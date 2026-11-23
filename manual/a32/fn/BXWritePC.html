@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>BXWritePC - ScarletNX ARM manual</title>
+<link rel="stylesheet" href="../../manual.css">
+</head>
+<body>
+<p class="nav"><a href="../../../">ScarletNX</a> / <a href="../../">ARM manual</a></p>
+<h1>BXWritePC</h1>
+<h2>ScarletNX's fixup <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/arm/sail/arm.sail#L283">arm.sail</a></h2>
+<p>An interworking branch takes the state from the target&#x27;s bit 0 and clears it; with no CONSTRAINED UNPREDICTABLE choice (ConstrainUnpredictableBool, below) an A32 target&#x27;s bit 1 stays. sail-arm&#x27;s sets T in each way of an if on that bit, and sailgen writes no register under a condition known only when the guest runs, so T is the bit itself here</p>
+<pre>val BXWritePC : (bits(32), <a href="../fn/BranchType.html">BranchType</a>) -&gt; unit
+
+function BXWritePC (address_in, branch_type) = {
+    address : bits(32) = address_in;
+    <a href="../fn/PSTATE.html">PSTATE</a>.T = [address[0]];
+    address[0] = Bit(0b0);
+    let branch_conditional : bool = not_bool((match <a href="../fn/AArch32_CurrentCond.html">AArch32_CurrentCond</a>() {
+      [bitone, bitone, bitone, _] =&gt; true,
+      _ =&gt; false
+    }) : bool);
+    BranchTo(address, branch_type, branch_conditional)
+}</pre>
+<h2>Used by</h2><ul class="cols"><li><a href="../BLX_r.html">BLX (register)</a></li><li><a href="../BX.html">BX</a></li><li><a href="ALUWritePC.html">ALUWritePC</a></li><li><a href="LoadWritePC.html">LoadWritePC</a></li></ul>
+<hr>
+<p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. sail-arm's definitions are Arm's ASL in Sail (BSD 3-Clause Clear, <a href="../../LICENSE-sail-arm.txt">license</a>); ScarletNX's fixups are GPL-3.0-or-later.</p>
+</body>
+</html>

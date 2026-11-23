@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>WFI - ScarletNX ARM manual</title>
+<link rel="stylesheet" href="../manual.css">
+</head>
+<body>
+<p class="nav"><a href="../../">ScarletNX</a> / <a href="../">ARM manual</a></p>
+<h1>WFI</h1>
+<p class="groups"><a href="T16.html">T32: 16-bit instructions</a></p>
+<h2 class="classheading" id="T1">T1</h2>
+<table class="regdiagram" border="1" cellspacing="0"><thead><tr><td>15</td><td>14</td><td>13</td><td>12</td><td>11</td><td>10</td><td>9</td><td>8</td><td>7</td><td>6</td><td>5</td><td>4</td><td>3</td><td>2</td><td>1</td><td>0</td></tr></thead><tbody><tr class="firstrow"><td class="l">1</td><td>0</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td><td>0</td><td>0</td><td>1</td><td>1</td><td>0</td><td>0</td><td>0</td><td class="r">0</td></tr><tr class="secondrow"><td colspan="16"></td></tr></tbody></table>
+<p class="bits">1011111100110000</p>
+<h3>Decode <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/arm/sail/a32.sail#L5093">Sail</a></h3>
+<pre>if <a href="fn/ConditionPassed.html">ConditionPassed</a>() then {
+    execute_aarch32_instrs_WFI_Op_A_txt()
+};
+()</pre>
+<h2 class="pseudocode">Operation <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/arm/sail/a32.sail#L5074">Sail</a></h2>
+<pre>if not_bool(<a href="fn/InterruptPending.html">InterruptPending</a>()) then {
+    if <a href="fn/PSTATE.html">PSTATE</a>.EL == <a href="fn/EL0.html">EL0</a> then {
+        <a href="fn/AArch32_CheckForWFxTrap.html">AArch32_CheckForWFxTrap</a>(<a href="fn/EL1.html">EL1</a>, <a href="fn/WFxType.html">WFxType_WFI</a>)
+    };
+    if ((<a href="fn/PSTATE.html">PSTATE</a>.EL == <a href="fn/EL0.html">EL0</a> | <a href="fn/PSTATE.html">PSTATE</a>.EL == <a href="fn/EL1.html">EL1</a>) &amp; <a href="fn/EL2Enabled.html">EL2Enabled</a>()) &amp; not_bool(<a href="fn/IsInHost.html">IsInHost</a>()) then {
+        <a href="fn/AArch32_CheckForWFxTrap.html">AArch32_CheckForWFxTrap</a>(<a href="fn/EL2.html">EL2</a>, <a href="fn/WFxType.html">WFxType_WFI</a>)
+    };
+    if <a href="fn/HaveEL.html">HaveEL</a>(<a href="fn/EL3.html">EL3</a>) &amp; <a href="fn/PSTATE.html">PSTATE</a>.M != <a href="fn/M32_Monitor.html">M32_Monitor</a> then {
+        <a href="fn/AArch32_CheckForWFxTrap.html">AArch32_CheckForWFxTrap</a>(<a href="fn/EL3.html">EL3</a>, <a href="fn/WFxType.html">WFxType_WFI</a>)
+    };
+    let &#x27;localtimeout = (1 &lt;&lt; 64);
+    <a href="fn/WaitForInterrupt.html">WaitForInterrupt</a>(localtimeout)
+};
+()</pre>
+<hr>
+<p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. sail-arm's definitions are Arm's ASL in Sail (BSD 3-Clause Clear, <a href="../LICENSE-sail-arm.txt">license</a>); ScarletNX's fixups are GPL-3.0-or-later.</p>
+</body>
+</html>

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Reduce__1 - ScarletNX ARM manual</title>
+<link rel="stylesheet" href="../../manual.css">
+</head>
+<body>
+<p class="nav"><a href="../../../">ScarletNX</a> / <a href="../../">ARM manual</a></p>
+<h1>Reduce__1</h1>
+<h2>sail-arm's definition <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/aarch64/sail/a64.sail#L22712">a64.sail</a></h2>
+<pre>val Reduce__1 : forall &#x27;N &#x27;esize,
+  (&#x27;N in {8, 16, 32, 64, 128, 256, 512, 1024, 2048} &amp; &#x27;esize in {8, 16, 32, 64} &amp; &#x27;N &gt;= &#x27;esize).
+  (<a href="../fn/ReduceOp.html">ReduceOp</a>, bits(&#x27;N), int(&#x27;esize), bool) -&gt; bits(&#x27;esize)</pre>
+<h2>sail-arm's definition <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/aarch64/sail/a64.sail#L22721">a64.sail</a></h2>
+<pre>function Reduce__1 (op, input, esize, altfp) = {
+    assert(esize == 8 | esize == 16 | esize == 32 | esize == 64);
+    result : bits(&#x27;esize) = undefined;
+    if &#x27;N == esize then {
+        return(input[esize - 1 .. 0])
+    };
+    let &#x27;half = DIV(&#x27;N, 2);
+    let hi : bits(&#x27;esize) = Reduce__1(op, input[&#x27;N - 1 .. half], esize, altfp);
+    let lo : bits(&#x27;esize) = Reduce__1(op, input[half - 1 .. 0], esize, altfp);
+    match op {
+      <a href="../fn/ReduceOp.html">ReduceOp_FMINNUM</a> =&gt; {
+          assert(constraint(&#x27;esize in {16, 32, 64}));
+          result = <a href="../fn/FPMinNum.html">FPMinNum</a>(lo, hi, <a href="../fn/FPCR_read.html">FPCR_read</a>())
+      },
+      <a href="../fn/ReduceOp.html">ReduceOp_FMAXNUM</a> =&gt; {
+          assert(constraint(&#x27;esize in {16, 32, 64}));
+          result = <a href="../fn/FPMaxNum.html">FPMaxNum</a>(lo, hi, <a href="../fn/FPCR_read.html">FPCR_read</a>())
+      },
+      <a href="../fn/ReduceOp.html">ReduceOp_FMIN</a> =&gt; {
+          assert(constraint(&#x27;esize in {16, 32, 64}));
+          result = FPMin__1(lo, hi, <a href="../fn/FPCR_read.html">FPCR_read</a>(), altfp)
+      },
+      <a href="../fn/ReduceOp.html">ReduceOp_FMAX</a> =&gt; {
+          assert(constraint(&#x27;esize in {16, 32, 64}));
+          result = FPMax__1(lo, hi, <a href="../fn/FPCR_read.html">FPCR_read</a>(), altfp)
+      },
+      <a href="../fn/ReduceOp.html">ReduceOp_FADD</a> =&gt; {
+          assert(constraint(&#x27;esize in {16, 32, 64}));
+          result = <a href="../fn/FPAdd.html">FPAdd</a>(lo, hi, <a href="../fn/FPCR_read.html">FPCR_read</a>())
+      },
+      <a href="../fn/ReduceOp.html">ReduceOp_ADD</a> =&gt; {
+          result = lo + hi
+      }
+    };
+    let result = result;
+    return(result)
+}</pre>
+<h2>Used by</h2><ul class="cols"><li><a href="Reduce.html">Reduce</a></li></ul>
+<hr>
+<p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. sail-arm's definitions are Arm's ASL in Sail (BSD 3-Clause Clear, <a href="../../LICENSE-sail-arm.txt">license</a>); ScarletNX's fixups are GPL-3.0-or-later.</p>
+</body>
+</html>
