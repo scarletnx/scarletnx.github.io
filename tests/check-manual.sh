@@ -1,0 +1,41 @@
+#!/bin/sh
+# tools/gen-arm-manual.py makes a manual of tests/sail (a few instructions cut from ScarletNX's Sail) that
+# tools/check-site.py passes, laid out as it should be; and check-site.py holds a manual page to its exception
+cd "$(dirname "$0")/.." || exit 1
+fail() { echo "check-manual: $*"; exit 1; }
+
+python3 tools/check-site.py tests/pages/manual/ok.html >/dev/null || fail "manual/ok.html failed"
+out=$(python3 tools/check-site.py tests/pages/manual/bad.html) && fail "manual/bad.html passed"
+for what in 'stylesheet other than manual.css' '<style>' 'onload attribute' 'style attribute' 'inline <script>'; do
+    case "$out" in *"$what"*) ;; *) fail "manual/bad.html: no failure for $what" ;; esac
+done
+
+tmp=$(mktemp -d) || exit 1
+trap 'rm -rf "$tmp"' EXIT
+python3 tools/gen-arm-manual.py tests/sail "$tmp/manual" --commit 0123456789abcdef0123456789abcdef01234567 >/dev/null ||
+    fail "the generator failed"
+python3 tools/check-site.py $(find "$tmp/manual" -name '*.html') >/dev/null || fail "a generated page failed check-site.py"
+for f in index.html manual.css search.js LICENSE-sail-arm.txt a64/index.html a64/adc.html a64/cfinv.html \
+         a64/fn/AddWithCarry.html a64/fn/Strip.html a64/data.js a32/index.html a32/BX.html a32/T16.html a32/data.js; do
+    [ -f "$tmp/manual/$f" ] || fail "no $f"
+done
+has() { grep -qF -- "$2" "$tmp/manual/$1" || fail "$1 has no $2"; }
+has a64/adc.html '<h1>ADC</h1>'
+has a64/adc.html '<td colspan="5" class="lr">Rd</td>'                                 # a field the encoding leaves free
+has a64/adc.html '<td colspan="1" class="droppedname">op</td>'                        # a field it fixes, named under it
+has a64/adc.html 'x0011010000xxxxx000000xxxxxxxxxx'
+has a64/adc.html '<a href="fn/AddWithCarry.html">AddWithCarry</a>'                   # the shared pseudocode
+has a64/adc.html '>Operation <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/0123456789abcdef'
+has a64/cfinv.html '<td colspan="4" class="droppedname">CRm</td>'                     # a field fixed whole
+has a64/fn/AddWithCarry.html '<a href="../adc.html">ADC</a>'                         # used by
+has a64/fn/Strip.html "ScarletNX's fixup"
+has a32/BX.html 'cond != 1111'
+has a32/BX.html 'ArchVersion() &lt; 5'                                                # arm.sail's own clause
+has a32/BX.html '<td colspan="4" class="lr">Rm</td>'                                 # a field passed straight in
+has a64/data.js '"ADC","a64/adc.html#Integer_arithmetic_add_sub_carry","A64"'
+has a32/data.js '"BX","a32/BX.html#A1","A32","A1","ffffff0","12fff10","f0000000","f0000000"'
+
+# the same Sail makes the same manual
+python3 tools/gen-arm-manual.py tests/sail "$tmp/again" --commit 0123456789abcdef0123456789abcdef01234567 >/dev/null
+diff -r "$tmp/manual" "$tmp/again" >/dev/null || fail "two runs differ"
+echo "check-manual: passed"

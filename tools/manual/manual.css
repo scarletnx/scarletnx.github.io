@@ -1,0 +1,16 @@
+/* The ARM manual's one stylesheet (tools/gen-arm-manual.py): the pages read without it */
+body { max-width: 72em; margin: 0 auto; padding: 0 1em; font-family: sans-serif; line-height: 1.4; }
+pre { overflow-x: auto; padding: .5em; border: 1px solid #8888; }
+a.src { font-size: smaller; font-weight: normal; }
+.nav, .foot, .groups { font-size: smaller; }
+.bits { font-family: monospace; }
+ul.cols { columns: 16em; }
+table.regdiagram { border-collapse: collapse; border: 0; font-family: monospace; text-align: center; }
+.regdiagram td { border: 0; padding: .1em .25em; min-width: 1.2em; }
+.regdiagram thead td { font-size: smaller; }
+.regdiagram .firstrow td { border-top: 1px solid; border-bottom: 1px solid; }
+.regdiagram .firstrow td.l { border-left: 1px solid; }
+.regdiagram .firstrow td.r { border-right: 1px solid; }
+.regdiagram .firstrow td.lr { border-left: 1px solid; border-right: 1px solid; }
+.regdiagram .droppedname { font-size: smaller; font-style: italic; }
+#search input { width: 100%; max-width: 30em; font-size: 1.1em; }

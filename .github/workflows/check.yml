@@ -10,3 +10,4 @@ jobs:
       - uses: actions/checkout@v5
       - run: python3 tools/check-site.py
       - run: sh tests/check-site.sh
+      - run: sh tests/check-manual.sh
