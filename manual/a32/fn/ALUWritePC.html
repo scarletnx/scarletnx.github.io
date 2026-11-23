@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>ALUWritePC - ScarletNX ARM manual</title>
+<title>ALUWritePC - ScarletNX ARM ISA</title>
 <link rel="stylesheet" href="../../manual.css">
 </head>
 <body>
-<p class="nav"><a href="../../../">ScarletNX</a> / <a href="../../">ARM manual</a></p>
+<p class="nav"><a href="../../../">ScarletNX</a> / <a href="../../">ARM ISA</a></p>
 <h1>ALUWritePC</h1>
 <h2>ScarletNX's fixup <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/arm/sail/arm.sail#L296">arm.sail</a></h2>
 <p>A data processing write of the PC in A32 interworks from ARMv7 on; ARMv4T to ARMv6 branch in A32, to the word its bits 1 and 0 cleared leave (the ARMv7 ARM&#x27;s ALUWritePC); a Thumb one branches in Thumb</p>

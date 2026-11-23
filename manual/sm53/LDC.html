@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>LDC - ScarletNX Maxwell ISA</title>
+<link rel="stylesheet" href="../manual.css">
+</head>
+<body>
+<p class="nav"><a href="../../">ScarletNX</a> / <a href="../sm53/">Maxwell ISA</a></p>
+<h1>LDC</h1>
+<p class="groups"><a href="constant-buffer-local-shared-and.html">Constant buffer, local, shared and global memory instructions</a></p>
+<h2 class="classheading" id="LDC">LDC</h2>
+<table class="regdiagram" border="1" cellspacing="0"><tr class="nums"><td>63</td><td>62</td><td>61</td><td>60</td><td>59</td><td>58</td><td>57</td><td>56</td><td>55</td><td>54</td><td>53</td><td>52</td><td>51</td><td>50</td><td>49</td><td>48</td><td>47</td><td>46</td><td>45</td><td>44</td><td>43</td><td>42</td><td>41</td><td>40</td><td>39</td><td>38</td><td>37</td><td>36</td><td>35</td><td>34</td><td>33</td><td>32</td></tr><tr class="firstrow"><td class="l">1</td><td>1</td><td>1</td><td>0</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td><td>0</td><td>0</td><td>1</td><td class="r">0</td><td colspan="3" class="lr">size</td><td class="l"></td><td></td><td class="r"></td><td class="lr">dynamic_bank</td><td class="l"></td><td></td><td class="r"></td><td colspan="5" class="lr">bank</td><td colspan="4" class="lr">off</td></tr><tr class="secondrow"><td colspan="32"></td></tr><tr class="nums"><td>31</td><td>30</td><td>29</td><td>28</td><td>27</td><td>26</td><td>25</td><td>24</td><td>23</td><td>22</td><td>21</td><td>20</td><td>19</td><td>18</td><td>17</td><td>16</td><td>15</td><td>14</td><td>13</td><td>12</td><td>11</td><td>10</td><td>9</td><td>8</td><td>7</td><td>6</td><td>5</td><td>4</td><td>3</td><td>2</td><td>1</td><td>0</td></tr><tr class="firstrow"><td colspan="12" class="lr">off</td><td class="lr">pred.not</td><td colspan="3" class="lr">pred</td><td colspan="8" class="lr">Ra</td><td colspan="8" class="lr">Rd</td></tr><tr class="secondrow"><td colspan="32"></td></tr></table>
+<p class="bits">bits 63:48: 1110 1111 1001 0---</p><p>Runs <a href="#execute_LDC">execute_LDC</a> with <code>Form()</code> 0.</p>
+<h3>Fields</h3><table class="fields"><tr><th>Field</th><th>Bits</th><th>From</th></tr><tr><td>size</td><td>50:48</td><td>execute_LDC</td></tr><tr><td>dynamic_bank</td><td>44</td><td>execute_LDC</td></tr><tr><td>bank</td><td>40:36</td><td>execute_LDC</td></tr><tr><td>off</td><td>35:20</td><td>execute_LDC</td></tr><tr><td>pred.not</td><td>19</td><td>the decoder</td></tr><tr><td>pred</td><td>18:16</td><td>the decoder</td></tr><tr><td>Ra</td><td>15:8</td><td>RegA()</td></tr><tr><td>Rd</td><td>7:0</td><td>Dst()</td></tr></table>
+<h2 class="pseudocode" id="execute_LDC">Operation <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/nx/gpu/shader/sail/sm53_memory.sail#L74">Sail</a></h2>
+<p>LDC: the constant buffer word at the register at 8 plus the signed offset at 20, of bank 36 (bit 44: the register&#x27;s high half added to the bank, its low half the address), a byte or halfword of it (48-50) or a pair. It loads the handle of a texture that is indexed: the element it picks, the address register over the stride, stored</p>
+<pre>let off = <a href="fn/Bits32.html">Bits32</a>(SignExtend(<a href="fn/Field.html">Field</a>(20, 16), 32)); /* made before the register&#x27;s read, as the translator made it */
+let a = <a href="fn/R_read.html">R_read</a>(<a href="fn/RegA.html">RegA</a>());
+let bank = UInt(<a href="fn/Field.html">Field</a>(36, 5));
+let dynamic_bank = <a href="fn/Field.html">Field</a>(44, 1) == 0b1;
+let picked = if dynamic_bank then to_bits(32, bank) + (a &gt;&gt; 16) else 0x00000000;
+let source = if dynamic_bank then a &amp; 0x0000ffff else a;
+let address = source + off;
+let word = if dynamic_bank then <a href="fn/CbufReadBank.html">CbufReadBank</a>(bank, picked, address) else <a href="fn/CbufReadDynamic.html">CbufReadDynamic</a>(bank, address);
+let size = UInt(<a href="fn/Field.html">Field</a>(48, 3));
+foreach (k from 0 to <a href="fn/TextureCount.html">TextureCount</a>() - 1) {
+    if <a href="fn/TexIndexedBy.html">TexIndexedBy</a>(k) then <a href="fn/TexIndexStore.html">TexIndexStore</a>(k, <a href="fn/R_read.html">R_read</a>(<a href="fn/RegA.html">RegA</a>()) &gt;&gt; <a href="fn/TexIndexShift.html">TexIndexShift</a>(k))
+};
+if size &lt; 4 then {
+    let byte_offset = address &amp; (if size &lt; 2 then 0x00000003 else 0x00000002);
+    let bit_offset = byte_offset &lt;&lt; 3;
+    <a href="fn/R_write.html">R_write</a>(<a href="fn/Dst.html">Dst</a>(), <a href="fn/SubwordExtract.html">SubwordExtract</a>(word, bit_offset, <a href="fn/SubwordWidth.html">SubwordWidth</a>(size), size))
+} else <a href="fn/R_write.html">R_write</a>(<a href="fn/Dst.html">Dst</a>(), word);
+if size == 5 then {
+    let next = address + 0x00000004;
+    <a href="fn/R_write.html">R_write</a>(<a href="fn/Dst.html">Dst</a>() + 1, if dynamic_bank then <a href="fn/CbufReadBank.html">CbufReadBank</a>(bank, picked, next) else <a href="fn/CbufReadDynamic.html">CbufReadDynamic</a>(bank, next))
+}</pre>
+<hr>
+<p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. The Sail and the encodings' file are ScarletNX's (GPL-3.0-or-later); its encodings are from Eden's <code>maxwell.inc</code> (GPL-2.0-or-later).</p>
+</body>
+</html>

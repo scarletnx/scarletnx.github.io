@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>BXWritePC - ScarletNX ARM manual</title>
+<title>BXWritePC - ScarletNX ARM ISA</title>
 <link rel="stylesheet" href="../../manual.css">
 </head>
 <body>
-<p class="nav"><a href="../../../">ScarletNX</a> / <a href="../../">ARM manual</a></p>
+<p class="nav"><a href="../../../">ScarletNX</a> / <a href="../../">ARM ISA</a></p>
 <h1>BXWritePC</h1>
 <h2>ScarletNX's fixup <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/arm/sail/arm.sail#L283">arm.sail</a></h2>
 <p>An interworking branch takes the state from the target&#x27;s bit 0 and clears it; with no CONSTRAINED UNPREDICTABLE choice (ConstrainUnpredictableBool, below) an A32 target&#x27;s bit 1 stays. sail-arm&#x27;s sets T in each way of an if on that bit, and sailgen writes no register under a condition known only when the guest runs, so T is the bit itself here</p>

@@ -4,15 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>TST (register) - ScarletNX ARM manual</title>
+<title>TST (register) - ScarletNX ARM ISA</title>
 <link rel="stylesheet" href="../manual.css">
 </head>
 <body>
-<p class="nav"><a href="../../">ScarletNX</a> / <a href="../">ARM manual</a></p>
+<p class="nav"><a href="../../">ScarletNX</a> / <a href="../">ARM ISA</a></p>
 <h1>TST (register)</h1>
 <p class="groups"><a href="A32_DataProMisc.html">A32: data processing and miscellaneous instructions</a> / <a href="T16.html">T32: 16-bit instructions</a></p>
 <h2 class="classheading" id="A1">A1</h2>
-<table class="regdiagram" border="1" cellspacing="0"><thead><tr><td>31</td><td>30</td><td>29</td><td>28</td><td>27</td><td>26</td><td>25</td><td>24</td><td>23</td><td>22</td><td>21</td><td>20</td><td>19</td><td>18</td><td>17</td><td>16</td><td>15</td><td>14</td><td>13</td><td>12</td><td>11</td><td>10</td><td>9</td><td>8</td><td>7</td><td>6</td><td>5</td><td>4</td><td>3</td><td>2</td><td>1</td><td>0</td></tr></thead><tbody><tr class="firstrow"><td colspan="4" class="lr">cond</td><td class="l">0</td><td>0</td><td>0</td><td>1</td><td>0</td><td>0</td><td>0</td><td class="r">1</td><td colspan="4" class="lr">Rn</td><td class="l">0</td><td>0</td><td>0</td><td class="r">0</td><td colspan="5" class="lr">imm5</td><td colspan="2" class="lr">stype</td><td class="lr">0</td><td colspan="4" class="lr">Rm</td></tr><tr class="secondrow"><td colspan="32"></td></tr></tbody></table>
+<table class="regdiagram" border="1" cellspacing="0"><tr class="nums"><td>31</td><td>30</td><td>29</td><td>28</td><td>27</td><td>26</td><td>25</td><td>24</td><td>23</td><td>22</td><td>21</td><td>20</td><td>19</td><td>18</td><td>17</td><td>16</td><td>15</td><td>14</td><td>13</td><td>12</td><td>11</td><td>10</td><td>9</td><td>8</td><td>7</td><td>6</td><td>5</td><td>4</td><td>3</td><td>2</td><td>1</td><td>0</td></tr><tr class="firstrow"><td colspan="4" class="lr">cond</td><td class="l">0</td><td>0</td><td>0</td><td>1</td><td>0</td><td>0</td><td>0</td><td class="r">1</td><td colspan="4" class="lr">Rn</td><td class="l">0</td><td>0</td><td>0</td><td class="r">0</td><td colspan="5" class="lr">imm5</td><td colspan="2" class="lr">stype</td><td class="lr">0</td><td colspan="4" class="lr">Rm</td></tr><tr class="secondrow"><td colspan="32"></td></tr></table>
 <p class="bits">xxxx00010001xxxx0000xxxxxxx0xxxx<br>cond != 1111</p>
 <h3>Decode <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/arm/sail/a32.sail#L4886">Sail</a></h3>
 <pre>if <a href="fn/ConditionPassed.html">ConditionPassed</a>() then {
@@ -27,7 +27,7 @@
 };
 ()</pre>
 <h2 class="classheading" id="T1">T1</h2>
-<table class="regdiagram" border="1" cellspacing="0"><thead><tr><td>15</td><td>14</td><td>13</td><td>12</td><td>11</td><td>10</td><td>9</td><td>8</td><td>7</td><td>6</td><td>5</td><td>4</td><td>3</td><td>2</td><td>1</td><td>0</td></tr></thead><tbody><tr class="firstrow"><td class="l">0</td><td>1</td><td>0</td><td>0</td><td>0</td><td>0</td><td>1</td><td>0</td><td>0</td><td class="r">0</td><td colspan="3" class="lr">Rm</td><td colspan="3" class="lr">Rn</td></tr><tr class="secondrow"><td colspan="16"></td></tr></tbody></table>
+<table class="regdiagram" border="1" cellspacing="0"><tr class="nums"><td>15</td><td>14</td><td>13</td><td>12</td><td>11</td><td>10</td><td>9</td><td>8</td><td>7</td><td>6</td><td>5</td><td>4</td><td>3</td><td>2</td><td>1</td><td>0</td></tr><tr class="firstrow"><td class="l">0</td><td>1</td><td>0</td><td>0</td><td>0</td><td>0</td><td>1</td><td>0</td><td>0</td><td class="r">0</td><td colspan="3" class="lr">Rm</td><td colspan="3" class="lr">Rn</td></tr><tr class="secondrow"><td colspan="16"></td></tr></table>
 <p class="bits">0100001000xxxxxx</p>
 <h3>Decode <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/arm/sail/a32.sail#L4916">Sail</a></h3>
 <pre>if <a href="fn/ConditionPassed.html">ConditionPassed</a>() then {

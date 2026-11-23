@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>RightOf - ScarletNX Maxwell ISA</title>
+<link rel="stylesheet" href="../../manual.css">
+</head>
+<body>
+<p class="nav"><a href="../../../">ScarletNX</a> / <a href="../../sm53/">Maxwell ISA</a></p>
+<h1>RightOf</h1><p><a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/nx/gpu/shader/sail/sm53_int.sail#L66">sm53_int.sail</a></p><p>an integer form&#x27;s right operand by its place in the roots line, the register (0), the constant (1), the immediate</p><pre>function RightOf(form : int) -&gt; bits(32) = <a href="../fn/Right.html">Right</a>(if form == 0 then 0 else if form == 1 then 1 else 2)</pre><h2>Used by</h2><ul class="cols"><li><a href="../BFE.html">BFE</a></li><li><a href="../FLO.html">FLO</a></li><li><a href="../I2I.html">I2I</a></li><li><a href="../IADD.html">IADD</a></li><li><a href="../IADD3.html">IADD3</a></li><li><a href="../IMNMX.html">IMNMX</a></li><li><a href="../ISCADD.html">ISCADD</a></li><li><a href="../ISET.html">ISET</a></li><li><a href="../ISETP.html">ISETP</a></li><li><a href="../LOP.html">LOP</a></li><li><a href="../LOP3.html">LOP3</a></li><li><a href="../MOV.html">MOV</a></li><li><a href="../P2R.html">P2R</a></li><li><a href="../POPC.html">POPC</a></li><li><a href="../R2P.html">R2P</a></li><li><a href="../SEL.html">SEL</a></li><li><a href="../SHL.html">SHL</a></li><li><a href="../SHR.html">SHR</a></li></ul>
+<hr>
+<p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. The Sail and the encodings' file are ScarletNX's (GPL-3.0-or-later); its encodings are from Eden's <code>maxwell.inc</code> (GPL-2.0-or-later).</p>
+</body>
+</html>

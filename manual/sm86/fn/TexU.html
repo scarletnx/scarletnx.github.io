@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>TexU - ScarletNX Ampere ISA</title>
+<link rel="stylesheet" href="../../manual.css">
+</head>
+<body>
+<p class="nav"><a href="../../../">ScarletNX</a> / <a href="../../sm86/">Ampere ISA</a></p>
+<h1>TexU</h1><p><a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/nx/gpu/shader/sail/sm86.sail#L1422">sm86.sail</a></p><p>the texture instructions whose handle a uniform register holds: memory_handles found the slot, or none (UniformHandle)</p><pre>function TexU(kind : int) -&gt; unit =
+    if not_bool(<a href="../fn/HasHandleSlot.html">HasHandleSlot</a>()) then <a href="../fn/UniformHandle.html">UniformHandle</a>()
+    else match kind { 0 =&gt; <a href="../fn/Texture.html">Texture</a>(), 1 =&gt; <a href="../fn/TexelFetch.html">TexelFetch</a>(), 2 =&gt; <a href="../fn/TextureQuery.html">TextureQuery</a>(), _ =&gt; <a href="../fn/TextureGrad.html">TextureGrad</a>() }</pre><h2>Used by</h2><ul class="cols"><li><a href="../TEX_U.html">TEX (uniform handle)</a></li><li><a href="../TLD_U.html">TLD (uniform handle)</a></li><li><a href="../TXD_U.html">TXD (uniform handle)</a></li><li><a href="../TXQ_U.html">TXQ (uniform handle)</a></li></ul>
+<hr>
+<p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. The Sail and the encodings' file are ScarletNX's (GPL-3.0-or-later); its encodings are from Mesa's NAK (<code>sm70_encode.rs</code>, MIT) and CuAssembler's sm_86 records.</p>
+</body>
+</html>

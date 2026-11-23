@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>CurrentInstrSet - ScarletNX ARM manual</title>
+<title>CurrentInstrSet - ScarletNX ARM ISA</title>
 <link rel="stylesheet" href="../../manual.css">
 </head>
 <body>
-<p class="nav"><a href="../../../">ScarletNX</a> / <a href="../../">ARM manual</a></p>
+<p class="nav"><a href="../../../">ScarletNX</a> / <a href="../../">ARM ISA</a></p>
 <h1>CurrentInstrSet</h1>
 <h2>ScarletNX's fixup <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/arm/sail/arm.sail#L30">arm.sail</a></h2>
 <p>The instruction set a block runs in is the block&#x27;s (the dispatcher picks an A32 or a Thumb block by CPSR.T): the back end answers it when it recompiles, and an instruction that selects the other one (BLX) has it from then on, so its branch aligns its target as the new set does (SetInstrSet, the back end&#x27;s; PSTATE.T as sail-arm&#x27;s SelectInstrSet)</p>

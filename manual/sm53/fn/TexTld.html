@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>TexTld - ScarletNX Maxwell ISA</title>
+<link rel="stylesheet" href="../../manual.css">
+</head>
+<body>
+<p class="nav"><a href="../../../">ScarletNX</a> / <a href="../../sm53/">Maxwell ISA</a></p>
+<h1>TexTld</h1><p><a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/nx/gpu/shader/sail/sm53_texture.sail#L10">sm53_texture.sail</a></p><p>SM53&#x27;s texture and surface instructions (sm53_texture.roots; back end sm53_texture_spirv.h). Each is the translator&#x27;s binding of the textures and images to the pipeline as much as an operation: the slot the prescan found for its handle (bound, bindless or an indexed table&#x27;s element), the typed slots and their element swaps, the scaled render targets, the depth comparison by the slot&#x27;s function, the min and max filters, the offsets&#x27; dispatch trees, the coordinates&#x27; registers by the texture&#x27;s kind. That is emit_texture.c&#x27;s (shader_tex_*), as SM86&#x27;s texture() and surface() are sm86_translate.c&#x27;s, which each instruction runs</p><pre>val TexTld : unit -&gt; unit</pre><h2>Used by</h2><ul class="cols"><li><a href="../TLD.html">TLD</a></li></ul>
+<hr>
+<p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. The Sail and the encodings' file are ScarletNX's (GPL-3.0-or-later); its encodings are from Eden's <code>maxwell.inc</code> (GPL-2.0-or-later).</p>
+</body>
+</html>

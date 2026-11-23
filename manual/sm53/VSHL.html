@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>VSHL - ScarletNX Maxwell ISA</title>
+<link rel="stylesheet" href="../manual.css">
+</head>
+<body>
+<p class="nav"><a href="../../">ScarletNX</a> / <a href="../sm53/">Maxwell ISA</a></p>
+<h1>VSHL</h1>
+<p class="groups"><a href="integer-logic-video-and.html">Integer, logic, video and predicate instructions</a></p>
+<h2 class="classheading" id="VSHL">VSHL</h2>
+<table class="regdiagram" border="1" cellspacing="0"><tr class="nums"><td>63</td><td>62</td><td>61</td><td>60</td><td>59</td><td>58</td><td>57</td><td>56</td><td>55</td><td>54</td><td>53</td><td>52</td><td>51</td><td>50</td><td>49</td><td>48</td><td>47</td><td>46</td><td>45</td><td>44</td><td>43</td><td>42</td><td>41</td><td>40</td><td>39</td><td>38</td><td>37</td><td>36</td><td>35</td><td>34</td><td>33</td><td>32</td></tr><tr class="firstrow"><td class="l">0</td><td>1</td><td>0</td><td>1</td><td>0</td><td>1</td><td>1</td><td>1</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td class="r"></td></tr><tr class="secondrow"><td colspan="32"></td></tr><tr class="nums"><td>31</td><td>30</td><td>29</td><td>28</td><td>27</td><td>26</td><td>25</td><td>24</td><td>23</td><td>22</td><td>21</td><td>20</td><td>19</td><td>18</td><td>17</td><td>16</td><td>15</td><td>14</td><td>13</td><td>12</td><td>11</td><td>10</td><td>9</td><td>8</td><td>7</td><td>6</td><td>5</td><td>4</td><td>3</td><td>2</td><td>1</td><td>0</td></tr><tr class="firstrow"><td class="l"></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td class="r"></td><td class="lr">pred.not</td><td colspan="3" class="lr">pred</td><td colspan="8" class="lr">Ra</td><td colspan="8" class="lr">Rd</td></tr><tr class="secondrow"><td colspan="32"></td></tr></table>
+<p class="bits">bits 63:48: 0101 0111 ---- ----</p><p>Runs <a href="#execute_VIDEO">execute_VIDEO</a> with <code>Form()</code> 3.</p>
+<h3>Fields</h3><p>The operation reads some of these fields in some forms alone (it chooses by <code>Form()</code>), so the diagrams show only the decoder's.</p><table class="fields"><tr><th>Field</th><th>Bits</th><th>From</th></tr><tr><td>mode</td><td>57:56</td><td>execute_VIDEO</td></tr><tr><td>compare</td><td>56:54</td><td>execute_VIDEO</td></tr><tr><td>[55]</td><td>55</td><td>execute_VIDEO</td></tr><tr><td>[54]</td><td>54</td><td>execute_VIDEO</td></tr><tr><td>[53:51]</td><td>53:51</td><td>execute_VIDEO</td></tr><tr><td>right</td><td>50</td><td>execute_VIDEO</td></tr><tr><td>bsel</td><td>49</td><td>execute_VIDEO</td></tr><tr><td>asel</td><td>48</td><td>execute_VIDEO</td></tr><tr><td>[46:39]</td><td>46:39</td><td>execute_VIDEO</td></tr><tr><td>asel</td><td>38:36</td><td>execute_VIDEO</td></tr><tr><td>[35:20]</td><td>35:20</td><td>execute_VIDEO</td></tr><tr><td>bsel</td><td>30:28</td><td>execute_VIDEO</td></tr><tr><td>pred.not</td><td>19</td><td>the decoder</td></tr><tr><td>pred</td><td>18:16</td><td>the decoder</td></tr><tr><td>Ra</td><td>15:8</td><td>RegA()</td></tr><tr><td>Rd</td><td>7:0</td><td>Dst()</td></tr></table>
+<h2 class="pseudocode" id="execute_VIDEO">Operation <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/nx/gpu/shader/sail/sm53_int.sail#L261">Sail</a></h2>
+<p>VADD, VABSDIFF, VSET, VSHL and VSHR: Ryujinx&#x27;s decoding and PTX&#x27;s semantics: A&#x27;s and B&#x27;s selects at 36 and 28 with their signs at 48 and 49 (the shifts&#x27; B is unsigned, and bit 49 wraps their count), B a 16-bit immediate when bit 50 is clear, a signed destination at 54 and saturate at 55 (VSET&#x27;s comparison is there instead), the secondary operation at 51-53, and VADD&#x27;s negation/plus-one mode at 56-57</p>
+<pre>let op = <a href="fn/Form.html">Form</a>(); /* 0 VADD, 1 VABSDIFF, 2 VSET, 3 VSHL, 4 VSHR */
+let shift = op &gt;= 3;
+let asel = UInt(<a href="fn/Field.html">Field</a>(36, 3)) + 8 * UInt(<a href="fn/Field.html">Field</a>(48, 1));
+let bsel = UInt(<a href="fn/Field.html">Field</a>(28, 3)) + (if shift then 0 else 8 * UInt(<a href="fn/Field.html">Field</a>(49, 1)));
+let left = <a href="fn/VideoOperand.html">VideoOperand</a>(<a href="fn/R_read.html">R_read</a>(<a href="fn/RegA.html">RegA</a>()), asel);
+let right = if <a href="fn/Field.html">Field</a>(50, 1) == 0b1 then <a href="fn/VideoOperand.html">VideoOperand</a>(<a href="fn/R_read.html">R_read</a>(<a href="fn/RegB.html">RegB</a>()), bsel)
+            else <a href="fn/VideoOperand.html">VideoOperand</a>(<a href="fn/Bits32.html">Bits32</a>(ZeroExtend(<a href="fn/Field.html">Field</a>(20, 16), 32)), 4 + 8 * DIV(bsel, 8));
+let zero64 = <a href="fn/I64Const.html">I64Const</a>(0);
+let one64 = <a href="fn/I64Const.html">I64Const</a>(1);
+let result : i64 = if op == 0 then {
+    let mode = UInt(<a href="fn/Field.html">Field</a>(56, 2));
+    let r = if mode == 1 then <a href="fn/I64Sub.html">I64Sub</a>(left, right) else if mode == 2 then <a href="fn/I64Sub.html">I64Sub</a>(right, left) else <a href="fn/I64Add.html">I64Add</a>(left, right);
+    if mode == 3 then <a href="fn/I64Add.html">I64Add</a>(r, one64) else r
+} else if op == 1 then {
+    let difference = <a href="fn/I64Sub.html">I64Sub</a>(left, right);
+    <a href="fn/I64Select.html">I64Select</a>(<a href="fn/I64Greater.html">I64Greater</a>(zero64, difference), <a href="fn/I64Sub.html">I64Sub</a>(zero64, difference), difference)
+} else if op == 2 then {
+    let compare = UInt(<a href="fn/Field.html">Field</a>(54, 3));
+    let less = <a href="fn/I64Greater.html">I64Greater</a>(right, left);
+    let greater = <a href="fn/I64Greater.html">I64Greater</a>(left, right);
+    let equal = <a href="fn/I64Equal.html">I64Equal</a>(left, right);
+    let test = match compare {
+        0 =&gt; false, 1 =&gt; less, 2 =&gt; equal, 3 =&gt; not_bool(greater), 4 =&gt; greater, 5 =&gt; not_bool(equal),
+        6 =&gt; not_bool(less), _ =&gt; true
+    };
+    <a href="fn/I64Select.html">I64Select</a>(test, one64, zero64)
+} else {
+    /* the count wraps to 5 bits (bit 49) or clamps at 32; VSHR fills with A&#x27;s sign when A is signed */
+    let count = if <a href="fn/Field.html">Field</a>(49, 1) == 0b1 then <a href="fn/I64And.html">I64And</a>(right, <a href="fn/I64Const.html">I64Const</a>(31))
+                else <a href="fn/I64Select.html">I64Select</a>(<a href="fn/I64Greater.html">I64Greater</a>(right, <a href="fn/I64Const.html">I64Const</a>(32)), <a href="fn/I64Const.html">I64Const</a>(32), right);
+    if op == 3 then <a href="fn/I64Shl.html">I64Shl</a>(left, count) else if <a href="fn/Field.html">Field</a>(48, 1) == 0b1 then <a href="fn/I64Sar.html">I64Sar</a>(left, count) else <a href="fn/I64Shr.html">I64Shr</a>(left, count)
+};
+<a href="fn/R_write.html">R_write</a>(<a href="fn/Dst.html">Dst</a>(), <a href="fn/VideoFinish.html">VideoFinish</a>(result, <a href="fn/R_read.html">R_read</a>(UInt(<a href="fn/Field.html">Field</a>(39, 8))), UInt(<a href="fn/Field.html">Field</a>(51, 3)),
+                           if op != 2 then UInt(<a href="fn/Field.html">Field</a>(55, 1)) else 0, if op != 2 then UInt(<a href="fn/Field.html">Field</a>(54, 1)) else 0,
+                           if op == 3 &amp; <a href="fn/Field.html">Field</a>(48, 1) == 0b0 then 1 else 0))</pre>
+<hr>
+<p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. The Sail and the encodings' file are ScarletNX's (GPL-3.0-or-later); its encodings are from Eden's <code>maxwell.inc</code> (GPL-2.0-or-later).</p>
+</body>
+</html>

@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>FCompare - ScarletNX Ampere ISA</title>
+<link rel="stylesheet" href="../../manual.css">
+</head>
+<body>
+<p class="nav"><a href="../../../">ScarletNX</a> / <a href="../../sm86/">Ampere ISA</a></p>
+<h1>FCompare</h1><p><a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/nx/gpu/shader/sail/gpu.sail#L46">gpu.sail</a></p><p>a comparison of NAK&#x27;s FloatCmpOp codes (spv_emit_fcompare&#x27;s): 1 &lt;, 2 ==, 3 &lt;=, 4 &gt;, 5 !=, 6 &gt;=, 7 num, 8 nan, and 9 to 14 the same unordered, 0 false, 15 true</p><pre>val FCompare : (int, bits(32), bits(32)) -&gt; bool</pre><h2>Used by</h2><ul class="cols"><li><a href="../F2I.html">F2I</a></li><li><a href="../F2I64.html">F2I.64</a></li><li><a href="../FSET.html">FSET</a></li><li><a href="../FSETP.html">FSETP</a></li><li><a href="../HFMA2.html">HFMA2</a></li><li><a href="../HSETP2.html">HSETP2</a></li><li><a href="../I2F64.html">I2F.64</a></li></ul>
+<hr>
+<p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. The Sail and the encodings' file are ScarletNX's (GPL-3.0-or-later); its encodings are from Mesa's NAK (<code>sm70_encode.rs</code>, MIT) and CuAssembler's sm_86 records.</p>
+</body>
+</html>

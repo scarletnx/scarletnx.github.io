@@ -1,4 +1,4 @@
-// The search's data (tools/gen-arm-manual.py): title, page, instruction set, class, mask, value, the bits that must not be a value (mask, value), and the order the decoder tries it in
+// The search's data (tools/gen-manual.py): title, page, instruction set, class, mask, value, the bits that must not be a value (mask, value), and the order the decoder tries it in
 var ARM = (window.ARM || []).concat([
 ["ADC (immediate)","a32/ADC_i.html#A1","A32","A1","fe00000","2a00000","f0000000","f0000000","0"],
 ["ADC (register)","a32/ADC_r.html#A1","A32","A1","fe00010","a00000","f0000000","f0000000","1"],

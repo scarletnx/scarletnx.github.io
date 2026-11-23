@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Term64 - ScarletNX Ampere ISA</title>
+<link rel="stylesheet" href="../../manual.css">
+</head>
+<body>
+<p class="nav"><a href="../../../">ScarletNX</a> / <a href="../../sm86/">Ampere ISA</a></p>
+<h1>Term64</h1><p><a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/nx/gpu/shader/sail/sm86.sail#L63">sm86.sail</a></p><p>a term of a 64-bit sum: its two&#x27;s complement as NAK&#x27;s fold reads it, ~x + 1 in 33 bits. With the carries in (.X) the modifier is the complement alone, ~x: the low word&#x27;s sum gave the + 1 as a carry. One game&#x27;s 64-bit subtractions are IADD3 a, b, -c then IADD3.X a&#x27;, b&#x27;, ~c&#x27;, and with ~c&#x27; + 1 their high word was one too many</p><pre>function Term64(s : <a href="../fn/Operand.html">Operand</a>, x : bool) -&gt; bits(64) = {
+    let v = <a href="../fn/SrcBits.html">SrcBits</a>(s);
+    if not_bool(<a href="../fn/SrcNeg.html">SrcNeg</a>(s)) then ZeroExtend(v, 64) else {
+        let n = ZeroExtend(not_vec(v), 64);
+        if x then n else n + 0x0000000000000001
+    }
+}</pre><h2>Used by</h2><ul class="cols"><li><a href="../IADD3.html">IADD3</a></li></ul>
+<hr>
+<p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. The Sail and the encodings' file are ScarletNX's (GPL-3.0-or-later); its encodings are from Mesa's NAK (<code>sm70_encode.rs</code>, MIT) and CuAssembler's sm_86 records.</p>
+</body>
+</html>

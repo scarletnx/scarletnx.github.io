@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Shf32 - ScarletNX Ampere ISA</title>
+<link rel="stylesheet" href="../../manual.css">
+</head>
+<body>
+<p class="nav"><a href="../../../">ScarletNX</a> / <a href="../../sm86/">Ampere ISA</a></p>
+<h1>Shf32</h1><p><a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/nx/gpu/shader/sail/sm86.sail#L203">sm86.sail</a></p><p>SHF of a 32-bit type by an immediate (one game&#x27;s are nearly all so: SHF.R.U32.HI d, RZ, s, x): (c:a) shifted by s, known when the translator runs, of 32-bit words. Its high word or low word is a word shifted, or two words&#x27; bits put together; s 0 and 32 take a word whole (a shift by 32 is out of SPIR-V&#x27;s range)</p><pre>function Shf32(right : bool, is_signed : bool, high : bool, s : int) -&gt; unit = {
+    if s == 0 then <a href="../fn/D_write.html">D_write</a>(if high then <a href="../fn/SrcBits.html">SrcBits</a>(<a href="../fn/Operand.html">C</a>) else <a href="../fn/SrcBits.html">SrcBits</a>(<a href="../fn/Operand.html">A</a>))
+    else if right &amp; high then {
+        let c = <a href="../fn/SrcBits.html">SrcBits</a>(<a href="../fn/Operand.html">C</a>);
+        if s == 32 then <a href="../fn/D_write.html">D_write</a>(if is_signed then ASR(c, 31) else 0x00000000)
+        else <a href="../fn/D_write.html">D_write</a>(if is_signed then ASR(c, s) else c &gt;&gt; s)
+    } else if not_bool(right) &amp; not_bool(high) then {
+        if s == 32 then <a href="../fn/D_write.html">D_write</a>(0x00000000) else <a href="../fn/D_write.html">D_write</a>(<a href="../fn/SrcBits.html">SrcBits</a>(<a href="../fn/Operand.html">A</a>) &lt;&lt; s)
+    } else if s == 32 then <a href="../fn/D_write.html">D_write</a>(if high then <a href="../fn/SrcBits.html">SrcBits</a>(<a href="../fn/Operand.html">A</a>) else <a href="../fn/SrcBits.html">SrcBits</a>(<a href="../fn/Operand.html">C</a>))
+    else {
+        /* the low word of a right shift (a&#x27;s bits down, c&#x27;s in from above), or the high word of a left shift (c&#x27;s
+           bits up, a&#x27;s in from below); a word that reads zero adds nothing */
+        let from = if right then 32 - s else s;
+        let up = if <a href="../fn/IsZero.html">IsZero</a>(<a href="../fn/Operand.html">C</a>) then 0x00000000 else <a href="../fn/SrcBits.html">SrcBits</a>(<a href="../fn/Operand.html">C</a>) &lt;&lt; from;
+        let down = if <a href="../fn/IsZero.html">IsZero</a>(<a href="../fn/Operand.html">A</a>) then 0x00000000 else <a href="../fn/SrcBits.html">SrcBits</a>(<a href="../fn/Operand.html">A</a>) &gt;&gt; (32 - from);
+        if <a href="../fn/IsZero.html">IsZero</a>(<a href="../fn/Operand.html">A</a>) then <a href="../fn/D_write.html">D_write</a>(up) else if <a href="../fn/IsZero.html">IsZero</a>(<a href="../fn/Operand.html">C</a>) then <a href="../fn/D_write.html">D_write</a>(down) else <a href="../fn/D_write.html">D_write</a>(up | down)
+    }
+}</pre><h2>Used by</h2><ul class="cols"><li><a href="../SHF.html">SHF</a></li></ul>
+<hr>
+<p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. The Sail and the encodings' file are ScarletNX's (GPL-3.0-or-later); its encodings are from Mesa's NAK (<code>sm70_encode.rs</code>, MIT) and CuAssembler's sm_86 records.</p>
+</body>
+</html>

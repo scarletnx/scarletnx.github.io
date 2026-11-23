@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>ConstrainUnpredictable - ScarletNX ARM manual</title>
+<title>ConstrainUnpredictable - ScarletNX ARM ISA</title>
 <link rel="stylesheet" href="../../manual.css">
 </head>
 <body>
-<p class="nav"><a href="../../../">ScarletNX</a> / <a href="../../">ARM manual</a></p>
+<p class="nav"><a href="../../../">ScarletNX</a> / <a href="../../">ARM ISA</a></p>
 <h1>ConstrainUnpredictable</h1>
 <h2>ScarletNX's fixup <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/aarch64/sail/nx.sail#L183">nx.sail</a></h2>
 <p>A CONSTRAINED UNPREDICTABLE encoding (a load&#x27;s write-back register or a pair&#x27;s two registers the same, a store-exclusive&#x27;s status register one it reads) runs as it is written: its registers are written in the order its Sail writes them, so a load&#x27;s write-back comes after its loads and a store&#x27;s data is read before its write-back, which is one of the UNKNOWN values Arm allows and what ScarletNX&#x27;s emitters always did</p>

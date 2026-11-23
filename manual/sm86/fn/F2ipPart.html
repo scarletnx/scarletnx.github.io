@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>F2ipPart - ScarletNX Ampere ISA</title>
+<link rel="stylesheet" href="../../manual.css">
+</head>
+<body>
+<p class="nav"><a href="../../../">ScarletNX</a> / <a href="../../sm86/">Ampere ISA</a></p>
+<h1>F2ipPart</h1><p><a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/nx/gpu/shader/sail/sm86.sail#L631">sm86.sail</a></p><p>F2IP.U8.F32.NTZ d, a, b, c: the floats a and b each rounded to an integer and saturated to 8 bits, a NaN 0 (.NTZ), packed as PTX&#x27;s cvt.pack packs I2IP&#x27;s: d = c &lt;&lt; 16 | a&#x27; &lt;&lt; 8 | b&#x27;. Bits 72-79 (CuAssembler&#x27;s sm_86 records): 0x04 .U8.F32.NTZ, bit 76 .S8 (-128 to 127), bit 75 .RELU (0 to 127). Bits 78-79 are the rounding, in F2I&#x27;s place and order: CuAssembler records none but the nearest, and one game&#x27;s mesh programs give 3 to F2IP.U8 of a float times 255, as a shader&#x27;s uint() truncates. Its compute programs pack colours with F2IP.U8 then PRMT</p><pre>function F2ipPart(r : int, s8 : bool, lo : bits(32), hi : bits(32), rounding : int) -&gt; bits(32) = {
+    let x = <a href="../fn/Float32.html">Float32</a>(<a href="../fn/R_read.html">R_read</a>(r));
+    let nan = <a href="../fn/FIsNaN.html">FIsNaN</a>(x);
+    let rounded = <a href="../fn/FRound.html">FRound</a>(rounding, x);
+    let clamped = <a href="../fn/FMinN.html">FMinN</a>(<a href="../fn/FMaxN.html">FMaxN</a>(rounded, <a href="../fn/FConst.html">FConst</a>(lo)), <a href="../fn/FConst.html">FConst</a>(hi));
+    let i = if s8 then <a href="../fn/Bits32.html">Bits32</a>(<a href="../fn/FToS32.html">FToS32</a>(clamped)) else <a href="../fn/FToU32.html">FToU32</a>(clamped);
+    let byte = i &amp; 0x000000ff;
+    if nan then 0x00000000 else byte
+}</pre><h2>Used by</h2><ul class="cols"><li><a href="../F2IP.html">F2IP</a></li></ul>
+<hr>
+<p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. The Sail and the encodings' file are ScarletNX's (GPL-3.0-or-later); its encodings are from Mesa's NAK (<code>sm70_encode.rs</code>, MIT) and CuAssembler's sm_86 records.</p>
+</body>
+</html>

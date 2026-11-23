@@ -4,19 +4,19 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>Unallocated hint (ScarletNX) - ScarletNX ARM manual</title>
+<title>Unallocated hint (ScarletNX) - ScarletNX ARM ISA</title>
 <link rel="stylesheet" href="../manual.css">
 </head>
 <body>
-<p class="nav"><a href="../../">ScarletNX</a> / <a href="../">ARM manual</a></p>
+<p class="nav"><a href="../../">ScarletNX</a> / <a href="../">ARM ISA</a></p>
 <h1>Unallocated hint (ScarletNX)</h1>
 <p class="groups"><a href="T16.html">T32: 16-bit instructions</a></p>
 <h2 class="classheading" id="ScarletNX_unallocated_hint_T1">ScarletNX: unallocated hint T1</h2>
-<table class="regdiagram" border="1" cellspacing="0"><thead><tr><td>15</td><td>14</td><td>13</td><td>12</td><td>11</td><td>10</td><td>9</td><td>8</td><td>7</td><td>6</td><td>5</td><td>4</td><td>3</td><td>2</td><td>1</td><td>0</td></tr></thead><tbody><tr class="firstrow"><td class="l">1</td><td>0</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td><td></td><td></td><td></td><td></td><td>0</td><td>0</td><td>0</td><td class="r">0</td></tr><tr class="secondrow"><td colspan="16"></td></tr></tbody></table>
+<table class="regdiagram" border="1" cellspacing="0"><tr class="nums"><td>15</td><td>14</td><td>13</td><td>12</td><td>11</td><td>10</td><td>9</td><td>8</td><td>7</td><td>6</td><td>5</td><td>4</td><td>3</td><td>2</td><td>1</td><td>0</td></tr><tr class="firstrow"><td class="l">1</td><td>0</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td><td></td><td></td><td></td><td></td><td>0</td><td>0</td><td>0</td><td class="r">0</td></tr><tr class="secondrow"><td colspan="16"></td></tr></table>
 <p class="bits">10111111xxxx0000</p>
 <h3>Decode <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/arm/sail/arm.sail#L390">Sail</a></h3>
 <p>ScarletNX's fixup: ---- the hints and the exceptions ---- The hints Thumb-2 leaves unallocated (1011 1111 hint 0000, hint 6 to 15) run as NOP, as sail-arm&#x27;s fetch has them (UnallocatedT32_16_Instruction), outside its decode: a clause here, after the assigned hints&#x27; (a32.profile: since 7)</p>
-<pre>function decode_aarch32_unallocated_hint_T1 () = ()</pre>
+<pre>()</pre>
 <hr>
 <p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. sail-arm's definitions are Arm's ASL in Sail (BSD 3-Clause Clear, <a href="../LICENSE-sail-arm.txt">license</a>); ScarletNX's fixups are GPL-3.0-or-later.</p>
 </body>

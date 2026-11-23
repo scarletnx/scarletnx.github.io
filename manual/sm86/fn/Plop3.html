@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Plop3 - ScarletNX Ampere ISA</title>
+<link rel="stylesheet" href="../../manual.css">
+</head>
+<body>
+<p class="nav"><a href="../../../">ScarletNX</a> / <a href="../../sm86/">Ampere ISA</a></p>
+<h1>Plop3</h1><p><a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/nx/gpu/shader/sail/sm86.sail#L290">sm86.sail</a></p><p>PLOP3 and UPLOP3: two truth tables of the predicates at 87, 77 and 68 (the last a uniform one with bit 67), into the predicates at 81 (the table at 64-66 and 72-76) and 84 (at 16-23). All of UPLOP3&#x27;s predicates are uniform (NAK)</p><pre>function Plop3(u : int) -&gt; unit = {
+    let x = <a href="../fn/PredRead.html">PredRead</a>(UInt(<a href="../fn/Field.html">Field</a>(87, 3)), UInt(<a href="../fn/Field.html">Field</a>(90, 1)), u);
+    let y = <a href="../fn/PredRead.html">PredRead</a>(UInt(<a href="../fn/Field.html">Field</a>(77, 3)), UInt(<a href="../fn/Field.html">Field</a>(80, 1)), u);
+    let z = <a href="../fn/PredRead.html">PredRead</a>(UInt(<a href="../fn/Field.html">Field</a>(68, 3)), UInt(<a href="../fn/Field.html">Field</a>(71, 1)), if u == 1 | <a href="../fn/Field.html">Field</a>(67, 1) == 0b1 then 1 else 0);
+    let lut0 = <a href="../fn/Field.html">Field</a>(72, 5) @ <a href="../fn/Field.html">Field</a>(64, 3);
+    let lut1 = <a href="../fn/Field.html">Field</a>(16, 8);
+    let p = UInt(<a href="../fn/Field.html">Field</a>(81, 3));
+    let q = UInt(<a href="../fn/Field.html">Field</a>(84, 3));
+    if p &lt; <a href="../fn/PT.html">PT</a> then <a href="../fn/PredWrite.html">PredWrite</a>(p, <a href="../fn/Lut3Bool.html">Lut3Bool</a>(lut0, x, y, z), u);
+    if q &lt; <a href="../fn/PT.html">PT</a> then <a href="../fn/PredWrite.html">PredWrite</a>(q, <a href="../fn/Lut3Bool.html">Lut3Bool</a>(lut1, x, y, z), u)
+}</pre><h2>Used by</h2><ul class="cols"><li><a href="../PLOP3.html">PLOP3</a></li><li><a href="../UPLOP3.html">UPLOP3</a></li></ul>
+<hr>
+<p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. The Sail and the encodings' file are ScarletNX's (GPL-3.0-or-later); its encodings are from Mesa's NAK (<code>sm70_encode.rs</code>, MIT) and CuAssembler's sm_86 records.</p>
+</body>
+</html>

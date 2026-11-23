@@ -1,4 +1,4 @@
-// The search's data (tools/gen-arm-manual.py): title, page, instruction set, class, mask, value, the bits that must not be a value (mask, value), and the order the decoder tries it in
+// The search's data (tools/gen-manual.py): title, page, instruction set, class, mask, value, the bits that must not be a value (mask, value), and the order the decoder tries it in
 var ARM = (window.ARM || []).concat([
 ["ABS (vector)","a64/abs_advsimd.html#Vector_arithmetic_unary_diff_neg_int_SIMD","A64","Vector arithmetic unary diff neg int SIMD","bf3ffc00","e20b800","0","0","0"],
 ["ADC","a64/adc.html#Integer_arithmetic_add_sub_carry","A64","Integer arithmetic add sub carry","7fe0fc00","1a000000","0","0","2"],

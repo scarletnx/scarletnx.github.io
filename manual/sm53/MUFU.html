@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>MUFU - ScarletNX Maxwell ISA</title>
+<link rel="stylesheet" href="../manual.css">
+</head>
+<body>
+<p class="nav"><a href="../../">ScarletNX</a> / <a href="../sm53/">Maxwell ISA</a></p>
+<h1>MUFU</h1>
+<p class="groups"><a href="floating-point-instructions.html">Floating point instructions</a></p>
+<h2 class="classheading" id="MUFU">MUFU</h2>
+<table class="regdiagram" border="1" cellspacing="0"><tr class="nums"><td>63</td><td>62</td><td>61</td><td>60</td><td>59</td><td>58</td><td>57</td><td>56</td><td>55</td><td>54</td><td>53</td><td>52</td><td>51</td><td>50</td><td>49</td><td>48</td><td>47</td><td>46</td><td>45</td><td>44</td><td>43</td><td>42</td><td>41</td><td>40</td><td>39</td><td>38</td><td>37</td><td>36</td><td>35</td><td>34</td><td>33</td><td>32</td></tr><tr class="firstrow"><td class="l">0</td><td>1</td><td>0</td><td>1</td><td>0</td><td>0</td><td>0</td><td>0</td><td>1</td><td>0</td><td>0</td><td>0</td><td>0</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td class="r"></td></tr><tr class="secondrow"><td colspan="32"></td></tr><tr class="nums"><td>31</td><td>30</td><td>29</td><td>28</td><td>27</td><td>26</td><td>25</td><td>24</td><td>23</td><td>22</td><td>21</td><td>20</td><td>19</td><td>18</td><td>17</td><td>16</td><td>15</td><td>14</td><td>13</td><td>12</td><td>11</td><td>10</td><td>9</td><td>8</td><td>7</td><td>6</td><td>5</td><td>4</td><td>3</td><td>2</td><td>1</td><td>0</td></tr><tr class="firstrow"><td class="l"></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td class="r"></td><td class="lr">pred.not</td><td colspan="3" class="lr">pred</td><td colspan="8" class="lr">Ra</td><td colspan="8" class="lr">Rd</td></tr><tr class="secondrow"><td colspan="32"></td></tr></table>
+<p class="bits">bits 63:48: 0101 0000 1000 0---</p><p>Runs <a href="#execute_MUFU">execute_MUFU</a> with <code>Form()</code> 0.</p>
+<h3>Fields</h3><p>The operation reads some of these fields in some forms alone (it chooses by <code>Form()</code>), so the diagrams show only the decoder's.</p><table class="fields"><tr><th>Field</th><th>Bits</th><th>From</th></tr><tr><td>[50]</td><td>50</td><td>execute_MUFU</td></tr><tr><td>absolute</td><td>49</td><td>execute_MUFU</td></tr><tr><td>value</td><td>48</td><td>execute_MUFU</td></tr><tr><td>value</td><td>46</td><td>execute_MUFU</td></tr><tr><td>negative</td><td>45</td><td>execute_MUFU</td></tr><tr><td>fn</td><td>23:20</td><td>execute_MUFU</td></tr><tr><td>pred.not</td><td>19</td><td>the decoder</td></tr><tr><td>pred</td><td>18:16</td><td>the decoder</td></tr><tr><td>Ra</td><td>15:8</td><td>RegA()</td></tr><tr><td>Rd</td><td>7:0</td><td>Dst()</td></tr></table>
+<h2 class="pseudocode" id="execute_MUFU">Operation <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/nx/gpu/shader/sail/sm53_float.sail#L246">Sail</a></h2>
+<p>MUFU (the function at 20-23 of a, its abs at 46 and neg at 48, .SAT at 50) and RRO (b&#x27;s float, its abs at 49 and neg at 45, as it is: the range reduction the functions take is none here). RCP64H and RSQ64H (6, 7): a is a double&#x27;s high word (the low one 0), the result the high word of its reciprocal or reciprocal square root, as Mesa&#x27;s nouveau uses them</p>
+<pre>let f = <a href="fn/Form.html">Form</a>(); /* 0 MUFU, 1-3 RRO R, C, I */
+let fn = UInt(<a href="fn/Field.html">Field</a>(20, 4));
+if f == 0 &amp; (fn == 6 | fn == 7) then {
+    let value = <a href="fn/DoubleMod.html">DoubleMod</a>(<a href="fn/DFromHigh.html">DFromHigh</a>(<a href="fn/R_read.html">R_read</a>(<a href="fn/RegA.html">RegA</a>())), UInt(<a href="fn/Field.html">Field</a>(46, 1)), UInt(<a href="fn/Field.html">Field</a>(48, 1)));
+    <a href="fn/R_write.html">R_write</a>(<a href="fn/Dst.html">Dst</a>(), <a href="fn/DHigh.html">DHigh</a>(if fn == 6 then <a href="fn/DRcp.html">DRcp</a>(value) else <a href="fn/DInvSqrt.html">DInvSqrt</a>(value)))
+} else {
+    let value0 = if f == 2 then <a href="fn/CbufF.html">CbufF</a>() else if f == 3 then <a href="fn/Imm20F.html">Imm20F</a>() else <a href="fn/R_readF.html">R_readF</a>(if f == 0 then <a href="fn/RegA.html">RegA</a>() else <a href="fn/RegB.html">RegB</a>());
+    let absolute = if f == 0 then <a href="fn/Field.html">Field</a>(46, 1) == 0b1 else <a href="fn/Field.html">Field</a>(49, 1) == 0b1;
+    let negative = if f == 0 then <a href="fn/Field.html">Field</a>(48, 1) == 0b1 else <a href="fn/Field.html">Field</a>(45, 1) == 0b1;
+    let value1 = if absolute then <a href="fn/FAbs.html">FAbs</a>(value0) else value0;
+    let value = if negative then <a href="fn/FNeg.html">FNeg</a>(value1) else value1;
+    if f == 0 then {
+        let r = match fn { 0 =&gt; <a href="fn/FCos.html">FCos</a>(value), 1 =&gt; <a href="fn/FSin.html">FSin</a>(value), 2 =&gt; <a href="fn/FExp2.html">FExp2</a>(value), 3 =&gt; <a href="fn/FLog2.html">FLog2</a>(value),
+                           5 =&gt; <a href="fn/FInvSqrt.html">FInvSqrt</a>(value), 8 =&gt; <a href="fn/FSqrt.html">FSqrt</a>(value), 4 =&gt; <a href="fn/FDiv.html">FDiv</a>(<a href="fn/FConst.html">FConst</a>(0x3f800000), value), _ =&gt; value };
+        <a href="fn/R_writeF.html">R_writeF</a>(<a href="fn/Dst.html">Dst</a>(), <a href="fn/FloatSaturate.html">FloatSaturate</a>(r, UInt(<a href="fn/Field.html">Field</a>(50, 1))))
+    } else <a href="fn/R_writeF.html">R_writeF</a>(<a href="fn/Dst.html">Dst</a>(), value)
+}</pre>
+<hr>
+<p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. The Sail and the encodings' file are ScarletNX's (GPL-3.0-or-later); its encodings are from Eden's <code>maxwell.inc</code> (GPL-2.0-or-later).</p>
+</body>
+</html>

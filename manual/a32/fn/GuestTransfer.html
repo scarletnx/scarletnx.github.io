@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>GuestTransfer - ScarletNX ARM manual</title>
+<title>GuestTransfer - ScarletNX ARM ISA</title>
 <link rel="stylesheet" href="../../manual.css">
 </head>
 <body>
-<p class="nav"><a href="../../../">ScarletNX</a> / <a href="../../">ARM manual</a></p>
+<p class="nav"><a href="../../../">ScarletNX</a> / <a href="../../">ARM ISA</a></p>
 <h1>GuestTransfer</h1>
 <h2>ScarletNX's fixup <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/arm/sail/arm.sail#L145">arm.sail</a></h2>
 <p>A multiple transfer checks its whole range before its first access, and moves nothing when any of it would fault (ScarletNX&#x27;s flat-memory fault policy, arm/README.md&#x27;s &quot;Limits&quot;: not an MMU&#x27;s partial transfer): GuestTransfer(address, bytes, write) opens it, and the accesses after it in the instruction are within it. These are sail-arm&#x27;s LDM, STM, PUSH and POP with that call first. A register stored that the instruction writes back before (UNKNOWN in ARMv6 and later) is stored as it was, where the ARM7TDMI (ARMv4T) stores the base written back (llvm_thumb.inc&#x27;s STMIA, mGBA&#x27;s); ARMv6 made that store UNPREDICTABLE (UnpredictableEncoding, below), ARMv7 UNKNOWN</p>

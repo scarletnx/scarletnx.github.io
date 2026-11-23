@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>IndirectTarget - ScarletNX Maxwell ISA</title>
+<link rel="stylesheet" href="../../manual.css">
+</head>
+<body>
+<p class="nav"><a href="../../../">ScarletNX</a> / <a href="../../sm53/">Maxwell ISA</a></p>
+<h1>IndirectTarget</h1><p><a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/nx/gpu/shader/sail/sm53_flow.sail#L56">sm53_flow.sail</a></p><p>Relative CAL through cbuf counts bytes from the next instruction. Absolute JCAL/JMP/JMX count from the shader pool. FlowBase is the GPU address represented by the translator&#x27;s word0, including compute&#x27;s fake SPH. A target whose word is a scheduling word (its index 2 mod 4 past the header&#x27;s ten) goes to the instruction after it</p><pre>function IndirectTarget(cal : bool, jmx : bool) -&gt; bits(32) = {
+    let value0 = if <a href="../fn/Field.html">Field</a>(5, 1) == 0b1 then {
+        let offset = ZeroExtend(<a href="../fn/Field.html">Field</a>(20, 16), 32);
+        <a href="../fn/CbufReadDynamic.html">CbufReadDynamic</a>(UInt(<a href="../fn/Field.html">Field</a>(36, 5)), if jmx then offset + <a href="../fn/R_read.html">R_read</a>(<a href="../fn/RegA.html">RegA</a>()) else offset)
+    } else <a href="../fn/Field.html">Field</a>(20, 32);
+    let value1 = if jmx then value0 + <a href="../fn/R_read.html">R_read</a>(<a href="../fn/RegA.html">RegA</a>()) else value0;
+    let value = if cal then value1 + to_bits(32, (<a href="../fn/InsnIndex.html">InsnIndex</a>() + 1) * 8) else value1 - to_bits(32, <a href="../fn/FlowBase.html">FlowBase</a>());
+    let target = value &gt;&gt; 3;
+    let schedule = (target &amp; 0x00000003) == 0x00000002;
+    target + (if schedule then 0x00000001 else 0x00000000)
+}</pre><h2>Used by</h2><ul class="cols"><li><a href="../JCAL.html">JCAL</a></li><li><a href="../JMX.html">JMX</a></li></ul>
+<hr>
+<p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. The Sail and the encodings' file are ScarletNX's (GPL-3.0-or-later); its encodings are from Eden's <code>maxwell.inc</code> (GPL-2.0-or-later).</p>
+</body>
+</html>

@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Vote - ScarletNX Ampere ISA</title>
+<link rel="stylesheet" href="../../manual.css">
+</head>
+<body>
+<p class="nav"><a href="../../../">ScarletNX</a> / <a href="../../sm86/">Ampere ISA</a></p>
+<h1>Vote</h1><p><a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/nx/gpu/shader/sail/sm86.sail#L904">sm86.sail</a></p><p>VOTE and UVOTE: NAK&#x27;s OpVote, the ballot of the predicate at 87-90 into the destination, and ALL (0), ANY (1) or EQ (2, bits 72-73) of it into the predicate at 81-83. The ballot, and the vote, are of the invocation&#x27;s 32 lanes, from the ballots of the predicate and of the active lanes: a vote of the subgroup takes both warps of a subgroup of 64</p><pre>function Vote(u : bool) -&gt; unit = {
+    let pred = <a href="../fn/PredRead.html">PredRead</a>(UInt(<a href="../fn/Field.html">Field</a>(87, 3)), UInt(<a href="../fn/Field.html">Field</a>(90, 1)), 0);
+    let how = UInt(<a href="../fn/Field.html">Field</a>(72, 2));
+    <a href="../fn/Capability.html">Capability</a>(64);
+    let ballot = <a href="../fn/Ballot32.html">Ballot32</a>(pred);
+    if u then <a href="../fn/U_write.html">U_write</a>(UInt(<a href="../fn/Field.html">Field</a>(16, 6)), ballot) else <a href="../fn/R_write.html">R_write</a>(<a href="../fn/Dst.html">Dst</a>(), ballot);
+    if how &gt; 2 then throw(<a href="../fn/Unsupported.html">Unsupported</a>(&quot;VOTE mode %u&quot;, how));
+    let active = <a href="../fn/Ballot32.html">Ballot32</a>(true);
+    let all = ballot == active;
+    let none = ballot == 0x00000000;
+    let vote = match how { 0 =&gt; all, 1 =&gt; not_bool(none), _ =&gt; all | none };
+    <a href="../fn/PredWrite.html">PredWrite</a>(UInt(<a href="../fn/Field.html">Field</a>(81, 3)), vote, if u then 1 else 0)
+}</pre><h2>Used by</h2><ul class="cols"><li><a href="../UVOTE.html">VOTEU</a></li><li><a href="../VOTE.html">VOTE</a></li></ul>
+<hr>
+<p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. The Sail and the encodings' file are ScarletNX's (GPL-3.0-or-later); its encodings are from Mesa's NAK (<code>sm70_encode.rs</code>, MIT) and CuAssembler's sm_86 records.</p>
+</body>
+</html>

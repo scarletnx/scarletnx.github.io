@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>GuestMemRead - ScarletNX ARM manual</title>
+<title>GuestMemRead - ScarletNX ARM ISA</title>
 <link rel="stylesheet" href="../../manual.css">
 </head>
 <body>
-<p class="nav"><a href="../../../">ScarletNX</a> / <a href="../../">ARM manual</a></p>
+<p class="nav"><a href="../../../">ScarletNX</a> / <a href="../../">ARM ISA</a></p>
 <h1>GuestMemRead</h1>
 <h2>ScarletNX's fixup <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/aarch64/sail/nx.sail#L193">nx.sail</a></h2>
 <p>Guest memory is ScarletNX&#x27;s own: the host&#x27;s bytes at CPU.mem plus the address, read and written as the host does (llvm.h). An acquire load and a release store are sequentially consistent host atomics, which order both ways, so RCpc&#x27;s acquire is the stronger one and LOR&#x27;s limited ordering the full one (cpu.h)</p>

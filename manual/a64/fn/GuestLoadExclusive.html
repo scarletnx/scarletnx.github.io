@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>GuestLoadExclusive - ScarletNX ARM manual</title>
+<title>GuestLoadExclusive - ScarletNX ARM ISA</title>
 <link rel="stylesheet" href="../../manual.css">
 </head>
 <body>
-<p class="nav"><a href="../../../">ScarletNX</a> / <a href="../../">ARM manual</a></p>
+<p class="nav"><a href="../../../">ScarletNX</a> / <a href="../../">ARM ISA</a></p>
 <h1>GuestLoadExclusive</h1>
 <h2>ScarletNX's fixup <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/common/cpu/aarch64/sail/nx.sail#L212">nx.sail</a></h2>
 <p>The exclusive monitor is cpu.h&#x27;s, value based: the load-exclusive arms it with the value it reads, and a store-exclusive is a compare-and-swap from that value, which clears it. So the monitor is set by the load itself (GuestLoadExclusive, a pair&#x27;s too: one access of all its bytes), the exclusive reads that follow take what it read (GuestExclusiveValue), whether the monitor passes is the compare-and-swap&#x27;s answer, and the status is that store&#x27;s</p>

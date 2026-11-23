@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Ampere ISA - ScarletNX Ampere ISA</title>
+<link rel="stylesheet" href="../manual.css">
+</head>
+<body>
+<p class="nav"><a href="../../">ScarletNX</a> / <a href="../sm86/">Ampere ISA</a></p>
+<h1>Ampere ISA: SM86</h1><p>The SM86 instructions (Volta to Ada's 128-bit encoding, Ampere's) that ScarletNX's shader translator takes, laid out as Arm's reference lays an instruction out: each encoding's diagram (its opcode from <code>sm86.decode</code>, the fields the decoder and the Sail read) and the operation in ScarletNX's Sail. 178 instructions, 419 encodings; 136 with Sail.</p><div id="search" data-root="../"></div><p>The search takes a name (the nearest when none is the same) or a 128-bit instruction in hex, its high 64 bits first (<code>0x000fe20007ffe0ff_0000000000007210</code>), or its low 64 bits: its opcode is bits 15:0.</p><h2>Instructions</h2><ul><li><a href="floating-point.html">Floating point</a> (20)</li><li><a href="conversions.html">Conversions</a> (11)</li><li><a href="integer.html">Integer</a> (17)</li><li><a href="moves-and-predicates.html">Moves and predicates</a> (21)</li><li><a href="the-uniform-datapath.html">The uniform datapath</a> (17)</li><li><a href="memory.html">Memory</a> (25)</li><li><a href="attributes-and-the-stage-s-own.html">Attributes and the stage&#x27;s own memory</a> (13)</li><li><a href="textures-and-surfaces.html">Textures and surfaces</a> (33)</li><li><a href="control-flow.html">Control flow</a> (21)</li></ul><h2>Shared pseudocode</h2><p><a href="shared.html">Every function and type the instructions use</a> (193)</p><p>The <a href="../">ARM ISA</a>, and the <a href="../sm53/">Maxwell ISA</a>.</p>
+<hr>
+<p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. The Sail and the encodings' file are ScarletNX's (GPL-3.0-or-later); its encodings are from Mesa's NAK (<code>sm70_encode.rs</code>, MIT) and CuAssembler's sm_86 records.</p>
+<script src="../sm86/data.js"></script><script src="../search.js"></script></body>
+</html>

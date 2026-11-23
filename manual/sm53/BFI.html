@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>BFI - ScarletNX Maxwell ISA</title>
+<link rel="stylesheet" href="../manual.css">
+</head>
+<body>
+<p class="nav"><a href="../../">ScarletNX</a> / <a href="../sm53/">Maxwell ISA</a></p>
+<h1>BFI</h1>
+<p class="groups"><a href="integer-logic-video-and.html">Integer, logic, video and predicate instructions</a></p>
+<h2 class="classheading" id="BFI_R">BFI (reg)</h2>
+<table class="regdiagram" border="1" cellspacing="0"><tr class="nums"><td>63</td><td>62</td><td>61</td><td>60</td><td>59</td><td>58</td><td>57</td><td>56</td><td>55</td><td>54</td><td>53</td><td>52</td><td>51</td><td>50</td><td>49</td><td>48</td><td>47</td><td>46</td><td>45</td><td>44</td><td>43</td><td>42</td><td>41</td><td>40</td><td>39</td><td>38</td><td>37</td><td>36</td><td>35</td><td>34</td><td>33</td><td>32</td></tr><tr class="firstrow"><td class="l">0</td><td>1</td><td>0</td><td>1</td><td>1</td><td>0</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td><td>0</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td class="r"></td></tr><tr class="secondrow"><td colspan="32"></td></tr><tr class="nums"><td>31</td><td>30</td><td>29</td><td>28</td><td>27</td><td>26</td><td>25</td><td>24</td><td>23</td><td>22</td><td>21</td><td>20</td><td>19</td><td>18</td><td>17</td><td>16</td><td>15</td><td>14</td><td>13</td><td>12</td><td>11</td><td>10</td><td>9</td><td>8</td><td>7</td><td>6</td><td>5</td><td>4</td><td>3</td><td>2</td><td>1</td><td>0</td></tr><tr class="firstrow"><td class="l"></td><td></td><td></td><td class="r"></td><td colspan="8" class="lr">Rb</td><td class="lr">pred.not</td><td colspan="3" class="lr">pred</td><td colspan="8" class="lr">Ra</td><td colspan="8" class="lr">Rd</td></tr><tr class="secondrow"><td colspan="32"></td></tr></table>
+<p class="bits">bits 63:48: 0101 1011 1111 0---</p><p>Runs <a href="#execute_BFI">execute_BFI</a> with <code>Form()</code> 0.</p>
+<h2 class="classheading" id="BFI_RC">BFI (rc)</h2>
+<table class="regdiagram" border="1" cellspacing="0"><tr class="nums"><td>63</td><td>62</td><td>61</td><td>60</td><td>59</td><td>58</td><td>57</td><td>56</td><td>55</td><td>54</td><td>53</td><td>52</td><td>51</td><td>50</td><td>49</td><td>48</td><td>47</td><td>46</td><td>45</td><td>44</td><td>43</td><td>42</td><td>41</td><td>40</td><td>39</td><td>38</td><td>37</td><td>36</td><td>35</td><td>34</td><td>33</td><td>32</td></tr><tr class="firstrow"><td class="l">0</td><td>1</td><td>0</td><td>1</td><td>0</td><td>0</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td><td>0</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td class="r"></td></tr><tr class="secondrow"><td colspan="32"></td></tr><tr class="nums"><td>31</td><td>30</td><td>29</td><td>28</td><td>27</td><td>26</td><td>25</td><td>24</td><td>23</td><td>22</td><td>21</td><td>20</td><td>19</td><td>18</td><td>17</td><td>16</td><td>15</td><td>14</td><td>13</td><td>12</td><td>11</td><td>10</td><td>9</td><td>8</td><td>7</td><td>6</td><td>5</td><td>4</td><td>3</td><td>2</td><td>1</td><td>0</td></tr><tr class="firstrow"><td class="l"></td><td></td><td></td><td class="r"></td><td colspan="8" class="lr">Rb</td><td class="lr">pred.not</td><td colspan="3" class="lr">pred</td><td colspan="8" class="lr">Ra</td><td colspan="8" class="lr">Rd</td></tr><tr class="secondrow"><td colspan="32"></td></tr></table>
+<p class="bits">bits 63:48: 0101 0011 1111 0---</p><p>Runs <a href="#execute_BFI">execute_BFI</a> with <code>Form()</code> 1.</p>
+<h2 class="classheading" id="BFI_CR">BFI (cr)</h2>
+<table class="regdiagram" border="1" cellspacing="0"><tr class="nums"><td>63</td><td>62</td><td>61</td><td>60</td><td>59</td><td>58</td><td>57</td><td>56</td><td>55</td><td>54</td><td>53</td><td>52</td><td>51</td><td>50</td><td>49</td><td>48</td><td>47</td><td>46</td><td>45</td><td>44</td><td>43</td><td>42</td><td>41</td><td>40</td><td>39</td><td>38</td><td>37</td><td>36</td><td>35</td><td>34</td><td>33</td><td>32</td></tr><tr class="firstrow"><td class="l">0</td><td>1</td><td>0</td><td>0</td><td>1</td><td>0</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td><td>0</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td class="r"></td><td colspan="5" class="lr">cbuf.bank</td><td colspan="2" class="lr">cbuf.offset</td></tr><tr class="secondrow"><td colspan="32"></td></tr><tr class="nums"><td>31</td><td>30</td><td>29</td><td>28</td><td>27</td><td>26</td><td>25</td><td>24</td><td>23</td><td>22</td><td>21</td><td>20</td><td>19</td><td>18</td><td>17</td><td>16</td><td>15</td><td>14</td><td>13</td><td>12</td><td>11</td><td>10</td><td>9</td><td>8</td><td>7</td><td>6</td><td>5</td><td>4</td><td>3</td><td>2</td><td>1</td><td>0</td></tr><tr class="firstrow"><td colspan="12" class="lr">cbuf.offset</td><td class="lr">pred.not</td><td colspan="3" class="lr">pred</td><td colspan="8" class="lr">Ra</td><td colspan="8" class="lr">Rd</td></tr><tr class="secondrow"><td colspan="32"></td></tr></table>
+<p class="bits">bits 63:48: 0100 1011 1111 0---</p><p>Runs <a href="#execute_BFI">execute_BFI</a> with <code>Form()</code> 2.</p>
+<h2 class="classheading" id="BFI_I">BFI (imm)</h2>
+<table class="regdiagram" border="1" cellspacing="0"><tr class="nums"><td>63</td><td>62</td><td>61</td><td>60</td><td>59</td><td>58</td><td>57</td><td>56</td><td>55</td><td>54</td><td>53</td><td>52</td><td>51</td><td>50</td><td>49</td><td>48</td><td>47</td><td>46</td><td>45</td><td>44</td><td>43</td><td>42</td><td>41</td><td>40</td><td>39</td><td>38</td><td>37</td><td>36</td><td>35</td><td>34</td><td>33</td><td>32</td></tr><tr class="firstrow"><td class="l">0</td><td>0</td><td>1</td><td>1</td><td>0</td><td>1</td><td class="r">1</td><td class="lr">imm.sign</td><td class="l">1</td><td>1</td><td>1</td><td>1</td><td>0</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td class="r"></td><td colspan="7" class="lr">imm</td></tr><tr class="secondrow"><td colspan="32"></td></tr><tr class="nums"><td>31</td><td>30</td><td>29</td><td>28</td><td>27</td><td>26</td><td>25</td><td>24</td><td>23</td><td>22</td><td>21</td><td>20</td><td>19</td><td>18</td><td>17</td><td>16</td><td>15</td><td>14</td><td>13</td><td>12</td><td>11</td><td>10</td><td>9</td><td>8</td><td>7</td><td>6</td><td>5</td><td>4</td><td>3</td><td>2</td><td>1</td><td>0</td></tr><tr class="firstrow"><td colspan="12" class="lr">imm</td><td class="lr">pred.not</td><td colspan="3" class="lr">pred</td><td colspan="8" class="lr">Ra</td><td colspan="8" class="lr">Rd</td></tr><tr class="secondrow"><td colspan="32"></td></tr></table>
+<p class="bits">bits 63:48: 0011 011- 1111 0---</p><p>Runs <a href="#execute_BFI">execute_BFI</a> with <code>Form()</code> 3.</p>
+<h3>Fields</h3><p>The operation reads some of these fields in some forms alone (it chooses by <code>Form()</code>), so the diagrams show only the decoder's.</p><table class="fields"><tr><th>Field</th><th>Bits</th><th>From</th></tr><tr><td>[47]</td><td>47</td><td>execute_BFI</td></tr><tr><td>base</td><td>46:39</td><td>execute_BFI</td></tr><tr><td>Rb</td><td>27:20</td><td>RegB()</td></tr><tr><td>pred.not</td><td>19</td><td>the decoder</td></tr><tr><td>pred</td><td>18:16</td><td>the decoder</td></tr><tr><td>Ra</td><td>15:8</td><td>RegA()</td></tr><tr><td>Rd</td><td>7:0</td><td>Dst()</td></tr></table>
+<h2 class="pseudocode" id="execute_BFI">Operation <a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/nx/gpu/shader/sail/sm53_int.sail#L515">Sail</a></h2>
+<p>BFI: a&#x27;s low bits into the base at the packed operand&#x27;s offset (its low byte) and width (its second), an offset past 31 leaving the base, a width cut at the word&#x27;s end; .CC the flags</p>
+<pre>let f = <a href="fn/Form.html">Form</a>();
+let base = if f == 1 then <a href="fn/CbufWord.html">CbufWord</a>() else <a href="fn/R_read.html">R_read</a>(UInt(<a href="fn/Field.html">Field</a>(39, 8)));
+let packed = if f == 2 then <a href="fn/CbufWord.html">CbufWord</a>() else if f == 1 then <a href="fn/R_read.html">R_read</a>(UInt(<a href="fn/Field.html">Field</a>(39, 8)))
+             else if f == 3 then <a href="fn/Right.html">Right</a>(2) else <a href="fn/R_read.html">R_read</a>(<a href="fn/RegB.html">RegB</a>());
+let mask = <a href="fn/Bits32.html">Bits32</a>(0x000000ff);
+let offset = packed &amp; mask;
+let width0 = (packed &gt;&gt; 8) &amp; mask;
+let thirty_two = <a href="fn/Bits32.html">Bits32</a>(0x00000020);
+let valid = UInt(offset) &lt; UInt(thirty_two);
+let safe_offset = if valid then offset else 0x00000000;
+let remaining = thirty_two - safe_offset;
+let fits = UInt(width0) &lt; UInt(remaining);
+let width = if fits then width0 else remaining;
+let inserted = <a href="fn/BitsInsert.html">BitsInsert</a>(base, <a href="fn/R_read.html">R_read</a>(<a href="fn/RegA.html">RegA</a>()), safe_offset, width);
+let value = if valid then inserted else base;
+if <a href="fn/Field.html">Field</a>(47, 1) == 0b1 then <a href="fn/FlagsLogic.html">FlagsLogic</a>(value);
+<a href="fn/R_write.html">R_write</a>(<a href="fn/Dst.html">Dst</a>(), value)</pre>
+<hr>
+<p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. The Sail and the encodings' file are ScarletNX's (GPL-3.0-or-later); its encodings are from Eden's <code>maxwell.inc</code> (GPL-2.0-or-later).</p>
+</body>
+</html>

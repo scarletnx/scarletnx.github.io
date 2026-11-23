@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Atomg - ScarletNX Ampere ISA</title>
+<link rel="stylesheet" href="../../manual.css">
+</head>
+<body>
+<p class="nav"><a href="../../../">ScarletNX</a> / <a href="../../sm86/">Ampere ISA</a></p>
+<h1>Atomg</h1><p><a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/nx/gpu/shader/sail/sm86.sail#L1096">sm86.sail</a></p><p>ATOMG, ATOMG.NOU and RED: NAK&#x27;s OpAtom on global memory, AtomicOpcode&#x27;s operation at 87-90, the data at 32; RED returns nothing. Of type 3 (F32, .FTZ.RN) the ADD alone, AtomicFAdd: one game&#x27;s compute programs sum positions into a buffer with RED.E.ADD.F32.FTZ.RN</p><pre>function Atomg(red : bool, uniform_form : bool) -&gt; unit = {
+    let how = if red then UInt(<a href="../fn/Field.html">Field</a>(87, 3)) else UInt(<a href="../fn/Field.html">Field</a>(87, 4));
+    let kind = UInt(<a href="../fn/Field.html">Field</a>(73, 3));
+    let opcode = <a href="../fn/AtomicOpcode.html">AtomicOpcode</a>(kind, how);
+    let fadd = kind == 3 &amp; how == 0;
+    if opcode == 0 &amp; not_bool(fadd) then throw(<a href="../fn/Unsupported.html">Unsupported</a>(&quot;%s of type %u, operation %u&quot;, <a href="../fn/OpName.html">OpName</a>(), kind, how));
+    if <a href="../fn/AddressFromMemory.html">AddressFromMemory</a>() then <a href="../fn/GlobalDynamic.html">GlobalDynamic</a>(2, opcode, if fadd then 1 else 0) else {
+        let buffer = <a href="../fn/GlobalAddress.html">GlobalAddress</a>(if uniform_form then 1 else 0, 1);
+        if buffer != 0 then {
+            <a href="../fn/MarkRead.html">MarkRead</a>();
+            <a href="../fn/MarkWritten.html">MarkWritten</a>(4);
+            let old = if fadd then <a href="../fn/AtomicFAdd.html">AtomicFAdd</a>(buffer, <a href="../fn/R_read.html">R_read</a>(UInt(<a href="../fn/Field.html">Field</a>(32, 8))))
+                      else <a href="../fn/AtomicU32.html">AtomicU32</a>(opcode, buffer, <a href="../fn/R_read.html">R_read</a>(UInt(<a href="../fn/Field.html">Field</a>(32, 8))));
+            if not_bool(red) then <a href="../fn/R_write.html">R_write</a>(<a href="../fn/Dst.html">Dst</a>(), old)
+        }
+    }
+}</pre><h2>Used by</h2><ul class="cols"><li><a href="../ATOMG.html">ATOMG</a></li><li><a href="../ATOMG_NOU.html">ATOMG (no uniform)</a></li><li><a href="../RED.html">RED</a></li></ul>
+<hr>
+<p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. The Sail and the encodings' file are ScarletNX's (GPL-3.0-or-later); its encodings are from Mesa's NAK (<code>sm70_encode.rs</code>, MIT) and CuAssembler's sm_86 records.</p>
+</body>
+</html>

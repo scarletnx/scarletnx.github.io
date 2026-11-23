@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>SubwordExtract - ScarletNX Maxwell ISA</title>
+<link rel="stylesheet" href="../../manual.css">
+</head>
+<body>
+<p class="nav"><a href="../../../">ScarletNX</a> / <a href="../../sm53/">Maxwell ISA</a></p>
+<h1>SubwordExtract</h1><p><a class="src" href="https://github.com/scarletnx/ScarletNX/blob/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3/src/nx/gpu/shader/sail/sm53_memory.sail#L64">sm53_memory.sail</a></p><pre>function SubwordExtract(word : bits(32), bit_offset : bits(32), width : bits(32), size : int) -&gt; bits(32) =
+    if MOD(size, 2) == 1 then <a href="../fn/Bits32.html">Bits32</a>(<a href="../fn/BitsS.html">BitsS</a>(word, bit_offset, width)) else <a href="../fn/BitsU.html">BitsU</a>(word, bit_offset, width)</pre><h2>Used by</h2><ul class="cols"><li><a href="../LDC.html">LDC</a></li><li><a href="../LDG.html">LDG</a></li><li><a href="../LDL.html">LDL</a></li><li><a href="../LDS.html">LDS</a></li></ul>
+<hr>
+<p class="foot">Made from ScarletNX's Sail at <a href="https://github.com/scarletnx/ScarletNX/tree/48f2715bd25a8fbc44047563e9f96e1d7ecf01d3">48f2715bd25a</a>. The Sail and the encodings' file are ScarletNX's (GPL-3.0-or-later); its encodings are from Eden's <code>maxwell.inc</code> (GPL-2.0-or-later).</p>
+</body>
+</html>
