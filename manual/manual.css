@@ -4,7 +4,8 @@ pre { overflow-x: auto; padding: .5em; border: 1px solid #8888; }
 a.src { font-size: smaller; font-weight: normal; }
 .nav, .foot, .groups { font-size: smaller; }
 .bits { font-family: monospace; }
-ul.cols { columns: 16em; }
+ul.cols { columns: 20em; }
+ul.cols li { overflow-wrap: anywhere; }
 table.regdiagram { border-collapse: collapse; border: 0; font-family: monospace; text-align: center; }
 .regdiagram td { border: 0; padding: .1em .25em; min-width: 1.2em; }
 .regdiagram tr.nums td { font-size: smaller; }
@@ -30,3 +31,14 @@ table.fields { border-collapse: collapse; }
   .regdiagram td.x, .legend .x { background: #4a3c22; }
   .regdiagram td.s, .legend .s { background: #4b2738; }
 }
+/* the NVN API's platforms: Switch 2's alone, the Switch's alone */
+.s2, .s1 { font-size: smaller; padding: 0 .4em; border: 1px solid #8886; white-space: nowrap; }
+.s2 { background: #e6dcf7; }
+.s1 { background: #dce8f7; }
+tr.s2row td { background: #f3eefc; }
+@media (prefers-color-scheme: dark) {
+  .s2 { background: #3d2f57; }
+  .s1 { background: #263a52; }
+  tr.s2row td { background: #2a2338; }
+}
+h1 .s2, h1 .s1 { font-size: .45em; vertical-align: middle; }
