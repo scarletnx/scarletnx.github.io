@@ -270,9 +270,10 @@ class Site:
             name, folder, foot = manual
             home = up + folder + '/'
         scripts = ''
-        if search:
-            scripts = ''.join(f'<script src="{up}{s}/data.js"></script>' for s in search)
-            scripts += f'<script src="{up}search.js"></script>'
+        if search:  # search.js loads the data when the box is first used
+            body_html = body_html.replace('<div id="search" ', '<div id="search" data-load="' + ' '.join(
+                f'{up}{s}/data.js' for s in search) + '" ', 1)
+            scripts = f'<script src="{up}search.js"></script>'
         return (f'<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
                 f'<meta name="viewport" content="width=device-width, initial-scale=1">\n'
                 f'<meta name="color-scheme" content="light dark">\n<title>{html.escape(title)} - ScarletNX {name}</title>\n'
@@ -1043,6 +1044,419 @@ def build_gpu(site, root, g, out_rows):
     return len(pages), len(pats)
 
 
+# ---- the NVN manual: the API ScarletNX implements (nvn.hook), its types (nvn.h), Switch 2's marked ----
+
+NVN_DIR = 'src/nx/gpu/nvn'
+VK_FORMATS = 'src/nx/gpu/vk/format.c'
+VK_FORMAT_URL = 'https://docs.vulkan.org/refpages/latest/refpages/source/VkFormat.html#:~:text={}%20specifies'
+NVN_MANUAL = ('NVN API', 'nvn', 'nvn.h is h1k421\'s reconstruction (MIT); nvn.hook, the handlers and the format table '
+                                'ScarletNX\'s (GPL-3.0-or-later). The Switch 2 marks are the drivers\' procedure tables '
+                                '(<code>tools/manual/nvn-drivers.txt</code>).')
+HOOK_TYPES = 'i32, u32, i64, u64: integers of that many bits; f32: float; bool: NVNboolean; usize, isize: size_t, ptrdiff_t'
+
+
+def friendly(comment):
+    """A comment of ScarletNX's as the manual shows it: Switch 2 by its name, not its code name"""
+    return re.sub(r"\bthe Ounce's\b", "Switch 2's", comment).replace('Ounce', 'Switch 2') if comment else comment
+
+
+def nvn_badge(where):
+    """A function's or a type's platforms: Switch 2 alone, Switch alone (NVN2 dropped it), or both (no mark)"""
+    if where == {'s2'}:
+        return ' <span class="s2">Switch 2</span>'
+    if where == {'s1'}:
+        return ' <span class="s1">Switch 1</span>'
+    return ''
+
+
+def parse_hook(path):
+    """nvn.hook's families and functions: name, return, arguments, handler, the comment over it, its line"""
+    families, fam, block, run = [], None, None, []
+    lines = open(path, encoding='utf-8').read().split('\n')
+    for i, line in enumerate(lines, 1):
+        s = line.strip()
+        if s.startswith('#'):
+            if fam is not None:
+                if run:  # a comment after functions starts anew
+                    block, run = None, []
+                block = (block + ' ' if block else '') + s[1:].strip()
+            continue
+        if not s:
+            block, run = None, []
+            continue
+        w = s.split()
+        if w[0] == 'family':
+            fam = {'name': w[1], 'funcs': []}
+            families.append(fam)
+            block, run = None, []
+        elif w[0] == 'route':
+            if not families or families[0]['name'] != 'loader':
+                families.insert(0, {'name': 'loader', 'funcs': []})
+            families[0]['funcs'].append({'name': w[1], 'ret': 'PFNNVNGENERICFUNCPTRPROC', 'args': [],
+                                         'handler': None, 'comment': None, 'line': i, 'route': True})
+        elif w[0] == 'hook':
+            m = re.match(r'hook (\w+)\((.*)\)\s*(?:->\s*([^=]+?))?\s*(?:=\s*(\w+))?$', s)
+            name, args, ret, handler = m.group(1), m.group(2), (m.group(3) or 'void').strip(), m.group(4)
+            arglist = []
+            for a in [a.strip() for a in args.split(',') if a.strip()]:
+                am = re.match(r'(.*?)(\w+)$', a)
+                arglist.append((am.group(1).strip(), am.group(2)))
+            f = {'name': name, 'ret': ret, 'args': arglist, 'handler': handler or 'nvn_' + name[3:],
+                 'comment': block, 'line': i}
+            fam['funcs'].append(f)
+            run.append(f)
+    return families
+
+
+def parse_nvn_h(path, inc):
+    """nvn.h's types: typedefs, structs, enums (values, and the comment over each), the callbacks' typedefs"""
+    text = open(path, encoding='utf-8').read()
+    text = text[text.index('#pragma once'):]
+    types, lines, i, comment = {}, text.split('\n'), 0, None
+    while i < len(lines):
+        line = lines[i]
+        s = line.strip()
+        if s.startswith('/*') or s.startswith('//'):
+            c = [s]
+            while s.startswith('/*') and '*/' not in lines[i]:
+                i += 1
+                c.append(lines[i].strip())
+            comment = clean_comment(c)
+            i += 1
+            continue
+        if not s:
+            comment = None
+            i += 1
+            continue
+        m = re.match(r'typedef ([\w\s\*]+?)\s*\*?(\w+);$', s)
+        if m and '(' not in s:
+            types[m.group(2)] = {'kind': 'typedef', 'text': s, 'comment': comment, 'line': i + 1}
+        elif s.startswith('typedef struct {') or s.startswith('typedef enum {') or re.match(r'enum \w+ \{', s):
+            j = i
+            while not re.match(r'\}\s*(\w+)?;', lines[j].strip()):
+                j += 1
+            name = re.match(r'\}\s*(\w+)?;', lines[j].strip()).group(1) or re.match(r'enum (\w+)', s).group(1)
+            body = lines[i:j + 1]
+            if 'enum' in s:
+                values, vcomment, vs2 = [], None, False
+                for b in body[1:-1]:
+                    bs = b.strip()
+                    if bs.startswith('/*') or bs.startswith('//'):
+                        vcomment = clean_comment([bs])
+                        vs2 = 'Ounce' in bs
+                    elif not bs:
+                        vcomment, vs2 = None, False
+                    elif bs.startswith('#include'):
+                        for f in re.finditer(r'NVN_TIC_FORMAT\((\w+), (\w+), (\d), (\d), (\d), (\w+), (\w+)\)', inc):
+                            values.append({'name': 'NVN_FORMAT_' + f.group(7), 'value': f.group(1), 'comment': None,
+                                           's2': False, 'tic': (int(f.group(2).rstrip('u'), 16), int(f.group(4)),
+                                                                int(f.group(5)), int(f.group(6), 16))})
+                    elif not bs.startswith('#'):
+                        vm = re.match(r'(\w+)\s*=\s*([^,]+),?', bs)
+                        if vm and not vm.group(1).endswith('_LARGE'):
+                            values.append({'name': vm.group(1), 'value': vm.group(2).strip(), 'comment': vcomment,
+                                           's2': vs2})
+                types[name] = {'kind': 'enum', 'values': values, 'comment': comment, 'line': i + 1,
+                               'text': '\n'.join(body)}
+            else:
+                types[name] = {'kind': 'struct', 'text': '\n'.join(body), 'comment': comment, 'line': i + 1}
+            i = j + 1
+            comment = None
+            continue
+        elif s.startswith('typedef') and '(' in s:
+            j = i
+            while not lines[j].rstrip().endswith(';'):
+                j += 1
+            full = ' '.join(l.strip() for l in lines[i:j + 1])
+            name = re.search(r'\(\*(\w+)\)', full).group(1)
+            types[name] = {'kind': 'callback', 'text': '\n'.join(lines[i:j + 1]), 'comment': comment, 'line': i + 1}
+            i = j + 1
+            continue
+        i += 1
+    return types
+
+
+def vk_format_tables(path):
+    """vk/format.c's switches: the render target codes', the depth targets', and the texture header's format field's
+    (each case's VK_FORMAT names, in order)"""
+    text = open(path, encoding='utf-8').read()
+
+    def cases(fn):
+        start = text.index(fn)
+        body = text[start:text.index('\n}\n', start)]
+        table, pending = {}, []
+        for part in re.split(r'\n\s*case ', body)[1:]:
+            code = int(re.match(r'(0x[0-9A-Fa-f]+|\d+)', part).group(1), 0)
+            rest = part.split(':', 1)[1]
+            pending.append(code)
+            if 'return' in rest:  # else it falls through to the next case (a comment is no body)
+                for c in pending:
+                    table[c] = rest
+                pending = []
+        return table
+
+    return cases('static VkFmt rt_format('), cases('VkFmt vk_zt_format('), cases('static VkFmt tic_format(')
+
+
+def vk_of_format(tic, rt, zt, tex):
+    """The Vulkan format whose layout an NVN format's texels have, as ScarletNX's tables give it (None: none)"""
+    word, srgb, depth, code = tic
+
+    def first(body):
+        found = re.findall(r'VK_FORMAT_\w+', body)
+        return found[0] if found else None
+
+    if not word:
+        return None
+    if depth and code in zt:
+        return first(zt[code])
+    if code and not depth and code in rt:
+        f = first(rt[code])
+        return f.replace('_UNORM', '_SRGB') if srgb and f and '_SRGB' not in f and 'R8G8B8A8' in f else f
+    body = tex.get(word & 0x7F)
+    if body is None:
+        return None
+    tv = re.match(r'\s*return TV\((VK_FORMAT_\w+)', body)
+    if tv:  # no Vulkan format has its layout: converted on upload
+        return tv.group(1) + ' converted'
+    ta = re.search(r'TA\((\d+), (\d+)', body)
+    if ta:
+        return f'VK_FORMAT_ASTC_{ta.group(1)}x{ta.group(2)}_{"SRGB" if srgb else "UNORM"}_BLOCK'
+    zm = re.search(r'vk_zt_format\((0x[0-9A-Fa-f]+)\)', body)
+    if zm:
+        return first(zt.get(int(zm.group(1), 16), ''))
+    found = list(dict.fromkeys(re.findall(r'VK_FORMAT_\w+', body)))
+    if not found:
+        return None
+    blocks = [f for f in found if f.endswith('_BLOCK') and 'ASTC' not in f]
+    pool = blocks or found
+    pool = [f for f in pool if ('SRGB' in f) == bool(srgb)] or pool
+    ct = (word >> 7) & 7
+    want = {7: ('SFLOAT', 'UFLOAT'), 1: ('SNORM',), 4: ('UINT',), 3: ('SINT',)}.get(ct, ('UNORM', 'SRGB'))
+    return next((f for f in pool if any(w in f for w in want)), pool[0])
+
+
+def build_nvn(site, root, rows, here):
+    base = os.path.join(root, NVN_DIR)
+    families = parse_hook(os.path.join(base, 'nvn.hook'))
+    types = parse_nvn_h(os.path.join(base, 'nvn.h'), open(os.path.join(base, 'nvn_tic_format.inc')).read())
+    drivers = {}
+    for line in open(os.path.join(here, 'manual', 'nvn-drivers.txt'), encoding='utf-8'):
+        if line.strip() and not line.startswith('#'):
+            name, where = line.rstrip('\n').split('\t')
+            drivers['nvn' + name] = set(where.split())
+    vk_path = os.path.join(root, VK_FORMATS)
+    vk_tables = vk_format_tables(vk_path) if os.path.exists(vk_path) else ({}, {}, {})
+
+    # the handlers' definitions: file and line, for the links
+    handlers = {}
+    for fname in sorted(os.listdir(base)):
+        if fname.endswith('.c'):
+            for n, line in enumerate(open(os.path.join(base, fname), encoding='utf-8'), 1):
+                m = re.match(r'[A-Za-z][\w\s\*]*?\b(nvn_\w+)\(', line)
+                if m and not line.rstrip().endswith(';'):
+                    handlers.setdefault(m.group(1), (f'{NVN_DIR}/{fname}', n))
+    hook_rel = f'{NVN_DIR}/nvn.hook'
+    funcs = [f for fam in families for f in fam['funcs']]
+    for f in funcs:
+        f['where'] = drivers.get(f['name'], set())
+    # where a comment ends: at the first function under it of other platforms than the first one's (nvn.hook's
+    # comments run on into the functions after the ones they are about)
+    for fam in families:
+        first, cut = {}, set()
+        for f in fam['funcs']:
+            c = f['comment']
+            if c is None:
+                continue
+            if c in cut:
+                f['comment'] = None
+            elif c not in first:
+                first[c] = f['where']
+            elif f['where'] != first[c]:
+                cut.add(c)
+                f['comment'] = None
+
+    # a type's platforms: the functions that name it, when every one is of one platform
+    users = {}
+    for f in funcs:
+        for t in set(re.findall(r'\b(?:NVN|PFNNVN)\w+', f['ret'] + ' ' + ' '.join(a for a, _ in f['args']))):
+            users.setdefault(t, []).append(f)
+    for name, t in types.items():
+        wh = [frozenset(f['where']) for f in users.get(name, []) if f['where']]
+        t['where'] = set(wh[0]) if wh and all(w == wh[0] for w in wh) else set()
+        if t.get('comment') and 'Ounce' in t['comment']:
+            t['where'] = {'s2'}
+        t['users'] = users.get(name, [])
+
+    def type_href(name, up):
+        t = types.get(name)
+        if not t:
+            return None
+        return f'{up}{"e" if t["kind"] == "enum" else "t"}/{name}.html'
+
+    def linked(text, up):
+        return re.sub(r'\b(NVN\w+|PFNNVN\w+)\b',
+                      lambda m: f'<a href="{type_href(m.group(1), up)}">{m.group(1)}</a>' if type_href(m.group(1), up)
+                      else m.group(1), html.escape(text))
+
+    def signature(f, up):
+        args = ', '.join(f'{linked(t, up)} {n}' for t, n in f['args'])
+        return f'<pre class="sig">{linked(f["ret"], up)} {f["name"]}({args})</pre>'
+
+    def page(rel, title, body, depth, search=False):
+        site.write(f'nvn/{rel}', site.page(title, title, body, depth, search=['nvn'] if search else None,
+                                          manual=NVN_MANUAL))
+
+    def ftitle(fam):
+        return fam['name'].replace('_', ' ').capitalize()
+
+    legend = ('<p class="legend"><span class="s2">Switch 2</span> only in Switch 2\'s NVN (NVN2) '
+              '<span class="s1">Switch 1</span> only in the Switch\'s, which NVN2 dropped; no mark: both</p>')
+
+    # a page per function
+    for fam in families:
+        for f in fam['funcs']:
+            parts = [f'<h1>{f["name"]}{nvn_badge(f["where"])}</h1>',
+                     f'<p class="groups"><a href="../{fam["name"]}.html">{html.escape(ftitle(fam))}</a></p>',
+                     signature(f, '../')]
+            if f['comment']:
+                parts.append(f'<p>{html.escape(friendly(f["comment"]))}</p>')
+            plat = ('Switch and Switch 2' if f['where'] == {'s1', 's2'} else 'Switch 2 (NVN2)' if f['where'] == {'s2'}
+                    else 'Switch (dropped in NVN2)' if f['where'] == {'s1'} else 'in no driver\'s procedure table: '
+                    'the SDK exports it itself')
+            rows_ = [('Drivers', plat),
+                     ('Declared', f'<a href="{GITHUB}/{site.commit}/{hook_rel}#L{f["line"]}">nvn.hook</a>')]
+            if f.get('route'):
+                rows_.append(('Handler', f'the loader\'s own (<code>nvn_loader.c</code>)'))
+            else:
+                h = handlers.get(f['handler'])
+                rows_.append(('Handler', f'<a href="{GITHUB}/{site.commit}/{h[0]}#L{h[1]}"><code>{f["handler"]}</code></a> '
+                                         f'({h[0].rsplit("/", 1)[1]})' if h else f'<code>{f["handler"]}</code>'))
+            parts.append('<table class="fields">' + ''.join(f'<tr><th>{k}</th><td>{v}</td></tr>' for k, v in rows_)
+                         + '</table>')
+            parts.append(f'<p class="note">Types as nvn.hook writes them: {HOOK_TYPES}.</p>')
+            page(f'f/{f["name"]}.html', f['name'], '\n'.join(parts), 2)
+            rows.append([f['name'], f'nvn/f/{f["name"]}.html', 'NVN',
+                         'function' + (', Switch 2' if f['where'] == {'s2'} else ', Switch 1' if f['where'] == {'s1'} else '')])
+
+    # a page per family, split when it must be
+    for fam in families:
+        trs = [f'<tr{" class=\"s2row\"" if f["where"] == {"s2"} else ""}><td><a href="f/{f["name"]}.html">{f["name"]}</a>'
+               f'{nvn_badge(f["where"])}</td><td>{linked(f["ret"], "")}</td></tr>' for f in sorted(fam['funcs'], key=lambda f: f['name'])]
+
+        def render(chunk, k, n, fam=fam):
+            nav = '' if n == 1 else '<p>Page ' + ' '.join(
+                (f'<a href="{fam["name"]}{"" if j == 1 else f"-{j}"}.html">{j}</a>' if j != k else f'<b>{j}</b>')
+                for j in range(1, n + 1)) + '</p>'
+            return site.page(ftitle(fam), ftitle(fam), f'<h1>{html.escape(ftitle(fam))}</h1>{legend}{nav}'
+                             f'<table class="fields"><tr><th>Function</th><th>Returns</th></tr>{"".join(chunk)}</table>{nav}',
+                             1, manual=NVN_MANUAL)
+
+        split = split_pages(trs, render, f'nvn/{fam["name"]}.html')
+        for k, (rel, chunk) in enumerate(split, 1):
+            site.write(rel, render(chunk, k, len(split)))
+
+    # a page per enum (its values split over pages when they must be), and per type
+    rt, zt, tex = vk_tables
+    for name, t in sorted(types.items()):
+        used = sorted({f['name'] for f in t['users']})
+        used_html = ('<h2>Used by</h2><ul class="cols">' + ''.join(f'<li><a href="../f/{u}.html">{u}</a></li>' for u in used)
+                     + '</ul>') if used else ''
+        src = f'<p><a class="src" href="{GITHUB}/{site.commit}/{NVN_DIR}/nvn.h#L{t["line"]}">nvn.h</a></p>'
+        head = f'<h1>{name}{nvn_badge(t["where"])}</h1>{src}' + (f'<p>{html.escape(friendly(t["comment"]))}</p>' if t['comment'] else '')
+        if t['kind'] == 'enum':
+            is_format = name == 'NVNformat'
+            trs = []
+            for v in t['values']:
+                cells = f'<td id="{v["name"]}">{v["name"]}{" <span class=\"s2\">Switch 2</span>" if v["s2"] else ""}</td><td>{html.escape(v["value"])}</td>'
+                if is_format:
+                    vk = vk_of_format(v['tic'], rt, zt, tex)
+                    conv = vk and vk.endswith(' converted')
+                    vk = vk.split()[0] if vk else vk
+                    cells += (f'<td><a href="{VK_FORMAT_URL.format(vk)}">{vk}</a>'
+                              f'{" (converted to it on upload)" if conv else ""}</td>' if vk else
+                              '<td>(none: ScarletNX has no texture descriptor for it)</td>')
+                elif any(x['comment'] for x in t['values']):
+                    cells += f'<td>{html.escape(friendly(v["comment"]) or "")}</td>'
+                trs.append(f'<tr{" class=\"s2row\"" if v["s2"] else ""}>{cells}</tr>')
+                rows.append([v['name'], f'nvn/e/{name}.html#{v["name"]}', 'NVN',
+                             f'{name} {v["value"]}' + (', Switch 2' if v['s2'] or t['where'] == {'s2'} else '')])
+            hdr = '<tr><th>Name</th><th>Value</th>' + ('<th>Vulkan format</th>' if is_format else
+                  '<th>Note</th>' if any(x['comment'] for x in t['values']) else '') + '</tr>'
+            note = ('<p>The Vulkan format whose texels are laid out as the NVN format\'s, as ScarletNX\'s tables give it '
+                    '(<code>nvn_tic_format.inc</code>, then <code>vk/format.c</code>); a block-compressed format the GPU '
+                    'can\'t sample, ScarletNX decodes. The link is the format\'s definition on docs.vulkan.org.</p>'
+                    if is_format else '')
+
+            def render(chunk, k, n, name=name, head=head, hdr=hdr, note=note, used_html=used_html):
+                nav = '' if n == 1 else '<p>Page ' + ' '.join(
+                    (f'<a href="{name}{"" if j == 1 else f"-{j}"}.html">{j}</a>' if j != k else f'<b>{j}</b>')
+                    for j in range(1, n + 1)) + '</p>'
+                return site.page(name, name, f'{head}{note}{nav}<table class="fields">{hdr}{"".join(chunk)}</table>{nav}'
+                                 + (used_html if k == n else ''), 2, manual=NVN_MANUAL)
+
+            split = split_pages(trs, render, f'nvn/e/{name}.html')
+            for k, (rel, chunk) in enumerate(split, 1):
+                site.write(rel, render(chunk, k, len(split)))
+        else:
+            body = head + f'<pre>{linked(t["text"], "../")}</pre>' + used_html
+            if len(site.page(name, name, body, 2, manual=NVN_MANUAL).encode()) > MAX_BYTES:
+                # too many users to name: how many of each family's
+                counts = {}
+                for f in t['users']:
+                    fam = next(fm for fm in families if f in fm['funcs'])
+                    counts[fam['name']] = counts.get(fam['name'], 0) + 1
+                body = head + f'<pre>{linked(t["text"], "../")}</pre><h2>Used by</h2><ul>' + ''.join(
+                    f'<li>{c} functions of <a href="../{fn}.html">{html.escape(fn.replace("_", " ").capitalize())}</a></li>'
+                    for fn, c in sorted(counts.items())) + '</ul>'
+            page(f't/{name}.html', name, body, 2)
+        rows.append([name, f'nvn/{"e" if t["kind"] == "enum" else "t"}/{name}.html', 'NVN',
+                     t['kind'] + (', Switch 2' if t['where'] == {'s2'} else '')])
+
+    # the drivers' functions nvn.hook doesn't have
+    have = {f['name'] for f in funcs}
+    missing = sorted(n for n in drivers if n not in have)
+    def render_missing(chunk, k, n):
+        nav = '' if n == 1 else '<p>Page ' + ' '.join(
+            (f'<a href="missing{"" if j == 1 else f"-{j}"}.html">{j}</a>' if j != k else f'<b>{j}</b>')
+            for j in range(1, n + 1)) + '</p>'
+        return site.page('Not implemented', 'Not implemented', f'<h1>Not implemented</h1>{legend}<p>The functions of '
+                         f'the drivers\' procedure tables that ScarletNX doesn\'t implement: a game that calls one '
+                         f'stops with its name.</p>{nav}<ul class="cols">' + ''.join(chunk) + f'</ul>{nav}', 1,
+                         manual=NVN_MANUAL)
+
+    split = split_pages([f'<li>{n}{nvn_badge(drivers[n])}</li>' for n in missing], render_missing, 'nvn/missing.html')
+    for k, (rel, chunk) in enumerate(split, 1):
+        site.write(rel, render_missing(chunk, k, len(split)))
+
+    def type_list(kind):
+        return '<ul class="cols">' + ''.join(
+            f'<li><a href="{type_href(n, "")}">{n}</a>{nvn_badge(t["where"])}</li>'
+            for n, t in sorted(types.items()) if t['kind'] in kind) + '</ul>'
+
+    page('enums.html', 'Enums', f'<h1>Enums</h1>{legend}' + type_list(('enum',)), 1)
+    page('types.html', 'Types', f'<h1>Types</h1>{legend}<h2>Objects and structures</h2>' + type_list(('struct',))
+         + '<h2>Typedefs</h2>' + type_list(('typedef',)) + '<h2>Callbacks</h2>' + type_list(('callback',)), 1)
+    s2 = sum(1 for f in funcs if f['where'] == {'s2'})
+    fams = ''.join(f'<li><a href="{fam["name"]}.html">{html.escape(ftitle(fam))}</a> ({len(fam["funcs"])}'
+                   + (f', <span class="s2">{sum(1 for f in fam["funcs"] if f["where"] == {"s2"})} Switch 2</span>'
+                      if any(f['where'] == {'s2'} for f in fam['funcs']) else '') + ')</li>' for fam in families)
+    page('index.html', 'NVN API', f'<h1>NVN API</h1><p>NVN, the graphics API of the Switch and, as NVN2, of the Switch 2, '
+         f'as ScarletNX implements it on Vulkan: every function a game resolves (<code>nvn.hook</code>), with its '
+         f'signature and the handler that runs it, and the types and enums of <code>nvn.h</code>. NVN2 keeps the '
+         f'Switch\'s API and adds to it: what only Switch 2\'s drivers have is marked.</p>{legend}'
+         '<div id="search" data-root="../" data-placeholder="Search: a function, type, enum or value"></div><p>The search takes a function, type, enum or value\'s name '
+         '(the nearest when none is the same).</p>'
+         f'<h2>Functions</h2><p>{len(funcs)} functions, {s2} of them Switch 2\'s.</p><ul>{fams}</ul>'
+         f'<p><a href="missing.html">The drivers\' functions not implemented</a> ({len(missing)})</p>'
+         f'<h2>Types</h2><ul><li><a href="enums.html">Enums</a> ({sum(1 for t in types.values() if t["kind"] == "enum")})</li>'
+         f'<li><a href="types.html">Objects, structures, typedefs and callbacks</a> '
+         f'({sum(1 for t in types.values() if t["kind"] != "enum")})</li></ul>'
+         '<p>The <a href="../">ARM ISA</a>, the <a href="../sm53/">Maxwell ISA</a> and the <a href="../sm86/">Ampere ISA</a>.</p>',
+         1, search=True)
+    return len(funcs), s2
+
+
 def find_commit(root, dirs):
     try:
         return subprocess.run(['git', '-C', root, 'log', '-1', '--format=%H', '--'] + dirs, capture_output=True,
@@ -1062,7 +1476,7 @@ def main(argv):
         return 2
     root = argv[0]
     out = argv[1] if len(argv) == 2 else os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'manual')
-    commit = commit or find_commit(root, [a['dir'] for a in ARCHES] + [GPU_DIR])
+    commit = commit or find_commit(root, [a['dir'] for a in ARCHES] + [GPU_DIR, NVN_DIR, VK_FORMATS])
     here = os.path.dirname(os.path.abspath(__file__))
 
     # the manual is made whole each time: what the Sail no longer has goes
@@ -1091,6 +1505,15 @@ def main(argv):
                        '[' + ','.join('"' + str(v).replace('\\', '\\\\').replace('"', '\\"') + '"' for v in r) + ']'
                        for r in rows) + '\n]);\nwindow.ARM = ARM;\n')
         gpus.append(f'<li><a href="{g["id"]}/">{g["name"]}</a>: {g["title"]} ({n_pages} instructions, {n_pats} encodings)</li>')
+    nvn = None
+    if os.path.exists(os.path.join(root, NVN_DIR, 'nvn.hook')):
+        shutil.rmtree(os.path.join(out, 'nvn'), ignore_errors=True)
+        rows = []
+        nvn = build_nvn(site, root, rows, here)
+        site.write('nvn/data.js', '// The search\'s data (tools/gen-manual.py): name, page, NVN, what it is\n'
+                   'var ARM = (window.ARM || []).concat([\n' + ',\n'.join(
+                       '[' + ','.join('"' + str(v).replace('\\', '\\\\').replace('"', '\\"') + '"' for v in r) + ']'
+                       for r in rows) + '\n]);\nwindow.ARM = ARM;\n')
     for name in ('manual.css', 'search.js'):
         shutil.copyfile(os.path.join(here, 'manual', name), os.path.join(out, name))
     shutil.copyfile(os.path.join(root, ARCHES[0]['dir'], 'LICENSE'), os.path.join(out, 'LICENSE-sail-arm.txt'))

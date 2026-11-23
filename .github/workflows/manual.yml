@@ -26,6 +26,8 @@ jobs:
             src/common/cpu/aarch64/sail
             src/common/cpu/arm/sail
             src/nx/gpu/shader
+            src/nx/gpu/nvn
+            src/nx/gpu/vk
       - run: python3 tools/gen-manual.py ScarletNX manual
       - run: rm -rf ScarletNX && python3 tools/check-site.py && sh tests/check-manual.sh
       - name: Commit the manual when it changed

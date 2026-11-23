@@ -59,6 +59,29 @@ has sm86/UIADD3.html '<td colspan="6" class="lr f">URd</td>'
 has sm86/data.js '["IADD3","sm86/IADD3.html#IADD3","SM86","form 1","fff","210","0","0","0"]'
 has sm53/data.js '["IADD","sm53/IADD.html#IADD_I","SM53","IADD (imm)","fef8","3810","0","0","3"]'
 
+# the NVN API: signatures and handlers from nvn.hook, Switch 2's marks from tools/manual/nvn-drivers.txt, nvn.h's
+# enums, and the formats' Vulkan equivalents from vk/format.c
+for f in nvn/index.html nvn/device.html nvn/command_buffer.html nvn/enums.html nvn/types.html nvn/missing.html \
+         nvn/f/nvnDeviceFinalize.html nvn/f/nvnBootstrapLoader.html nvn/e/NVNformat.html nvn/e/NVNshaderStage.html \
+         nvn/t/NVNdlssParameters.html nvn/data.js; do
+    [ -f "$tmp/manual/$f" ] || fail "no $f"
+done
+has nvn/f/nvnDeviceFinalize.html '<pre class="sig">void nvnDeviceFinalize(<a href="../t/NVNdevice.html">NVNdevice</a>* d)</pre>'
+has nvn/f/nvnDeviceFinalize.html '/src/nx/gpu/nvn/nvn_object.c#L5"><code>nvn_DeviceFinalize</code>'
+has nvn/f/nvnCommandBufferSetComputeWorkloadPriority.html '<span class="s2">Switch 2</span>'
+has nvn/f/nvnCommandBufferSetComputeWorkloadPriority.html "<p>Switch 2&#x27;s (API 231): a priority"
+has nvn/f/nvnCommandBufferPopDebugGroupId.html '<span class="s1">Switch 1</span>'               # NVN2 dropped it
+grep -q 'a priority' "$tmp/manual/nvn/f/nvnCommandBufferSetConservativeRasterEnable.html" &&
+    fail "a Switch 2 comment ran on into a function both have"
+has nvn/e/NVNshaderStage.html '<td id="NVN_SHADER_STAGE_MESH">NVN_SHADER_STAGE_MESH <span class="s2">Switch 2</span>'
+has nvn/e/NVNformat.html 'VkFormat.html#:~:text=VK_FORMAT_BC1_RGBA_UNORM_BLOCK%20specifies">VK_FORMAT_BC1_RGBA_UNORM_BLOCK</a>'
+has nvn/e/NVNformat.html '>VK_FORMAT_D24_UNORM_S8_UINT</a>'                                   # through the depth targets
+has nvn/e/NVNformat.html '>VK_FORMAT_ASTC_4x4_UNORM_BLOCK</a>'
+has nvn/e/NVNformat.html '>VK_FORMAT_R8G8B8A8_UNORM</a> (converted to it on upload)'
+has nvn/t/NVNdlssParameters.html '<h1>NVNdlssParameters <span class="s2">Switch 2</span></h1>'
+has nvn/data.js '["nvnCommandBufferSetComputeWorkloadPriority","nvn/f/nvnCommandBufferSetComputeWorkloadPriority.html","NVN","function, Switch 2"]'
+has nvn/index.html 'data-load="../nvn/data.js"'
+
 # the same Sail makes the same manual
 python3 tools/gen-manual.py tests/sail "$tmp/again" --commit 0123456789abcdef0123456789abcdef01234567 >/dev/null
 diff -r "$tmp/manual" "$tmp/again" >/dev/null || fail "two runs differ"

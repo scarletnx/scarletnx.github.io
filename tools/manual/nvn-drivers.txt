@@ -1,0 +1,740 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# The NVN functions the drivers resolve (tools/gen-manual.py reads it for the NVN manual's Switch 2 marks): every
+# name of their procedure tables, without the "nvn" prefix, and the drivers that have it. "s1": a Switch driver's,
+# NVN API 55.15 (SDK 19.3.11) and a 32-bit 2018 one (SDK 4.4.0); "s2": a Switch 2 driver's, NVN API 231.16 (SDK
+# 19.3.3) and 4.30 (SDK 20.5.4). Read from the games' drivers by ScarletNX's tools/nvn_hash.py --json (its "procs"),
+# which reads the table the driver's nvnDeviceGetProcAddress searches: names only, nothing of a game. A name in no
+# table (the NVX functions the SDK exports itself) is in neither.
+BlendStateGetAdvancedMode	s1 s2
+BlendStateGetAdvancedNormalizedDst	s1 s2
+BlendStateGetAdvancedOverlap	s1 s2
+BlendStateGetAdvancedPremultipliedSrc	s1 s2
+BlendStateGetBlendEquation	s1 s2
+BlendStateGetBlendFunc	s1 s2
+BlendStateGetBlendTarget	s1 s2
+BlendStateSetAdvancedMode	s1 s2
+BlendStateSetAdvancedNormalizedDst	s1 s2
+BlendStateSetAdvancedOverlap	s1 s2
+BlendStateSetAdvancedPremultipliedSrc	s1 s2
+BlendStateSetBlendEquation	s1 s2
+BlendStateSetBlendFunc	s1 s2
+BlendStateSetBlendTarget	s1 s2
+BlendStateSetDefaults	s1 s2
+BufferBuilderGetDevice	s1 s2
+BufferBuilderGetMemoryOffset	s1 s2
+BufferBuilderGetMemoryPool	s1 s2
+BufferBuilderGetSize	s1 s2
+BufferBuilderSetDefaults	s1 s2
+BufferBuilderSetDevice	s1 s2
+BufferBuilderSetStorage	s1 s2
+BufferFinalize	s1 s2
+BufferFlushMappedRange	s1 s2
+BufferGetAddress	s1 s2
+BufferGetDebugID	s1 s2
+BufferGetMemoryOffset	s1 s2
+BufferGetMemoryPool	s1 s2
+BufferGetSize	s1 s2
+BufferInitialize	s1 s2
+BufferInvalidateMappedRange	s1 s2
+BufferMap	s1 s2
+BufferSetDebugLabel	s1 s2
+ChannelMaskStateGetChannelMask	s1 s2
+ChannelMaskStateSetChannelMask	s1 s2
+ChannelMaskStateSetDefaults	s1 s2
+ColorStateGetAlphaTest	s1 s2
+ColorStateGetBlendEnable	s1 s2
+ColorStateGetLogicOp	s1 s2
+ColorStateSetAlphaTest	s1 s2
+ColorStateSetBlendEnable	s1 s2
+ColorStateSetDefaults	s1 s2
+ColorStateSetLogicOp	s1 s2
+CommandBufferAddCommandMemory	s1 s2
+CommandBufferAddControlMemory	s1 s2
+CommandBufferBarrier	s1 s2
+CommandBufferBeginDeviceCommands	s2
+CommandBufferBeginRecording	s1 s2
+CommandBufferBeginTransformFeedback	s1 s2
+CommandBufferBindAccelerationStructure	s2
+CommandBufferBindAccelerationStructures	s2
+CommandBufferBindAccelerationStructuresDeferred	s2
+CommandBufferBindBlendState	s1 s2
+CommandBufferBindChannelMaskState	s1 s2
+CommandBufferBindColorState	s1 s2
+CommandBufferBindCoverageModulationTable	s1 s2
+CommandBufferBindDepthStencilState	s1 s2
+CommandBufferBindDeviceMessageBuffer	s2
+CommandBufferBindDeviceMessageBufferDeferred	s2
+CommandBufferBindImage	s1 s2
+CommandBufferBindImages	s1 s2
+CommandBufferBindImagesDeferred	s1 s2
+CommandBufferBindMultisampleState	s1 s2
+CommandBufferBindPolygonState	s1 s2
+CommandBufferBindProgram	s1 s2
+CommandBufferBindSeparateSampler	s1 s2
+CommandBufferBindSeparateSamplers	s1 s2
+CommandBufferBindSeparateSamplersDeferred	s1 s2
+CommandBufferBindSeparateTexture	s1 s2
+CommandBufferBindSeparateTextures	s1 s2
+CommandBufferBindSeparateTexturesDeferred	s1 s2
+CommandBufferBindShadingRateImage	s2
+CommandBufferBindStorageBuffer	s1 s2
+CommandBufferBindStorageBuffers	s1 s2
+CommandBufferBindStorageBuffersDeferred	s1 s2
+CommandBufferBindTexture	s1 s2
+CommandBufferBindTextures	s1 s2
+CommandBufferBindTexturesDeferred	s1 s2
+CommandBufferBindTransformFeedbackBuffer	s1 s2
+CommandBufferBindTransformFeedbackBuffers	s1 s2
+CommandBufferBindUniformBuffer	s1 s2
+CommandBufferBindUniformBuffers	s1 s2
+CommandBufferBindUniformBuffersDeferred	s1 s2
+CommandBufferBindVertexAttribState	s1 s2
+CommandBufferBindVertexBuffer	s1 s2
+CommandBufferBindVertexBuffers	s1 s2
+CommandBufferBindVertexStreamState	s1 s2
+CommandBufferBuildAccelerationStructures	s2
+CommandBufferCallCommands	s1 s2
+CommandBufferClearBuffer	s1 s2
+CommandBufferClearColor	s1 s2
+CommandBufferClearColori	s1 s2
+CommandBufferClearColorui	s1 s2
+CommandBufferClearDepthStencil	s1 s2
+CommandBufferClearTexture	s1 s2
+CommandBufferClearTexturei	s1 s2
+CommandBufferClearTextureui	s1 s2
+CommandBufferCompactAccelerationStructure	s2
+CommandBufferComputeDirtyTileMap	s2
+CommandBufferComputeDirtyTileMapEx	s2
+CommandBufferCopyAccelerationStructure	s2
+CommandBufferCopyBufferToBuffer	s1 s2
+CommandBufferCopyBufferToTexture	s1 s2
+CommandBufferCopyCommands	s1 s2
+CommandBufferCopyTextureToBuffer	s1 s2
+CommandBufferCopyTextureToTexture	s1 s2
+CommandBufferDiscardColor	s1 s2
+CommandBufferDiscardDepthStencil	s1 s2
+CommandBufferDispatchCompute	s1 s2
+CommandBufferDispatchComputeIndirect	s1 s2
+CommandBufferDispatchRays	s2
+CommandBufferDispatchRaysIndirect	s2
+CommandBufferDownsample	s1 s2
+CommandBufferDownsampleTextureView	s1 s2
+CommandBufferDrawArrays	s1 s2
+CommandBufferDrawArraysIndirect	s1 s2
+CommandBufferDrawArraysInstanced	s1 s2
+CommandBufferDrawElements	s1 s2
+CommandBufferDrawElementsBaseVertex	s1 s2
+CommandBufferDrawElementsIndirect	s1 s2
+CommandBufferDrawElementsInstanced	s1 s2
+CommandBufferDrawMeshTasks	s2
+CommandBufferDrawMeshTasks3D	s2
+CommandBufferDrawMeshTasks3DIndirect	s2
+CommandBufferDrawMeshTasksIndirect	s2
+CommandBufferDrawTexture	s1 s2
+CommandBufferDrawTransformFeedback	s1 s2
+CommandBufferEnableExclusiveScissor	s2
+CommandBufferEndDeviceCommands	s2
+CommandBufferEndRecording	s1 s2
+CommandBufferEndTransformFeedback	s1 s2
+CommandBufferEvaluateDlss	s2
+CommandBufferFenceSync	s1 s2
+CommandBufferFinalize	s1 s2
+CommandBufferGetAccelerationStructureVisualizationData	s2
+CommandBufferGetCommandMemoryFree	s1 s2
+CommandBufferGetCommandMemorySize	s1 s2
+CommandBufferGetCommandMemoryUsed	s1 s2
+CommandBufferGetControlMemoryFree	s1 s2
+CommandBufferGetControlMemorySize	s1 s2
+CommandBufferGetControlMemoryUsed	s1 s2
+CommandBufferGetCopyImageStride	s1 s2
+CommandBufferGetCopyRowStride	s1 s2
+CommandBufferGetMemoryCallback	s1 s2
+CommandBufferGetMemoryCallbackData	s1 s2
+CommandBufferInitialize	s1 s2
+CommandBufferInsertCheckpointDynamic	s1 s2
+CommandBufferInsertCheckpointStatic	s1 s2
+CommandBufferInsertDebugMarker	s1 s2
+CommandBufferInsertDebugMarkerCompute	s2
+CommandBufferInsertDebugMarkerDynamic	s1
+CommandBufferInsertDebugMarkerGraphics	s2
+CommandBufferInsertDebugMarkerStatic	s1
+CommandBufferIsRecording	s1 s2
+CommandBufferMultiDrawArraysIndirectCount	s1 s2
+CommandBufferMultiDrawElementsIndirectCount	s1 s2
+CommandBufferMultiDrawMeshTasks3DIndirect	s2
+CommandBufferMultiDrawMeshTasks3DIndirectCount	s2
+CommandBufferMultiDrawMeshTasksIndirect	s2
+CommandBufferMultiDrawMeshTasksIndirectCount	s2
+CommandBufferOverrideSubtileSize	s1 s2
+CommandBufferPauseTransformFeedback	s1 s2
+CommandBufferPopDebugGroup	s1 s2
+CommandBufferPopDebugGroupCompute	s2
+CommandBufferPopDebugGroupGraphics	s2
+CommandBufferPopDebugGroupId	s1
+CommandBufferPushComputeConstants	s2
+CommandBufferPushComputeConstantsDeferred	s2
+CommandBufferPushDebugGroup	s1 s2
+CommandBufferPushDebugGroupCompute	s2
+CommandBufferPushDebugGroupDynamic	s1
+CommandBufferPushDebugGroupGraphics	s2
+CommandBufferPushDebugGroupStatic	s1
+CommandBufferPushGraphicsConstants	s2
+CommandBufferPushGraphicsConstantsDeferred	s2
+CommandBufferRelocateAccelerationStructure	s2
+CommandBufferReportCounter	s1 s2
+CommandBufferReportValue	s1 s2
+CommandBufferResetCounter	s1 s2
+CommandBufferResetDeviceMessageBuffer	s2
+CommandBufferResetDeviceMessageBufferDeferred	s2
+CommandBufferResolveDepthBuffer	s1 s2
+CommandBufferRestoreZCullData	s1 s2
+CommandBufferResumeTransformFeedback	s1 s2
+CommandBufferSaveZCullData	s1 s2
+CommandBufferSetAlphaRef	s1 s2
+CommandBufferSetBlendColor	s1 s2
+CommandBufferSetColorReductionEnable	s1 s2
+CommandBufferSetColorReductionThresholds	s1 s2
+CommandBufferSetCommandMemoryCallbackEnabled	s1 s2
+CommandBufferSetComputeEnable	s2
+CommandBufferSetComputeEnableConditional	s2
+CommandBufferSetComputeOverlapMode	s2
+CommandBufferSetComputeWorkloadPriority	s2
+CommandBufferSetConservativeRasterDilate	s1 s2
+CommandBufferSetConservativeRasterEnable	s1 s2
+CommandBufferSetConservativeRasterMode	s2
+CommandBufferSetControlMemoryCallbackEnabled	s1 s2
+CommandBufferSetCopyEnable	s2
+CommandBufferSetCopyEnableConditional	s2
+CommandBufferSetCopyImageStride	s1 s2
+CommandBufferSetCopyRowStride	s1 s2
+CommandBufferSetDebugLabel	s1 s2
+CommandBufferSetDepthBounds	s1 s2
+CommandBufferSetDepthClamp	s1 s2
+CommandBufferSetDepthRange	s1 s2
+CommandBufferSetDepthRanges	s1 s2
+CommandBufferSetExclusiveScissor	s2
+CommandBufferSetExclusiveScissors	s2
+CommandBufferSetFloatBlendClamp	s2
+CommandBufferSetGeometryProcessingMode	s2
+CommandBufferSetGraphicsWorkloadPriority	s2
+CommandBufferSetInnerTessellationLevels	s1 s2
+CommandBufferSetLineWidth	s1 s2
+CommandBufferSetMemoryCallback	s1 s2
+CommandBufferSetMemoryCallbackData	s1 s2
+CommandBufferSetOuterTessellationLevels	s1 s2
+CommandBufferSetPatchSize	s1 s2
+CommandBufferSetPointSize	s1 s2
+CommandBufferSetPolygonOffsetClamp	s1 s2
+CommandBufferSetPrimitiveRestart	s1 s2
+CommandBufferSetProgramSubroutines	s1 s2
+CommandBufferSetProvokingVertexMode	s1 s2
+CommandBufferSetRasterizerDiscard	s1 s2
+CommandBufferSetRecordingMode	s2
+CommandBufferSetRenderEnable	s1 s2
+CommandBufferSetRenderEnableConditional	s1 s2
+CommandBufferSetRenderTargets	s1 s2
+CommandBufferSetRepresentativeFragmentTest	s2
+CommandBufferSetResourceOccupancy	s2
+CommandBufferSetSampleMask	s1 s2
+CommandBufferSetSamplerPool	s1 s2
+CommandBufferSetScissor	s1 s2
+CommandBufferSetScissors	s1 s2
+CommandBufferSetShaderScratchMemory	s1 s2
+CommandBufferSetShadingRatePaletteMode	s2
+CommandBufferSetStencilCullCriteria	s1 s2
+CommandBufferSetStencilMask	s1 s2
+CommandBufferSetStencilRef	s1 s2
+CommandBufferSetStencilValueMask	s1 s2
+CommandBufferSetSubpixelPrecisionBias	s1 s2
+CommandBufferSetTexturePool	s1 s2
+CommandBufferSetTiledCacheAction	s1 s2
+CommandBufferSetTiledCacheTileSize	s1 s2
+CommandBufferSetViewport	s1 s2
+CommandBufferSetViewportSwizzles	s1 s2
+CommandBufferSetViewports	s1 s2
+CommandBufferSetZCullZF32CompressionEnable	s1 s2
+CommandBufferShadingRateImagePalette	s2
+CommandBufferSignalEvent	s1 s2
+CommandBufferSubmitDeviceCommands	s2
+CommandBufferTiledDownsample	s1 s2
+CommandBufferTiledDownsampleTextureView	s1 s2
+CommandBufferUpdateUniformBuffer	s1 s2
+CommandBufferWaitEvent	s1 s2
+CommandBufferWaitSync	s1 s2
+DepthStencilStateGetDepthFunc	s1 s2
+DepthStencilStateGetDepthTestEnable	s1 s2
+DepthStencilStateGetDepthWriteEnable	s1 s2
+DepthStencilStateGetStencilFunc	s1 s2
+DepthStencilStateGetStencilOp	s1 s2
+DepthStencilStateGetStencilTestEnable	s1 s2
+DepthStencilStateSetDefaults	s1 s2
+DepthStencilStateSetDepthFunc	s1 s2
+DepthStencilStateSetDepthTestEnable	s1 s2
+DepthStencilStateSetDepthWriteEnable	s1 s2
+DepthStencilStateSetStencilFunc	s1 s2
+DepthStencilStateSetStencilOp	s1 s2
+DepthStencilStateSetStencilTestEnable	s1 s2
+DeviceApplyDeferredFinalizes	s1
+DeviceBuilderGetFlags	s1 s2
+DeviceBuilderSetDefaults	s1 s2
+DeviceBuilderSetFlags	s1 s2
+DeviceCalculateAccelerationStructureMemoryRequirements	s2
+DeviceCommandBufferGetHandle	s2
+DeviceCommandBufferSetCommandMemorySize	s2
+DeviceCommandBufferSetComputeMemorySize	s2
+DeviceCommandBufferSetDefaults	s2
+DeviceCommandBufferSetDevice	s2
+DeviceCommandBufferSetStorage	s2
+DeviceCompactAccelerationStructure	s2
+DeviceCopyAccelerationStructure	s2
+DeviceFinalize	s1 s2
+DeviceFinalizeCommandHandle	s1 s2
+DeviceGenerateDebugDomainId	s1 s2
+DeviceGetCommandHandleMemorySize	s2
+DeviceGetCurrentTimestampInNanoseconds	s1 s2
+DeviceGetDepthMode	s1 s2
+DeviceGetFlags	s2
+DeviceGetImageHandle	s1 s2
+DeviceGetInteger	s1 s2
+DeviceGetProcAddress	s1 s2
+DeviceGetSeparateSamplerHandle	s1 s2
+DeviceGetSeparateTextureHandle	s1 s2
+DeviceGetTexelFetchHandle	s1 s2
+DeviceGetTextureHandle	s1 s2
+DeviceGetTimestampInNanoseconds	s1 s2
+DeviceGetUniformBufferHandle	s2
+DeviceGetWindowOriginMode	s1 s2
+DeviceInitialize	s1 s2
+DeviceInstallDebugCallback	s1 s2
+DeviceIsExternalDebuggerAttached	s1 s2
+DeviceMessageBufferBeginMessages	s2
+DeviceMessageBufferEndMessages	s2
+DeviceMessageBufferGetNextMessage	s2
+DeviceMessageBufferReset	s2
+DeviceMessageBufferSetDefaults	s2
+DeviceMessageBufferSetDevice	s2
+DeviceMessageBufferSetStorage	s2
+DeviceRegisterFastClearColor	s1 s2
+DeviceRegisterFastClearColorIndex	s2
+DeviceRegisterFastClearColori	s1 s2
+DeviceRegisterFastClearColoriIndex	s2
+DeviceRegisterFastClearColorui	s1 s2
+DeviceRegisterFastClearColoruiIndex	s2
+DeviceRegisterFastClearDepth	s1 s2
+DeviceRegisterFastClearDepthIndex	s2
+DeviceRegisterFastClearStencil	s2
+DeviceRegisterFastClearStencilIndex	s2
+DeviceRelocateAccelerationStructure	s2
+DeviceSetAutomaticCheckpointsByDebugGroup	s1 s2
+DeviceSetAutomaticCheckpointsEnable	s1 s2
+DeviceSetAutomaticCheckpointsMask	s1 s2
+DeviceSetAutomaticCheckpointsSamplingInterval	s1 s2
+DeviceSetCheckpointCallStacksEnable	s1 s2
+DeviceSetCheckpointMaxCallStacksDepth	s1 s2
+DeviceSetDebugLabel	s1 s2
+DeviceSetDepthMode	s1 s2
+DeviceSetIntermediateShaderCache	s1 s2
+DeviceSetWindowOriginMode	s1 s2
+DeviceWalkDebugDatabase	s1 s2
+DirtyTileMapParametersGetConstantColorTable	s2
+DirtyTileMapParametersGetDepthStencilMask	s2
+DirtyTileMapParametersGetExpandFootprint	s2
+DirtyTileMapParametersGetInputs	s2
+DirtyTileMapParametersGetOutputs	s2
+DirtyTileMapParametersGetTexture	s2
+DirtyTileMapParametersSetConstantColorTable	s2
+DirtyTileMapParametersSetDefaults	s2
+DirtyTileMapParametersSetDepthStencilMask	s2
+DirtyTileMapParametersSetExpandFootprint	s2
+DirtyTileMapParametersSetInputs	s2
+DirtyTileMapParametersSetOutputs	s2
+DirtyTileMapParametersSetTexture	s2
+DlssNetworkBuilderGetDevice	s2
+DlssNetworkBuilderGetFlags	s2
+DlssNetworkBuilderGetMaxEvaluationEntries	s2
+DlssNetworkBuilderGetMemory	s2
+DlssNetworkBuilderGetMemorySize	s2
+DlssNetworkBuilderGetMethod	s2
+DlssNetworkBuilderGetOptimalSettings	s2
+DlssNetworkBuilderGetOutputResolution	s2
+DlssNetworkBuilderGetPreset	s2
+DlssNetworkBuilderGetStorageSize	s2
+DlssNetworkBuilderGetTextureIDs	s2
+DlssNetworkBuilderGetTexturePool	s2
+DlssNetworkBuilderSetDefaults	s2
+DlssNetworkBuilderSetDevice	s2
+DlssNetworkBuilderSetFlags	s2
+DlssNetworkBuilderSetMaxEvaluationEntries	s2
+DlssNetworkBuilderSetMethod	s2
+DlssNetworkBuilderSetOutputResolution	s2
+DlssNetworkBuilderSetPreset	s2
+DlssNetworkBuilderSetStorage	s2
+DlssNetworkBuilderSetTextureIDs	s2
+DlssNetworkFinalize	s2
+DlssNetworkInitialize	s2
+DlssNetworkResize	s2
+DlssParametersGetBiasCurrentColorSubrectangleBase	s2
+DlssParametersGetDepthSubrectangleBase	s2
+DlssParametersGetEvaluationIndex	s2
+DlssParametersGetHistoryReset	s2
+DlssParametersGetInputColorSubrectangleBase	s2
+DlssParametersGetInputSubrectangleSize	s2
+DlssParametersGetJitterOffset	s2
+DlssParametersGetMotionVectorScale	s2
+DlssParametersGetMotionVectorSubrectangleBase	s2
+DlssParametersGetOutputSubrectangleBase	s2
+DlssParametersGetPreExposure	s2
+DlssParametersSetBiasCurrentColorMask	s2
+DlssParametersSetBiasCurrentColorSubrectangleBase	s2
+DlssParametersSetDefaults	s2
+DlssParametersSetDepth	s2
+DlssParametersSetDepthSubrectangleBase	s2
+DlssParametersSetEvaluationIndex	s2
+DlssParametersSetExposureTexture	s2
+DlssParametersSetHistoryReset	s2
+DlssParametersSetInputColor	s2
+DlssParametersSetInputColorSubrectangleBase	s2
+DlssParametersSetInputSubrectangleSize	s2
+DlssParametersSetJitterOffset	s2
+DlssParametersSetMotionVectorScale	s2
+DlssParametersSetMotionVectorSubrectangleBase	s2
+DlssParametersSetMotionVectors	s2
+DlssParametersSetOutputColor	s2
+DlssParametersSetOutputSubrectangleBase	s2
+DlssParametersSetOverlayDebugLayer	s2
+DlssParametersSetOverlayFullScreen	s2
+DlssParametersSetOverlayJitterDebug	s2
+DlssParametersSetOverlayShowNans	s2
+DlssParametersSetPreExposure	s2
+EventBuilderGetMemoryOffset	s1 s2
+EventBuilderGetMemoryPool	s1 s2
+EventBuilderGetStorage	s1 s2
+EventBuilderSetDefaults	s1 s2
+EventBuilderSetStorage	s1 s2
+EventFinalize	s1 s2
+EventGetMemoryOffset	s1 s2
+EventGetMemoryPool	s1 s2
+EventGetValue	s1 s2
+EventInitialize	s1 s2
+EventSignal	s1 s2
+MemoryPoolBuilderGetDevice	s1 s2
+MemoryPoolBuilderGetFlags	s1 s2
+MemoryPoolBuilderGetMemory	s1 s2
+MemoryPoolBuilderGetSize	s1 s2
+MemoryPoolBuilderSetDefaults	s1 s2
+MemoryPoolBuilderSetDevice	s1 s2
+MemoryPoolBuilderSetFlags	s1 s2
+MemoryPoolBuilderSetStorage	s1 s2
+MemoryPoolFinalize	s1 s2
+MemoryPoolFlushMappedRange	s1 s2
+MemoryPoolGetBufferAddress	s1 s2
+MemoryPoolGetFlags	s1 s2
+MemoryPoolGetSize	s1 s2
+MemoryPoolInitialize	s1 s2
+MemoryPoolInvalidateMappedRange	s1 s2
+MemoryPoolMap	s1 s2
+MemoryPoolMapVirtual	s1 s2
+MemoryPoolSetDebugLabel	s1 s2
+MultisampleStateGetAlphaToCoverageDither	s1 s2
+MultisampleStateGetAlphaToCoverageEnable	s1 s2
+MultisampleStateGetCoverageModulationMode	s1 s2
+MultisampleStateGetCoverageToColorEnable	s1 s2
+MultisampleStateGetCoverageToColorOutput	s1 s2
+MultisampleStateGetCoverageTruncationEnable	s2
+MultisampleStateGetMultisampleEnable	s1 s2
+MultisampleStateGetRasterSamples	s1 s2
+MultisampleStateGetSampleLocations	s2
+MultisampleStateGetSampleLocationsEnable	s1 s2
+MultisampleStateGetSampleLocationsGrid	s1 s2
+MultisampleStateGetSampleLocationsGridEnable	s1 s2
+MultisampleStateGetSamples	s1 s2
+MultisampleStateSetAlphaToCoverageDither	s1 s2
+MultisampleStateSetAlphaToCoverageEnable	s1 s2
+MultisampleStateSetCoverageModulationMode	s1 s2
+MultisampleStateSetCoverageToColorEnable	s1 s2
+MultisampleStateSetCoverageToColorOutput	s1 s2
+MultisampleStateSetCoverageTruncationEnable	s2
+MultisampleStateSetDefaults	s1 s2
+MultisampleStateSetMultisampleEnable	s1 s2
+MultisampleStateSetRasterSamples	s1 s2
+MultisampleStateSetSampleLocations	s1 s2
+MultisampleStateSetSampleLocationsEnable	s1 s2
+MultisampleStateSetSampleLocationsGridEnable	s1 s2
+MultisampleStateSetSamples	s1 s2
+PolygonStateGetCullFace	s1 s2
+PolygonStateGetFrontFace	s1 s2
+PolygonStateGetPolygonMode	s1 s2
+PolygonStateGetPolygonOffsetEnables	s1 s2
+PolygonStateSetCullFace	s1 s2
+PolygonStateSetDefaults	s1 s2
+PolygonStateSetFrontFace	s1 s2
+PolygonStateSetPolygonMode	s1 s2
+PolygonStateSetPolygonOffsetEnables	s1 s2
+ProgramBuilderGetDebugDataHashes	s2
+ProgramBuilderGetDevice	s2
+ProgramBuilderGetMaxCallableRecursionDepth	s2
+ProgramBuilderGetMaxTraceRecursionDepth	s2
+ProgramBuilderGetProgramRayTracingFlags	s2
+ProgramBuilderGetRayTracingModuleCount	s2
+ProgramBuilderGetRayTracingModuleData	s2
+ProgramBuilderGetSampleShading	s2
+ProgramBuilderGetShaderCount	s2
+ProgramBuilderGetShaders	s2
+ProgramBuilderGetSubroutineLinkage	s2
+ProgramBuilderGetSubroutineLinkageCount	s2
+ProgramBuilderSetDebugDataHashes	s2
+ProgramBuilderSetDefaults	s2
+ProgramBuilderSetDevice	s2
+ProgramBuilderSetMaxCallableRecursionDepth	s2
+ProgramBuilderSetMaxTraceRecursionDepth	s2
+ProgramBuilderSetProgramRayTracingFlags	s2
+ProgramBuilderSetRayTracingModules	s2
+ProgramBuilderSetSampleShading	s2
+ProgramBuilderSetShaders	s2
+ProgramBuilderSetSubroutineLinkage	s2
+ProgramFinalize	s1 s2
+ProgramGetDeviceComputeMemorySize	s2
+ProgramGetScratchBytesPerWarp	s2
+ProgramGetShaderGroupHandle	s2
+ProgramGetSubtileSize	s1 s2
+ProgramInitialize	s1 s2
+ProgramInitializeFromBuilder	s2
+ProgramSetDebugLabel	s1 s2
+ProgramSetSampleShading	s1 s2
+ProgramSetShaders	s1 s2
+ProgramSetShadersExt	s1 s2
+ProgramSetSubroutineLinkage	s1 s2
+QueueAcquireTexture	s1
+QueueBuilderGetCommandFlushThreshold	s1 s2
+QueueBuilderGetCommandMemorySize	s1 s2
+QueueBuilderGetComputeMemorySize	s1 s2
+QueueBuilderGetControlMemorySize	s1 s2
+QueueBuilderGetDevice	s1 s2
+QueueBuilderGetFlags	s1 s2
+QueueBuilderGetMemory	s1 s2
+QueueBuilderGetMemorySize	s1 s2
+QueueBuilderGetPrimaryQueue	s2
+QueueBuilderGetQueueMemorySize	s1 s2
+QueueBuilderGetQueuePriority	s1 s2
+QueueBuilderGetRayTracingMemorySize	s2
+QueueBuilderSetCommandFlushThreshold	s1 s2
+QueueBuilderSetCommandMemorySize	s1 s2
+QueueBuilderSetComputeMemorySize	s1 s2
+QueueBuilderSetControlMemorySize	s1 s2
+QueueBuilderSetDefaults	s1 s2
+QueueBuilderSetDevice	s1 s2
+QueueBuilderSetFlags	s1 s2
+QueueBuilderSetPrimaryQueue	s2
+QueueBuilderSetQueueMemory	s1 s2
+QueueBuilderSetQueuePriority	s1 s2
+QueueBuilderSetRayTracingMemorySize	s2
+QueueFenceSync	s1 s2
+QueueFinalize	s1 s2
+QueueFinish	s1 s2
+QueueFlush	s1 s2
+QueueGetError	s1 s2
+QueueGetTotalCommandMemoryUsed	s1 s2
+QueueGetTotalComputeMemoryUsed	s1 s2
+QueueGetTotalControlMemoryUsed	s1 s2
+QueueGetTotalRayTracingMemoryUsed	s2
+QueueInitialize	s1 s2
+QueuePresentTexture	s1 s2
+QueueResetMemoryUsageCounts	s1 s2
+QueueSetDebugLabel	s1 s2
+QueueSubmitCommands	s1 s2
+QueueWaitSync	s1 s2
+SamplerBuilderGetBorderColor	s1 s2
+SamplerBuilderGetBorderColori	s1 s2
+SamplerBuilderGetBorderColorui	s1 s2
+SamplerBuilderGetCompare	s1 s2
+SamplerBuilderGetDevice	s1 s2
+SamplerBuilderGetLodBias	s1 s2
+SamplerBuilderGetLodClamp	s1 s2
+SamplerBuilderGetLodSnap	s1 s2
+SamplerBuilderGetMaxAnisotropy	s1 s2
+SamplerBuilderGetMinMagFilter	s1 s2
+SamplerBuilderGetReductionFilter	s1 s2
+SamplerBuilderGetWrapMode	s1 s2
+SamplerBuilderSetBorderColor	s1 s2
+SamplerBuilderSetBorderColori	s1 s2
+SamplerBuilderSetBorderColorui	s1 s2
+SamplerBuilderSetCompare	s1 s2
+SamplerBuilderSetDefaults	s1 s2
+SamplerBuilderSetDevice	s1 s2
+SamplerBuilderSetLodBias	s1 s2
+SamplerBuilderSetLodClamp	s1 s2
+SamplerBuilderSetLodSnap	s1 s2
+SamplerBuilderSetMaxAnisotropy	s1 s2
+SamplerBuilderSetMinMagFilter	s1 s2
+SamplerBuilderSetReductionFilter	s1 s2
+SamplerBuilderSetWrapMode	s1 s2
+SamplerCompare	s1 s2
+SamplerFinalize	s1 s2
+SamplerGetBorderColor	s1 s2
+SamplerGetBorderColori	s1 s2
+SamplerGetBorderColorui	s1 s2
+SamplerGetCompare	s1 s2
+SamplerGetDebugID	s1 s2
+SamplerGetLodBias	s1 s2
+SamplerGetLodClamp	s1 s2
+SamplerGetMaxAnisotropy	s1 s2
+SamplerGetMinMagFilter	s1 s2
+SamplerGetReductionFilter	s1 s2
+SamplerGetWrapMode	s1 s2
+SamplerInitialize	s1 s2
+SamplerPoolFinalize	s1 s2
+SamplerPoolGetMemoryOffset	s1 s2
+SamplerPoolGetMemoryPool	s1 s2
+SamplerPoolGetSize	s1 s2
+SamplerPoolInitialize	s1 s2
+SamplerPoolRegisterSampler	s1 s2
+SamplerPoolRegisterSamplerBuilder	s1 s2
+SamplerPoolSetDebugLabel	s1 s2
+SamplerSetDebugLabel	s1 s2
+SyncCreateGLSync	s1 s2
+SyncFinalize	s1 s2
+SyncInitialize	s1 s2
+SyncInitializeFromFencedGLSync	s1 s2
+SyncSetDebugLabel	s1 s2
+SyncWait	s1 s2
+TextureBuilderGetDepth	s1 s2
+TextureBuilderGetDepthStencilMode	s1 s2
+TextureBuilderGetDevice	s1 s2
+TextureBuilderGetFlags	s1 s2
+TextureBuilderGetFormat	s1 s2
+TextureBuilderGetGLTextureName	s1 s2
+TextureBuilderGetHeight	s1 s2
+TextureBuilderGetLevels	s1 s2
+TextureBuilderGetMemoryOffset	s1 s2
+TextureBuilderGetMemoryPool	s1 s2
+TextureBuilderGetPackagedTextureData	s1 s2
+TextureBuilderGetPackagedTextureLayout	s1 s2
+TextureBuilderGetRawStorageClass	s1 s2
+TextureBuilderGetSamples	s1 s2
+TextureBuilderGetSparseTileLayout	s1 s2
+TextureBuilderGetStorageAlignment	s1 s2
+TextureBuilderGetStorageClass	s1 s2
+TextureBuilderGetStorageSize	s1 s2
+TextureBuilderGetStride	s1 s2
+TextureBuilderGetSwizzle	s1 s2
+TextureBuilderGetTarget	s1 s2
+TextureBuilderGetViewOffset	s1 s2
+TextureBuilderGetWidth	s1 s2
+TextureBuilderGetZCullStorageSize	s1 s2
+TextureBuilderSetDefaults	s1 s2
+TextureBuilderSetDepth	s1 s2
+TextureBuilderSetDepthStencilMode	s1 s2
+TextureBuilderSetDevice	s1 s2
+TextureBuilderSetFlags	s1 s2
+TextureBuilderSetFormat	s1 s2
+TextureBuilderSetGLTextureName	s1 s2
+TextureBuilderSetHeight	s1 s2
+TextureBuilderSetLevels	s1 s2
+TextureBuilderSetPackagedTextureData	s1 s2
+TextureBuilderSetPackagedTextureLayout	s1 s2
+TextureBuilderSetSamples	s1 s2
+TextureBuilderSetSize1D	s1 s2
+TextureBuilderSetSize2D	s1 s2
+TextureBuilderSetSize3D	s1 s2
+TextureBuilderSetStorage	s1 s2
+TextureBuilderSetStride	s1 s2
+TextureBuilderSetSwizzle	s1 s2
+TextureBuilderSetTarget	s1 s2
+TextureBuilderSetWidth	s1 s2
+TextureCompare	s1 s2
+TextureFinalize	s1 s2
+TextureFlushTexels	s1 s2
+TextureGetDebugID	s1 s2
+TextureGetDepth	s1 s2
+TextureGetDepthStencilMode	s1 s2
+TextureGetFlags	s1 s2
+TextureGetFormat	s1 s2
+TextureGetHeight	s1 s2
+TextureGetLevels	s1 s2
+TextureGetMemoryOffset	s1 s2
+TextureGetMemoryPool	s1 s2
+TextureGetRawStorageClass	s1 s2
+TextureGetSamples	s1 s2
+TextureGetSparseTileLayout	s1 s2
+TextureGetStorageClass	s1 s2
+TextureGetStorageSize	s1 s2
+TextureGetStride	s1 s2
+TextureGetSwizzle	s1 s2
+TextureGetTarget	s1 s2
+TextureGetTextureAddress	s1 s2
+TextureGetViewOffset	s1 s2
+TextureGetWidth	s1 s2
+TextureGetZCullStorageSize	s1 s2
+TextureInitialize	s1 s2
+TextureInvalidateTexels	s1 s2
+TexturePoolFinalize	s1 s2
+TexturePoolGetMemoryOffset	s1 s2
+TexturePoolGetMemoryPool	s1 s2
+TexturePoolGetSize	s1 s2
+TexturePoolInitialize	s1 s2
+TexturePoolRegisterImage	s1 s2
+TexturePoolRegisterTexture	s1 s2
+TexturePoolSetDebugLabel	s1 s2
+TextureReadTexels	s1 s2
+TextureReadTexelsStrided	s1 s2
+TextureSetDebugLabel	s1 s2
+TextureViewCompare	s1 s2
+TextureViewGetDepthStencilMode	s1 s2
+TextureViewGetFormat	s1 s2
+TextureViewGetLayers	s1 s2
+TextureViewGetLevels	s1 s2
+TextureViewGetSwizzle	s1 s2
+TextureViewGetTarget	s1 s2
+TextureViewSetDefaults	s1 s2
+TextureViewSetDepthStencilMode	s1 s2
+TextureViewSetFormat	s1 s2
+TextureViewSetLayers	s1 s2
+TextureViewSetLevels	s1 s2
+TextureViewSetSwizzle	s1 s2
+TextureViewSetTarget	s1 s2
+TextureWriteTexels	s1 s2
+TextureWriteTexelsStrided	s1 s2
+VertexAttribStateGetFormat	s1 s2
+VertexAttribStateGetStreamIndex	s1 s2
+VertexAttribStateSetDefaults	s1 s2
+VertexAttribStateSetFormat	s1 s2
+VertexAttribStateSetStreamIndex	s1 s2
+VertexStreamStateGetDivisor	s1 s2
+VertexStreamStateGetStride	s1 s2
+VertexStreamStateSetDefaults	s1 s2
+VertexStreamStateSetDivisor	s1 s2
+VertexStreamStateSetStride	s1 s2
+WindowAcquireTexture	s1 s2
+WindowBuilderGetColorSpace	s2
+WindowBuilderGetDevice	s1 s2
+WindowBuilderGetHdrContentMetadata	s2
+WindowBuilderGetHdrDisplayMetadata	s2
+WindowBuilderGetNativeWindow	s1 s2
+WindowBuilderGetNumActiveTextures	s1 s2
+WindowBuilderGetNumTextures	s1 s2
+WindowBuilderGetPresentInterval	s1 s2
+WindowBuilderGetTexture	s1 s2
+WindowBuilderSetColorSpace	s2
+WindowBuilderSetDefaults	s1 s2
+WindowBuilderSetDevice	s1 s2
+WindowBuilderSetHdrContentMetadata	s2
+WindowBuilderSetHdrDisplayMetadata	s2
+WindowBuilderSetNativeWindow	s1 s2
+WindowBuilderSetNumActiveTextures	s1 s2
+WindowBuilderSetPresentInterval	s1 s2
+WindowBuilderSetTextures	s1 s2
+WindowFinalize	s1 s2
+WindowGetCrop	s1 s2
+WindowGetHdrContentMetadata	s2
+WindowGetHdrDisplayMetadata	s2
+WindowGetNativeWindow	s1 s2
+WindowGetNumActiveTextures	s1 s2
+WindowGetNumTextures	s1 s2
+WindowGetPresentInterval	s1 s2
+WindowInitialize	s1 s2
+WindowSetCrop	s1 s2
+WindowSetDebugLabel	s1 s2
+WindowSetHdrContentMetadata	s2
+WindowSetHdrDisplayMetadata	s2
+WindowSetNumActiveTextures	s1 s2
+WindowSetPresentInterval	s1 s2

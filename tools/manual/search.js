@@ -1,13 +1,29 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // The ISA manuals' search (tools/gen-manual.py): a name, or the nearest names when none is the same, or an
 // instruction word in hex and every encoding it matches. The pages read without it: it only adds the box.
+// The data (each manual's data.js, data-load) loads when the box is first used, not with the page.
 (function () {
-    var box = document.getElementById('search'), rows = window.ARM;
-    if (!box || !rows || !box.appendChild || !document.createElement) return;
-    var root = box.getAttribute('data-root') || '';
+    var box = document.getElementById('search'), rows = null, loading = 0;
+    if (!box || !box.appendChild || !document.createElement || !box.getAttribute) return;
+    var root = box.getAttribute('data-root') || '', load = (box.getAttribute('data-load') || '').split(' ');
+
+    // the data's scripts, one after the other, then the search
+    function fetchData() {
+        if (rows || loading) return;
+        loading = 1;
+        status.innerHTML = 'Loading\u2026';
+        (function next(k) {
+            if (k == load.length || !load[k]) { rows = window.ARM || []; status.innerHTML = ''; run(); return; }
+            var s = document.createElement('script');
+            s.src = load[k];
+            s.onload = function () { next(k + 1); };
+            s.onerror = function () { status.innerHTML = 'The search\'s data did not load.'; };
+            document.getElementsByTagName('head')[0].appendChild(s);
+        })(0);
+    }
     var input = document.createElement('input'), status = document.createElement('p'), list = document.createElement('ul');
     input.type = 'search';
-    input.placeholder = 'Search: a name or an instruction word in hex';
+    input.placeholder = box.getAttribute('data-placeholder') || 'Search: a name or an instruction word in hex';
     box.appendChild(input); box.appendChild(status); box.appendChild(list);
 
     function mnemonic(title) { return title.split(' ')[0].toUpperCase(); }
@@ -39,6 +55,7 @@
     }
 
     function matches(r, w) {
+        if (!r[4]) return false; // a name alone (the NVN API's)
         var op = r[2] == 'SM53' || r[2] == 'SM86' ? w[r[2]] : w.arm;
         if (op < 0) return false;
         if (r[2] == 'T16' && op > 0xffff) return false;
@@ -57,6 +74,7 @@
     }
 
     function run() {
+        if (!rows) { fetchData(); return; }
         var q = input.value.replace(/^\s+|\s+$/g, ''), found = [], i, s, op;
         while (list.firstChild) list.removeChild(list.firstChild);
         status.innerHTML = '';
@@ -72,7 +90,7 @@
             var t = rows[i][0].toUpperCase(), m = mnemonic(t);
             if (m == Q) s = 0;
             else if (m.indexOf(Q) == 0) s = 1;
-            else if (t.indexOf(Q) >= 0 || rows[i][3].toUpperCase().indexOf(Q) >= 0) s = 2;
+            else if (t.indexOf(Q) >= 0 || (rows[i][3] || '').toUpperCase().indexOf(Q) >= 0) s = 2;
             else s = 3 + distance(Q, m);
             if (s < best) best = s;
             found.push([s, rows[i]]);
@@ -94,8 +112,10 @@
                     : best > 2 ? 'No name is the same; the nearest:' : ''));
     }
 
-    if (input.addEventListener) input.addEventListener('input', run, false);
-    else input.onkeyup = run;
+    if (input.addEventListener) {
+        input.addEventListener('input', run, false);
+        input.addEventListener('focus', fetchData, false);
+    } else input.onkeyup = run;
     var q = /[?&]q=([^&]*)/.exec(location.search);
     if (q) { input.value = decodeURIComponent(q[1].replace(/\+/g, ' ')); run(); }
 })();

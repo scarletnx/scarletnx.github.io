@@ -6,7 +6,10 @@ most and no element an old browser does not draw. `tools/check-site.py` checks i
 `manual/` is the ISA manuals: the ARM instructions ScarletNX recompiles (A64 and AArch32, `manual/`) and the GPU
 instructions it translates (Maxwell's SM53, `manual/sm53/`, and Ampere's SM86, `manual/sm86/`), laid out as Arm's
 reference lays them out (each encoding's diagram, its decode, the operation, and the shared pseudocode they use),
-made from ScarletNX's Sail by `tools/gen-manual.py` (the GPUs' encodings from its `sm53.decode` and `sm86.decode`). It
+made from ScarletNX's Sail by `tools/gen-manual.py` (the GPUs' encodings from its `sm53.decode` and `sm86.decode`),
+and the NVN API (`manual/nvn/`): every function of ScarletNX's `nvn.hook` with its signature and handler, the types
+and enums of its `nvn.h`, each format's Vulkan equivalent (its `vk/format.c`), and what only Switch 2's drivers have
+marked, by `tools/manual/nvn-drivers.txt` (the drivers' procedure tables, which `tools/nvn_hash.py --json` reads). It
 is the one part with CSS (`manual.css`) and JavaScript (the search, `search.js`: a name, the nearest names, or the
 encodings an instruction word matches), from files and small, and its pages read without them. Do not edit it:
 `.github/workflows/manual.yml` makes it again every day from ScarletNX's `main` (or when run by hand) and commits it

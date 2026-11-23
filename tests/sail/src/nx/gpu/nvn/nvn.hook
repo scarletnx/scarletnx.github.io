@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 the ScarletNX contributors
+# Cut from ScarletNX's nvn.hook for tests/check-manual.sh
+include "nx/gpu/nvn/nvn.h"
+
+route nvnBootstrapLoader
+
+family device
+hook nvnDeviceFinalize(NVNdevice* d)
+hook nvnDeviceGetDepthMode(const NVNdevice* d) -> NVNdepthMode
+
+family command_buffer
+hook nvnCommandBufferSetCommandMemoryCallbackEnabled(NVNcommandBuffer* cb, bool on)
+# the Ounce's (API 231): a priority for the compute work recorded after it, which one game passes as 0x20 or 0x21
+hook nvnCommandBufferSetComputeWorkloadPriority(NVNcommandBuffer* cb, i32 priority)
+hook nvnCommandBufferSetConservativeRasterEnable(NVNcommandBuffer* cb, bool on)
+hook nvnCommandBufferInsertDebugMarkerDynamic(NVNcommandBuffer* cb, u32 domain, const char* text)
+hook nvnCommandBufferPopDebugGroupId(NVNcommandBuffer* cb, u32 domain)
+
+family texture
+hook nvnTextureBuilderSetFormat(NVNtextureBuilder* b, NVNformat format)
