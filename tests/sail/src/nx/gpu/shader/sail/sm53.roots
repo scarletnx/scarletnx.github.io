@@ -1,0 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 the ScarletNX contributors
+# The SM53 instructions of the test (cut from sm53.roots)
+prefix sg53
+static Field Form Dst RegA RegB
+include sm53_int.roots

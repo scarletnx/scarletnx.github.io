@@ -1,0 +1,39 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 the ScarletNX contributors
+# Encodings from Mesa's NAK (src/nouveau/compiler/nak/sm70_encode.rs), the encoder of SM70 to SM89:
+# Copyright © 2022 Collabora, Ltd.
+# SPDX-License-Identifier: MIT
+#
+# The SM86 (Volta to Ada, 128-bit) instruction encodings sm86_decode.c decodes. tools/decodetree makes
+# decode-sm86.inc from this file (src/nx/CMakeLists.txt, cmake/decodetree.cmake), and sm86_decode.c defines a trans_
+# function for each opcode. The decoder reads the low 16 bits of the instruction (-w 16), the left bit bit 15:
+# 12-15 are the predicate, which the decoder ignores (----), and the rest the opcode:
+#   an ALU instruction: bits 0-8 its opcode and bits 9-11 the form, which places its sources (sm86.h). An opcode has
+#     a pattern for each form it takes: 001 b a register; 010 b a register at 64, c an immediate; 011 the same, c a
+#     constant buffer; 100 b an immediate; 101 b a constant buffer; 110 b a uniform register; 111 c a uniform
+#     register. The uniform datapath's instructions (bit 91 set, uniform registers) take 001, 010, 100 and 110.
+#   any other: bits 0-11, the opcode.
+# A pattern's name is the opcode's, SM86_<NAME> in the translator, whose list (SM86_OPS in sm86.h) gives the enum
+# order, whether it is an ALU instruction and its display name. No two patterns overlap, which decodetree checks.
+# NAK's encoder gives every opcode but these, which the captured programs of an Ounce game use and NAK does not emit:
+# FSEL (0x008), R2P (0x004), I2FP (0x045, SM86+), DEPBAR (0x91a) and the surface loads and stores that take their
+# handle from a constant buffer (SULD.P 0xb97, SULD.D 0xb99, SUST.P 0xb9b, SUST.D 0xb9d: the bindless codes less one,
+# as TEX's 0xb60 is to 0x361). CuAssembler's sm_86 encodings, which nvdisasm named, show all of them but SULD.P
+# (github.com/cloudcores/CuAssembler, CuAsm/InsAsmRepos/DefaultInsAsmRepos.sm_86.txt), and I2FP only from sm_86 on.
+
+# integer
+IADD3        ---- 001 000010000
+IADD3        ---- 010 000010000
+IADD3        ---- 011 000010000
+IADD3        ---- 100 000010000
+IADD3        ---- 101 000010000
+IADD3        ---- 110 000010000
+IADD3        ---- 111 000010000
+
+# the uniform datapath
+UIADD3       ---- 001 010010000
+UIADD3       ---- 010 010010000
+UIADD3       ---- 100 010010000
+
+# control flow
+EXIT         ---- 100 101001101

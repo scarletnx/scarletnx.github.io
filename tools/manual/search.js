@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// The ARM manual's search (tools/gen-arm-manual.py): a name, or the nearest names when none is the same, or an
+// The ISA manuals' search (tools/gen-manual.py): a name, or the nearest names when none is the same, or an
 // instruction word in hex and every encoding it matches. The pages read without it: it only adds the box.
 (function () {
     var box = document.getElementById('search'), rows = window.ARM;
@@ -7,7 +7,7 @@
     var root = box.getAttribute('data-root') || '';
     var input = document.createElement('input'), status = document.createElement('p'), list = document.createElement('ul');
     input.type = 'search';
-    input.placeholder = 'Search: ldr, add, or 0x8b020020';
+    input.placeholder = 'Search: a name or an instruction word in hex';
     box.appendChild(input); box.appendChild(status); box.appendChild(list);
 
     function mnemonic(title) { return title.split(' ')[0].toUpperCase(); }
@@ -24,14 +24,23 @@
         return prev[b.length];
     }
 
-    // An instruction word: 0x and hex digits, or exactly 4 or 8 of them
+    // An instruction word: 0x and hex digits, or exactly 4, 8, 16 or 32 of them. An ARM word is its value; a GPU's
+    // the 16-bit opcode the encodings' file decodes: SM53's bits 63:48, SM86's 15:0 (of the low 64 bits, the last)
     function word(q) {
         var m = /^(0x)?([0-9a-f]+)$/i.exec(q.replace(/[\s_]/g, ''));
-        if (!m || m[2].length > 8 || (!m[1] && m[2].length != 4 && m[2].length != 8)) return -1;
-        return parseInt(m[2], 16);
+        if (!m) return null;
+        var h = m[2], n = h.length;
+        if (!m[1] && n != 4 && n != 8 && n != 16 && n != 32) return null;
+        return {
+            arm: n <= 8 ? parseInt(h, 16) : -1,
+            SM53: n == 16 ? parseInt(h.substr(0, 4), 16) : (m[1] && n <= 4 ? parseInt(h, 16) : -1),
+            SM86: n == 16 || n == 32 ? parseInt(h.substr(n - 4), 16) : (m[1] && n <= 4 ? parseInt(h, 16) : -1)
+        };
     }
 
-    function matches(r, op) {
+    function matches(r, w) {
+        var op = r[2] == 'SM53' || r[2] == 'SM86' ? w[r[2]] : w.arm;
+        if (op < 0) return false;
         if (r[2] == 'T16' && op > 0xffff) return false;
         var mask = parseInt(r[4], 16), value = parseInt(r[5], 16), exmask = parseInt(r[6], 16);
         if (((op & mask) >>> 0) != value) return false;
@@ -54,7 +63,7 @@
         if (!q) return;
         op = word(q);
         // the encodings a word matches, each instruction set's in the order its decoder tries them: the first decodes it
-        if (op >= 0) for (i = 0; i < rows.length; i++) if (matches(rows[i], op)) found.push([-1, rows[i]]);
+        if (op) for (i = 0; i < rows.length; i++) if (matches(rows[i], op)) found.push([-1, rows[i]]);
         found.sort(function (a, b) { return a[1][2] < b[1][2] ? -1 : a[1][2] > b[1][2] ? 1 : a[1][8] - b[1][8]; });
         var first = {};
         for (i = 0; i < found.length; i++) if (!first[found[i][1][2]]) first[found[i][1][2]] = found[i][1];
@@ -80,7 +89,7 @@
             shown++;
         }
         status.appendChild(document.createTextNode(
-            op >= 0 ? (words ? words + ' encoding(s) match the word' + (shown > words ? ', then the names like it' : '')
+            op ? (words ? words + ' encoding(s) match the word' + (shown > words ? ', then the names like it' : '')
                              : 'No encoding here matches the word; the names like it:')
                     : best > 2 ? 'No name is the same; the nearest:' : ''));
     }

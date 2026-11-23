@@ -1,4 +1,4 @@
-# The ARM manual (manual/) made again from ScarletNX's Sail (tools/gen-arm-manual.py), and committed when it changes:
+# The ISA manuals (manual/) made again from ScarletNX's Sail (tools/gen-manual.py), and committed when it changes:
 # the site is served from this branch as it is
 name: Manual
 on:
@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: [tools/gen-arm-manual.py, tools/manual/**, .github/workflows/manual.yml]
+    paths: [tools/gen-manual.py, tools/manual/**, .github/workflows/manual.yml]
 permissions:
   contents: write
 concurrency: manual
@@ -25,7 +25,8 @@ jobs:
           sparse-checkout: |
             src/common/cpu/aarch64/sail
             src/common/cpu/arm/sail
-      - run: python3 tools/gen-arm-manual.py ScarletNX manual
+            src/nx/gpu/shader
+      - run: python3 tools/gen-manual.py ScarletNX manual
       - run: rm -rf ScarletNX && python3 tools/check-site.py && sh tests/check-manual.sh
       - name: Commit the manual when it changed
         run: |
@@ -33,5 +34,5 @@ jobs:
           git diff --cached --quiet && exit 0
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -q -m "[manual] Make the ARM manual from ScarletNX's Sail at $(sed -n 's/.*tree\/\([0-9a-f]\{12\}\).*/\1/p' manual/index.html)"
+          git commit -q -m "[manual] Make the ISA manuals from ScarletNX's Sail at $(sed -n 's/.*tree\/\([0-9a-f]\{12\}\).*/\1/p' manual/index.html)"
           git push

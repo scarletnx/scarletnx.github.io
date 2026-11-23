@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 the ScarletNX contributors
+# The SM86 instructions sm86_translate.c emits from Sail (sailgen --gpu, sm86.sail): "op FN OPCODE..." runs
+# execute_FN for each of the decoder's opcodes (sm86.h's SM86_OPS), "fuse FN OPCODE..." the fusion FN of those opcodes
+# in a row where FN_ok holds. The back end's functions named static give values the translator knows
+op IADD3 SM86_IADD3 SM86_UIADD3
+
+# IADD3 then IADD3.X: one 64-bit add of 32-bit words
+fuse IADD3_WIDE SM86_IADD3 SM86_IADD3

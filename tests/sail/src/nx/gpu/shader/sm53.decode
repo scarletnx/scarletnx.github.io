@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 the ScarletNX contributors
+# Encodings from Eden (src/shader_recompiler/frontend/maxwell/maxwell.inc):
+# SPDX-FileCopyrightText: Copyright 2021 yuzu Emulator Project
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# The Maxwell (SM53) instruction encodings the shader translator decodes. tools/decodetree makes decode-sm53.inc from
+# this file (src/nx/CMakeLists.txt, cmake/decodetree.cmake), and decode.c defines a trans_ function for each pattern.
+# The opcode is the top 16 bits of the 64-bit instruction, which decode.c gives the decoder (-w 16), the left bit
+# bit 63. 0 and 1 are fixed, - is either. Spaces are for reading.
+#
+# A pattern's name is the opcode's, O_<NAME> in the translator, whose list (SM53_OPS in translator.h) gives the enum
+# order and the display names. CCTLT is a further encoding of CCTL. Patterns that both match a word are in a { }
+# group, the narrower first: decodetree refuses any other overlap.
+# Eden's opcodes the translator has no name for (IDP, IMADSP, VABSDIFF4, LONGJMP, PLONGJMP, RAM, RTT, SAM,
+# GETLMEMBASE, SETLMEMBASE) are left out and decode as unknown. Fork additions to the set this file started from
+# (DSET, ATOM.CAS, OUT immediate, SUATOM, CCTLT, STP, TLD.B, TLD4.B, TMML.B, TXD.B, VABSDIFF, VSET, VSHL, VSHR)
+# match Eden's encodings.
+
+MOV32I       0000 0001 0000 ----
+IADD_R       0101 1100 0001 0---
+IADD_C       0100 1100 0001 0---
+IADD_I       0011 100- 0001 0---
+KIL          1110 0011 0011 ----

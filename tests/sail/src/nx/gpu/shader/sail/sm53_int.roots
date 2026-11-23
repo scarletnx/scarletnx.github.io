@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 the ScarletNX contributors
+# SM53's integer, logic, video and predicate instructions (sm53_int.sail), which were emit_int.c's emit_int
+op MOV32I O_MOV32I
+op IADD O_IADD_R O_IADD_C O_IADD_I

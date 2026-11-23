@@ -9,7 +9,7 @@ attribute, a stylesheet <link>), on a size over 16 KB (a second to load at 128 k
 browser does not draw (canvas, video, audio, picture, iframe, an inline svg). Each failure is printed as
 FILE:LINE: what; the exit status is 1 when there is one.
 
-The ARM manual (manual/, tools/gen-arm-manual.py) has the one exception: its pages may link its stylesheet and load
+The ISA manuals (manual/, tools/gen-manual.py) have the one exception: its pages may link its stylesheet and load
 scripts from files (<script src>: its search and the search's data), which they read without. Nothing inline there
 either, and the stylesheet and the search stay small (MANUAL_CAPS).
 """
