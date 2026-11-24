@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>12. Probability on finite sets - From Derivatives to Attention</title>
+<link rel="stylesheet" href="book.css">
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-chtml.js" async></script>
+</head>
+<body>
+<p class="nav"><a href="../../">ScarletNX</a> / <a href="./">From Derivatives to Attention</a> / Chapter 12 &middot; <a rel="prev" href="11-convexity.html">&larr; 11. Convexity and Jensen's inequality</a> &middot; <a rel="next" href="13-statistics.html">13. Statistics: describing and comparing measurements &rarr;</a></p>
+<h1>12. Probability on finite sets</h1>
+<p>Attention weights are nonnegative and sum to 1: they are a probability distribution over the tokens, and the attention output is an average under it. Seen that way, the paper's tools are standard probability. Its split of the output by clusters is the law of total expectation (<a href="#s4">section 12.4</a>); its Lemma A.3 bounds a distance between two distributions (<a href="#s5">section 12.5</a>); and the \(\sqrt d\) in every attention layer comes from the variance of a dot product (<a href="#s7">section 12.7</a>, used in <a href="16-attention.html#s4">section 16.4</a>). Everything here lives on a finite set, so a distribution is an array and every integral is a loop. Only the last section, on the normal distribution, needs a density.</p>
+
+<h2 id="s1">12.1 Distributions as arrays</h2>
+<p>A <b>finite probability space</b> is a set of outcomes \(\Omega = \{1, \dots, n\}\) (tokens, die faces, cache lines) and an array of probabilities.</p>
+<div class="box def"><p><b>Definition.</b> A <b>distribution</b> on \(\{1, \dots, n\}\) is an array \(p_1, \dots, p_n\) with \(p_i \ge 0\) and \(\sum_i p_i = 1\). An <b>event</b> is a subset \(A\); its probability is \(P(A) = \sum_{i \in A} p_i\). A <b>random variable</b> is a function of the outcome: an array \(x_1, \dots, x_n\) of the same length, read as &ldquo;\(X = x_i\) when outcome \(i\) happens&rdquo;.</p></div>
+<p>The distributions on \(n\) points form the probability simplex of <a href="11-convexity.html#s1">section 11.1</a>. The <b>uniform</b> distribution has \(p_i = 1/n\). A <b>one-hot</b> distribution puts 1 on a single outcome. The attention weights \(\alpha_1, \dots, \alpha_N\) of a query over \(N\) cached tokens are a distribution on the tokens; a random variable is any per-token array: the logit \(s_i\), a coordinate of the value \(v_i\), the indicator of &ldquo;token \(i\) is in cluster \(C\)&rdquo;.</p>
+<p>&ldquo;Random&rdquo; is only a way of speaking. Nothing in attention is drawn at random: the weights are computed. But every fact of this chapter is a fact about weighted sums, and the language of probability names them and comes with their properties ready-made.</p>
+
+<h2 id="s2">12.2 Expectation</h2>
+<div class="box def"><p><b>Definition.</b> The <b>expectation</b> (mean) of \(X\) under \(p\) is \(\mathbb{E}X = \sum_{i=1}^n p_i x_i\). For a vector-valued \(X\) (an array of vectors) it is the same sum, coordinate by coordinate.</p></div>
+<p>It is the weighted average, a dot product of the probability array with the value array. The attention output</p>
+\[ o = \sum_{i=1}^N \alpha_i v_i \]
+<p>is the expectation of the value vector when the token is drawn with probabilities \(\alpha\): attention is a <em>soft lookup</em> that returns the average value instead of one entry (<a href="16-attention.html#s2">section 16.2</a>).</p>
+<div class="box thm"><p><b>Linearity.</b> For random variables \(X, Y\) on the same space and constants \(a, b, c\): \(\mathbb{E}[aX + bY + c] = a\,\mathbb{E}X + b\,\mathbb{E}Y + c\).</p></div>
+<p>It is the distributive law: \(\sum_i p_i (a x_i + b y_i + c) = a \sum_i p_i x_i + b \sum_i p_i y_i + c \sum_i p_i\), and \(\sum_i p_i = 1\). No independence or any other condition is needed. It is why \(s_C\), the logit of the mean key, equals the mean of the logits (<a href="11-convexity.html#s6">section 11.6</a>): \(q^\top k / \sqrt d\) is linear in \(k\). Nonlinear functions do not commute with \(\mathbb{E}\): \(\mathbb{E}[X^2] \ne (\mathbb{E}X)^2\), \(\mathbb{E}\max(X, Y) \ne \max(\mathbb{E}X, \mathbb{E}Y)\), and for convex \(f\), Jensen says which way the gap goes: \(f(\mathbb{E}X) \le \mathbb{E}f(X)\) (<a href="11-convexity.html#s4">section 11.4</a>).</p>
+<p>Two random variables \(X, Y\) need a <b>joint</b> distribution: probabilities \(p_{xy}\) for the pairs. They are <b>independent</b> if \(p_{xy} = P(X = x)\,P(Y = y)\) for all pairs: knowing one tells nothing about the other. Two fair dice thrown separately are independent, with 36 equally likely pairs. For independent variables, \(\mathbb{E}[XY] = \mathbb{E}X \, \mathbb{E}Y\) (the double sum factors).</p>
+
+<h2 id="s3">12.3 Variance</h2>
+<p>The mean says where a distribution sits. The variance says how far it spreads around that place.</p>
+<div class="box def"><p><b>Definition.</b> \(\operatorname{Var}X = \mathbb{E}\big[(X - \mathbb{E}X)^2\big] = \mathbb{E}[X^2] - (\mathbb{E}X)^2\). The <b>standard deviation</b> is \(\sigma = \sqrt{\operatorname{Var}X}\), in the units of \(X\). The <b>covariance</b> of \(X\) and \(Y\) is \(\operatorname{Cov}(X, Y) = \mathbb{E}\big[(X - \mathbb{E}X)(Y - \mathbb{E}Y)\big]\).</p></div>
+<p>The second form of the variance follows by expanding the square and using linearity, with \(\mu = \mathbb{E}X\): \(\mathbb{E}[X^2 - 2\mu X + \mu^2] = \mathbb{E}[X^2] - 2\mu^2 + \mu^2\). That the variance is \(\ge 0\) is Jensen's inequality for \(x^2\). The rules:</p>
+<ul>
+<li>\(\operatorname{Var}(aX + b) = a^2 \operatorname{Var}X\): a shift does not change spread; a scale multiplies \(\sigma\) by \(|a|\).</li>
+<li>\(\operatorname{Var}(X + Y) = \operatorname{Var}X + \operatorname{Var}Y + 2\operatorname{Cov}(X, Y)\).</li>
+<li>If \(X\) and \(Y\) are independent, \(\operatorname{Cov}(X, Y) = \mathbb{E}[XY] - \mathbb{E}X\,\mathbb{E}Y = 0\), so <b>variances of independent variables add</b>. Standard deviations do not: they add like the sides of a right triangle.</li>
+</ul>
+<p>One fair die, and two independent dice (36 equally likely pairs), worked by enumeration:</p>
+<table class="t">
+<tr><th>Variable</th><th>\(\mathbb{E}\)</th><th>\(\operatorname{Var}\)</th><th>by the rules</th></tr>
+<tr><td>\(X\), one die</td><td class="n">3.5</td><td class="n">\(35/12 \approx 2.9167\)</td><td></td></tr>
+<tr><td>\(X + Y\)</td><td class="n">7</td><td class="n">\(35/6 \approx 5.8333\)</td><td>variances add (independent)</td></tr>
+<tr><td>\(3X - 2\)</td><td class="n">8.5</td><td class="n">26.25</td><td>\(3 \cdot 3.5 - 2\); \(9 \cdot 35/12\)</td></tr>
+<tr><td>\(\max(X, Y)\)</td><td class="n">\(161/36 \approx 4.472\)</td><td></td><td>not \(\max(3.5, 3.5)\): max is not linear</td></tr>
+</table>
+<div class="box warn"><p><b>In the machine.</b> \(\mathbb{E}[X^2] - (\mathbb{E}X)^2\) is a subtraction of two nearly equal numbers when the mean is large and the spread small, and loses digits to cancellation (<a href="14-floating-point.html#s4">section 14.4</a>). Compute the mean first and then average \((x_i - \mu)^2\) (two passes); <a href="13-statistics.html#s2">section 13.2</a> shows the failure.</p></div>
+
+<h2 id="s4">12.4 Conditioning and mixtures</h2>
+<p>Restricting attention to an event \(B\) and renormalizing gives a new distribution.</p>
+<div class="box def"><p><b>Definition.</b> For an event \(B\) with \(P(B) &gt; 0\), the <b>conditional distribution</b> given \(B\) is \(p_{i \mid B} = p_i / P(B)\) for \(i \in B\) and 0 outside. The <b>conditional expectation</b> is \(\mathbb{E}[X \mid B] = \sum_{i \in B} p_{i \mid B}\, x_i\), the mean of \(X\) over \(B\) alone.</p></div>
+<p>Now split \(\Omega\) into disjoint blocks \(C_1, \dots, C_m\) covering it (a <b>partition</b>, <a href="18-clustering.html#s1">section 18.1</a>). Each outcome is in exactly one block, so the overall mean is the block means weighted by the block probabilities:</p>
+<div class="box thm"><p><b>Law of total expectation.</b> \(\displaystyle \mathbb{E}X = \sum_{C} P(C)\,\mathbb{E}[X \mid C].\)</p></div>
+<p>Proof: \(\sum_C P(C) \sum_{i \in C} \frac{p_i}{P(C)} x_i = \sum_C \sum_{i \in C} p_i x_i = \sum_i p_i x_i\). As an algorithm: to draw an outcome, first draw a block \(C\) with probability \(P(C)\), then an outcome inside it from the conditional distribution. A distribution described this way is a <b>mixture</b>: the \(P(C)\) are the mixing weights, and the conditional distributions are its components.</p>
+<h3>The paper's split of the attention output</h3>
+<p>This is exactly how <a href="refs.html#r-refinekv">[refinekv]</a> (Section 3.2 and Appendix A.1) writes attention over a partition \(\mathcal{C}\) of the KV cache into clusters. In its notation, with \(s_i = q^\top k_i / \sqrt d\), \(z_C = \sum_{i \in C} e^{s_i}\) and \(Z = \sum_C z_C\):</p>
+\[ p_C = \frac{z_C}{Z} = \sum_{i \in C} \alpha_i, \qquad w_{i \mid C} = \frac{e^{s_i}}{z_C} = \frac{\alpha_i}{p_C}, \qquad v_C = \sum_{i \in C} w_{i \mid C}\, v_i, \qquad o = \sum_{C \in \mathcal{C}} p_C\, v_C. \]
+<ul>
+<li>\(p_C\) is the <b>cluster's mass</b>: the probability that the attention &ldquo;lands&rdquo; in \(C\) (the paper's equations 2 and 10).</li>
+<li>\(w_{i \mid C}\) is the conditional distribution of attention within \(C\) (equation 23): softmax over the cluster's own logits.</li>
+<li>\(v_C\) is the <b>conditional mean of the values</b> within \(C\) (equation 9), \(\mathbb{E}[v \mid C]\).</li>
+<li>\(o = \sum_C p_C v_C\) (equation 11) is the law of total expectation.</li>
+</ul>
+<figure>
+<svg viewBox="0 0 350 215" width="350" height="215" role="img" aria-label="Attention weights of 8 tokens in two clusters of four, with each cluster's mass">
+<line x1="30" y1="170" x2="330" y2="170" stroke="currentColor"/>
+<rect x="40" y="140.5" width="26" height="29.5" fill="#4a7fc1"/>
+<rect x="72" y="157.8" width="26" height="12.2" fill="#4a7fc1"/>
+<rect x="104" y="127.9" width="26" height="42.1" fill="#4a7fc1"/>
+<rect x="136" y="166.5" width="26" height="3.5" fill="#4a7fc1"/>
+<rect x="192" y="48.5" width="26" height="121.5" fill="#4a7fc1"/>
+<rect x="224" y="84.7" width="26" height="85.3" fill="#4a7fc1"/>
+<rect x="256" y="165" width="26" height="5" fill="#4a7fc1"/>
+<rect x="288" y="30" width="26" height="140" fill="#4a7fc1"/>
+<path d="M40 180 v6 h122 v-6 M192 180 v6 h122 v-6" fill="none" stroke="currentColor"/>
+<text x="101" y="202" font-size="12" text-anchor="middle" fill="currentColor">p = 0.199</text>
+<text x="253" y="202" font-size="12" text-anchor="middle" fill="currentColor">p = 0.801</text>
+<text x="301" y="24" font-size="12" text-anchor="middle" fill="currentColor">0.319</text>
+</svg>
+<figcaption>Figure 12.1. Attention weights \(\alpha_i\) of one query over 8 tokens in two clusters of four (the data of the program below). A cluster's mass \(p_C\) is the sum of its bars; \(w_{i \mid C}\) is a bar's share of its own cluster.</figcaption>
+</figure>
+<p>The identity is exact, but it is worth seeing in floating point, with the paper's quantities computed the way the paper defines them. The program takes 8 tokens with 2-dimensional keys, a query, 2-dimensional values, and two clusters of four:</p>
+<pre><code>#include &lt;math.h&gt;
+#include &lt;stdio.h&gt;
+
+#define N 8      /* tokens */
+#define D 2      /* key dimension d */
+#define B 4      /* cluster size: C = {0..3} and {4..7} */
+
+int main(void)
+{
+    double q[D] = { 1.5, -0.5 };
+    double k[N][D] = { { 1, 0 }, { 0.5, 1 }, { 1.5, 0.5 }, { -1, 0 },
+                       { 2, -1 }, { 1.8, -0.6 }, { 0, 2 }, { 2.4, -0.2 } };
+    double v[N][2] = { { 1, 0 }, { 0, 1 }, { 1, 1 }, { -1, 0 },
+                       { 0, -1 }, { 2, 0 }, { 1, -1 }, { 0.5, 0.5 } };
+    double s[N], Z = 0, o[2] = { 0, 0 }, mix[2] = { 0, 0 };
+    for (int i = 0; i &lt; N; i++) {
+        s[i] = (q[0] * k[i][0] + q[1] * k[i][1]) / sqrt(D);   /* s_i = q.k_i / sqrt d */
+        Z += exp(s[i]);
+    }
+    for (int i = 0; i &lt; N; i++) {                               /* o = sum alpha_i v_i */
+        double alpha = exp(s[i]) / Z;
+        o[0] += alpha * v[i][0];
+        o[1] += alpha * v[i][1];
+    }
+    for (int c = 0; c &lt; N / B; c++) {
+        double zC = 0, vC[2] = { 0, 0 };
+        for (int i = c * B; i &lt; c * B + B; i++) zC += exp(s[i]);
+        for (int i = c * B; i &lt; c * B + B; i++) {               /* w_{i|C} = e^{s_i} / z_C */
+            vC[0] += exp(s[i]) / zC * v[i][0];
+            vC[1] += exp(s[i]) / zC * v[i][1];
+        }
+        double pC = zC / Z;
+        printf("cluster %d: p_C = %.4f, v_C = (%.4f, %.4f)\n", c, pC, vC[0], vC[1]);
+        mix[0] += pC * vC[0];
+        mix[1] += pC * vC[1];
+    }
+    printf("sum alpha_i v_i = (%.15f, %.15f)\n", o[0], o[1]);
+    printf("sum p_C v_C     = (%.15f, %.15f)\n", mix[0], mix[1]);
+    return 0;
+}</code></pre>
+<pre class="out">cluster 0: p_C = 0.1989, v_C = (0.7792, 0.6213)
+cluster 1: p_C = 0.8011, v_C = (0.6982, -0.1608)
+sum alpha_i v_i = (0.714347323019728, -0.005220981872090)
+sum p_C v_C     = (0.714347323019728, -0.005220981872090)</pre>
+<p>How it maps to the formulas. The first loop computes the logits \(s_i = q^\top k_i / \sqrt d\) and the normalizer \(Z = \sum_j e^{s_j}\): one pass over all keys, as full attention must. The second loop forms \(\alpha_i = e^{s_i} / Z\) and accumulates \(o = \sum_i \alpha_i v_i\), the expectation of \(v\) under \(\alpha\). The cluster loop never uses \(\alpha\) or \(Z\) to build \(v_C\): it normalizes inside the cluster by \(z_C\), so \(e^{s_i} / z_C\) is \(w_{i \mid C}\), the conditional distribution, and the inner sum is \(v_C = \mathbb{E}[v \mid C]\). Only then does \(Z\) enter, through \(p_C = z_C / Z\), the mixing weight. That split is the point: \(v_C\) depends only on the cluster's own logits, \(p_C\) on how the cluster compares with everything else, which is why the paper can bound the two sources of error separately. The two printed outputs agree to the last digit shown. The cluster masses add to 1, and the second cluster holds 80% of the attention because its keys point along \(q\).</p>
+<p>The paper's approximation \(\hat o = \sum_C \hat p_C \bar v_C\) (equation 11) has the same mixture shape with both ingredients replaced: the mixing weights by \(\hat p_C\), the masses the representatives \((\bar k_C, \bar v_C)\) earn, and the component means by \(\bar v_C\), the plain average of the cluster's values, which is the expectation under the <em>uniform</em> distribution on \(C\). Its error decomposition (equation 14),</p>
+\[ o - \hat o = \underbrace{\sum_C (p_C - \hat p_C)\, v_C}_{\text{wrong mixing weights}} \;+\; \underbrace{\sum_C \hat p_C\, (v_C - \bar v_C)}_{\text{wrong component means}}, \]
+<p>is obtained by adding and subtracting \(\tilde o = \sum_C \hat p_C v_C\). The first part is controlled by the mass correction \(m_C\) (<a href="11-convexity.html#s6">section 11.6</a>). The second is a difference between two expectations of the same values under two distributions on \(C\), \(w_{\cdot \mid C}\) and uniform. The next section measures that.</p>
+
+<h2 id="s5">12.5 Total variation distance</h2>
+<p>How different are two distributions \(p\) and \(q\) on the same \(n\) points? The most useful answer for bounding averages is:</p>
+<div class="box def"><p><b>Definition.</b> The <b>total variation distance</b> is \(d_{TV}(p, q) = \frac12 \sum_{i=1}^n |p_i - q_i|\).</p></div>
+<p>The \(\frac12\) is there because the differences cancel in total: \(\sum_i (p_i - q_i) = 0\), so the points where \(p\) exceeds \(q\) hold exactly as much excess as the points where \(q\) exceeds \(p\). \(d_{TV}\) is that excess: the amount of probability you would have to move to turn \(p\) into \(q\). It is 0 for equal distributions and 1 for distributions on disjoint points. Equivalently, it is the largest difference the two can make to the probability of any event <a href="refs.html#r-levin-peres">[levin-peres]</a>:</p>
+\[ d_{TV}(p, q) = \max_{A \subseteq \Omega} |P(A) - Q(A)|, \]
+<p>reached by \(A = \{i : p_i &gt; q_i\}\). What makes it useful is a bound on expectations. For any array \(f\),</p>
+\[ \Big|\sum_i p_i f_i - \sum_i q_i f_i\Big| = \Big|\sum_i (p_i - q_i) f_i\Big| \le \sum_i |p_i - q_i| \, |f_i| \le 2\, d_{TV}(p, q) \max_i |f_i|. \]
+<p>For vectors \(v_i\) the same steps with the triangle inequality (<a href="10-norms.html#s2">section 10.2</a>) give \(\big\|\sum_i (p_i - q_i) v_i\big\|_2 \le \max_i \|v_i\|_2 \sum_i |p_i - q_i|\). With \(p = w_{\cdot \mid C}\) and \(q\) uniform on \(C\), this is the paper's step from equation 25 to 27:</p>
+\[ \|v_C - \bar v_C\|_2 \le V_C \sum_{i \in C} \Big| w_{i \mid C} - \frac{1}{n_C} \Big|, \qquad V_C = \max_{i \in C} \|v_i\|_2. \]
+<p>The sum on the right is the <b>\(L_1\) distance to uniform</b>, \(\sum_i |w_i - \frac1n| = 2\, d_{TV}(w, \text{uniform})\). How large can it be when \(w\) is a softmax of logits that differ little?</p>
+<div class="box thm"><p><b>Lemma A.3 of [refinekv] (softmax deviation from uniform).</b> If \(|x_i| \le \delta\) for \(i = 1, \dots, n\) and \(w_i = e^{x_i} / \sum_j e^{x_j}\), then</p>
+\[ \sum_{i=1}^n \Big| w_i - \frac1n \Big| \le 2 \tanh\frac{\delta}{2}. \]</div>
+<p>Applied with \(x_i = s_i - s_C\) and \(\delta = \delta_C\) (shifting all logits by \(s_C\) does not change the softmax, <a href="#s6">section 12.6</a>), it gives the paper's equation 30: \(\|v_C - \bar v_C\|_2 \le 2 V_C \tanh(\delta_C / 2)\). For small \(\delta\), \(2\tanh(\delta/2) \approx \delta\): logits within \(\delta = 0.2\) of each other's center give \(\sum_i |w_i - \frac1n| \le 0.199\), so \(d_{TV} \le 0.0997\): less than 10% of the mass is moved away from uniform. The proof is a convexity argument, done in <a href="11-convexity.html#s6">section 11.6</a> and assembled in <a href="19-refinekv-bound.html#s5">section 19.5</a>. <p>The bound cannot be improved. Its worst case puts a fraction \(1/(1 + e^\delta)\) of the logits at \(+\delta\) and the rest at \(-\delta\) (exercise 7 of <a href="11-convexity.html#exercises">chapter 11</a>). A numerical check over 100 000 random logit arrays (\(n\) up to 64, half of each pushed to \(\pm\delta\)) and that worst case, \(n = 1000\):</p>
+<table class="t">
+<tr><th>\(\delta\)</th><th>\(2\tanh(\delta/2)\)</th><th>random: largest \(\sum|w_i - \frac1n|\) / bound</th><th>worst case: \(\sum|w_i - \frac1n|\)</th></tr>
+<tr><td class="n">0.25</td><td class="n">0.248706</td><td class="n">0.9997</td><td class="n">0.248706 (438 of 1000 at \(+\delta\))</td></tr>
+<tr><td class="n">1</td><td class="n">0.924234</td><td class="n">0.9986</td><td class="n">0.924234 (269 of 1000)</td></tr>
+<tr><td class="n">4</td><td class="n">1.928055</td><td class="n">0.9281</td><td class="n">1.928055 (18 of 1000)</td></tr>
+</table>
+<p>The same check confirms the two forms of \(d_{TV}\) on an 8-point example (both 0.35, the maximum taken over all 256 events) and that \(f = \operatorname{sign}(p - q)\) attains the expectation bound.</p>
+
+<h2 id="s6">12.6 Softmax as a distribution</h2>
+<p>Softmax turns any real array (logits, scores) into a distribution:</p>
+\[ w_i = \frac{e^{s_i / T}}{\sum_{j=1}^n e^{s_j / T}}, \qquad T &gt; 0. \]
+<p>Each \(w_i\) is positive, they sum to 1, and a larger logit gets a larger weight. Physics met this form first: the <b>Gibbs</b> or <b>Boltzmann distribution</b> gives a state of energy \(E_i\) the probability \(\propto e^{-E_i / kT}\) at temperature \(T\). Logits play the role of negative energies, and \(T\) keeps its name: <b>temperature</b>. Three properties carry the rest of the book.</p>
+<ul>
+<li><b>Only differences matter.</b> \(\ln(w_i / w_j) = (s_i - s_j)/T\). Adding the same constant to every logit cancels between numerator and denominator: <b>shift invariance</b>. The max trick of <a href="15-softmax.html#s2">section 15.2</a> uses it to keep every exponent \(\le 0\); the paper uses it to center a cluster's logits at \(s_C\), and its equation 67 is the log-ratio: \(w_i / w_j = e^{x_i - x_j} \le e^{2\delta}\).</li>
+<li><b>Temperature sharpens or flattens.</b> As \(T \to 0\) all the weight goes to the largest logit (one-hot on the argmax); as \(T \to \infty\) the weights tend to uniform. Dividing \(q^\top k\) by \(\sqrt d\) in attention is softmax at temperature \(T = \sqrt d\) (next section says why).</li>
+<li><b>Its normalizer is log-sum-exp.</b> \(\ln \sum_j e^{s_j} = \operatorname{LSE}(s)\) (<a href="11-convexity.html#s5">section 11.5</a>), and softmax is the gradient of LSE (<a href="07-several-variables.html#s6">section 7.6</a>).</li>
+</ul>
+<p>Shift invariance is exact in \(\mathbb{R}\). In doubles it is exact only while no exponential overflows, and running the formula shows where that ends:</p>
+<pre><code>#include &lt;math.h&gt;
+#include &lt;stdio.h&gt;
+
+#define N 4
+
+static void softmax(const double *s, double T, double *w)   /* as written: no max trick */
+{
+    double z = 0;
+    for (int i = 0; i &lt; N; i++) z += exp(s[i] / T);
+    for (int i = 0; i &lt; N; i++) w[i] = exp(s[i] / T) / z;
+}
+
+int main(void)
+{
+    double s[N] = { 2.0, 1.0, 0.5, -1.0 }, w[N];
+    double Ts[] = { 0.1, 0.5, 1, 2, 10, 100 };
+    for (int t = 0; t &lt; 6; t++) {
+        softmax(s, Ts[t], w);
+        printf("T = %-5g w = %.4f %.4f %.4f %.4f\n", Ts[t], w[0], w[1], w[2], w[3]);
+    }
+    double sh[N], w2[N], diff = 0;
+    for (int i = 0; i &lt; N; i++) sh[i] = s[i] - 3.7;       /* shift every logit */
+    softmax(s, 1, w); softmax(sh, 1, w2);
+    for (int i = 0; i &lt; N; i++) if (fabs(w[i] - w2[i]) &gt; diff) diff = fabs(w[i] - w2[i]);
+    printf("shift by -3.7: max weight change %.3g\n", diff);
+    for (int i = 0; i &lt; N; i++) sh[i] = s[i] + 1000;
+    softmax(sh, 1, w2);
+    printf("shift by +1000: w = %g %g %g %g\n", w2[0], w2[1], w2[2], w2[3]);
+    printf("ln(w0/w1) = %.12f, s0 - s1 = %g\n", log(w[0] / w[1]), s[0] - s[1]);
+    return 0;
+}</code></pre>
+<pre class="out">T = 0.1   w = 1.0000 0.0000 0.0000 0.0000
+T = 0.5   w = 0.8420 0.1140 0.0419 0.0021
+T = 1     w = 0.6095 0.2242 0.1360 0.0303
+T = 2     w = 0.4344 0.2635 0.2052 0.0969
+T = 10    w = 0.2852 0.2581 0.2455 0.2113
+T = 100   w = 0.2534 0.2509 0.2497 0.2460
+shift by -3.7: max weight change 1.11e-16
+shift by +1000: w = nan nan nan nan
+ln(w0/w1) = 1.000000000000, s0 - s1 = 1</pre>
+<p>The function is the definition, term for term: <code>exp(s[i] / T)</code> is \(e^{s_i/T}\), <code>z</code> the denominator, and dividing by it is what makes the array a distribution. It deliberately skips the max trick, to show what the trick is for. The temperature loop shows the two limits: at \(T = 0.1\) the logit gap of 1 between the first two entries becomes a factor \(e^{10} \approx 22\,000\) and the output is one-hot to four digits; at \(T = 100\) every ratio \(w_i / w_j = e^{(s_i - s_j)/100}\) is within 3.1% of 1 (the widest gap, \(s_0 - s_3 = 3\), gives \(e^{0.03}\)). The last line checks the log-ratio identity: only the difference \(s_0 - s_1\) survives. Shifting every logit by \(-3.7\) changes the weights by one rounding error. Shifting by \(+1000\) changes nothing mathematically, but \(e^{1001}\) overflows to infinity and \(\infty / \infty\) is NaN: the formula is right and the evaluation order is wrong. Since any shift is allowed, shift by \(-\max_i s_i\) first; <a href="15-softmax.html#s2">section 15.2</a> does it.</p>
+
+<h2 id="s7">12.7 Random vectors and their dot products</h2>
+<p>A <b>random vector</b> is an array of random variables, \(q = (q_1, \dots, q_d)\). Its expectation is taken coordinate by coordinate. Why does attention divide \(q^\top k\) by \(\sqrt d\)? Model the coordinates of a query and a key as independent, each with mean 0 and variance 1, and look at</p>
+\[ q^\top k = \sum_{j=1}^d q_j k_j. \]
+<ul>
+<li>Each term has mean \(\mathbb{E}[q_j k_j] = \mathbb{E}q_j \, \mathbb{E}k_j = 0\) (independence).</li>
+<li>Each term has variance \(\mathbb{E}[q_j^2 k_j^2] - 0 = \mathbb{E}q_j^2 \, \mathbb{E}k_j^2 = 1 \cdot 1 = 1\).</li>
+<li>The \(d\) terms are independent (each uses its own pair of coordinates), so their variances add.</li>
+</ul>
+<div class="box thm"><p><b>Fact.</b> If the \(2d\) coordinates of \(q\) and \(k\) are independent with mean 0 and variance 1, then \(\mathbb{E}[q^\top k] = 0\) and \(\operatorname{Var}(q^\top k) = d\). So \(q^\top k / \sqrt d\) has variance 1 for every \(d\).</p></div>
+<p>The standard deviation of a raw dot product grows like \(\sqrt d\): about 11 for \(d = 128\). Softmax at temperature 1 over logits that spread so widely is nearly one-hot: over 1024 such random logits the largest weight averages 0.80, against 0.015 for logits of variance 1 (simulated). A near one-hot softmax has nearly vanishing gradients. Dividing by \(\sqrt d\) keeps the logits at unit scale whatever the head dimension <a href="refs.html#r-vaswani">[vaswani]</a>. <a href="16-attention.html#s4">Section 16.4</a> continues from here.</p>
+<p>A simulation of 200 000 pairs per row agrees (normal coordinates drawn with the Box&ndash;Muller method of section 12.8; also coordinates that are \(\pm 1\) with equal probability, which have the same mean and variance, to show that nothing else about the distribution matters):</p>
+<table class="t">
+<tr><th>\(d\)</th><th>mean of \(q^\top k\)</th><th>\(\operatorname{Var}(q^\top k)\), normal</th><th>\(\operatorname{Var}(q^\top k / \sqrt d)\)</th><th>\(\operatorname{Var}(q^\top k)\), \(\pm 1\)</th></tr>
+<tr><td class="n">16</td><td class="n">0.009</td><td class="n">15.97</td><td class="n">0.998</td><td class="n">16.04</td></tr>
+<tr><td class="n">64</td><td class="n">&minus;0.002</td><td class="n">64.30</td><td class="n">1.005</td><td class="n">64.58</td></tr>
+<tr><td class="n">128</td><td class="n">0.010</td><td class="n">127.72</td><td class="n">0.998</td><td class="n">127.79</td></tr>
+</table>
+<div class="box warn"><p><b>Watch out.</b> This is a model at initialization, not a description of a trained network: learned queries and keys are neither independent nor of variance 1, and some coordinates are much larger than others. The \(\sqrt d\) is a convention chosen by this argument; the paper's logits \(s_i\) include it, and its bounds hold for any logits.</p></div>
+
+<h2 id="s8">12.8 Densities and the normal distribution</h2>
+<p>A quantity like a dot product of random reals can take any value, not one of \(n\). Its distribution is described by a <b>density</b>: a function \(f \ge 0\) with \(\int_{-\infty}^{\infty} f(x)\,dx = 1\), such that</p>
+\[ P(a \le X \le b) = \int_a^b f(x)\,dx, \qquad \mathbb{E}X = \int_{-\infty}^{\infty} x f(x)\,dx. \]
+<p>Think of a histogram with bins of width \(h\): bin \([x, x + h)\) holds probability about \(f(x) h\), and as \(h \to 0\) the sums over bins become integrals (<a href="03-integrals.html#s1">section 3.1</a>). Every finite formula of this chapter carries over with \(\sum_i p_i\) replaced by \(\int f(x)\,dx\). A single value has probability 0; only intervals have mass.</p>
+<p>The <b>standard normal</b> (Gaussian) density is</p>
+\[ \varphi(x) = \frac{1}{\sqrt{2\pi}} e^{-x^2/2}. \]
+<p>The constant \(1/\sqrt{2\pi}\) is there because \(\int_{-\infty}^\infty e^{-x^2/2}\,dx = \sqrt{2\pi} \approx 2.5066\) (<a href="03-integrals.html#s6">section 3.6</a>). It has mean 0 and variance 1; \(\mu + \sigma X\) is normal with mean \(\mu\) and standard deviation \(\sigma\), written \(N(\mu, \sigma^2)\). About 68.3%, 95.4% and 99.7% of its mass lies within 1, 2 and 3 standard deviations of the mean.</p>
+<figure>
+<svg viewBox="0 0 360 195" width="360" height="195" role="img" aria-label="The standard normal density with the interval from -1 to 1 shaded">
+<polygon fill="#4a7fc1" fill-opacity="0.25" points="135,170 135,85.3 139.5,76.9 144,68.6 148.5,60.7 153,53.4 157.5,46.8 162,41.1 166.5,36.5 171,33.1 175.5,31.1 180,30.4 184.5,31.1 189,33.1 193.5,36.5 198,41.1 202.5,46.8 207,53.4 211.5,60.7 216,68.6 220.5,76.9 225,85.3 225,170"/>
+<line x1="15" y1="170" x2="345" y2="170" stroke="currentColor"/>
+<polyline fill="none" stroke="currentColor" stroke-width="2" points="22.5,169.7 27,169.6 31.5,169.4 36,169.2 40.5,168.9 45,168.4 49.5,167.9 54,167.2 58.5,166.4 63,165.2 67.5,163.9 72,162.2 76.5,160.1 81,157.6 85.5,154.6 90,151.1 94.5,147 99,142.4 103.5,137.1 108,131.2 112.5,124.7 117,117.6 121.5,110 126,102 130.5,93.8 135,85.3 139.5,76.9 144,68.6 148.5,60.7 153,53.4 157.5,46.8 162,41.1 166.5,36.5 171,33.1 175.5,31.1 180,30.4 184.5,31.1 189,33.1 193.5,36.5 198,41.1 202.5,46.8 207,53.4 211.5,60.7 216,68.6 220.5,76.9 225,85.3 229.5,93.8 234,102 238.5,110 243,117.6 247.5,124.7 252,131.2 256.5,137.1 261,142.4 265.5,147 270,151.1 274.5,154.6 279,157.6 283.5,160.1 288,162.2 292.5,163.9 297,165.2 301.5,166.4 306,167.2 310.5,167.9 315,168.4 319.5,168.9 324,169.2 328.5,169.4 333,169.6 337.5,169.7"/>
+<text x="135" y="185" font-size="12" text-anchor="middle" fill="currentColor">&#8722;1</text>
+<text x="180" y="185" font-size="12" text-anchor="middle" fill="currentColor">0</text>
+<text x="225" y="185" font-size="12" text-anchor="middle" fill="currentColor">1</text>
+<text x="90" y="185" font-size="12" text-anchor="middle" fill="currentColor">&#8722;2</text>
+<text x="270" y="185" font-size="12" text-anchor="middle" fill="currentColor">2</text>
+<text x="180" y="130" font-size="12" text-anchor="middle" fill="currentColor">68.3%</text>
+</svg>
+<figcaption>Figure 12.2. The standard normal density \(\varphi\). The shaded area, between \(-1\) and 1, is 0.683.</figcaption>
+</figure>
+<p>The normal distribution is everywhere because of the <b>central limit theorem</b>: a sum of many independent terms with finite variance, centered and scaled to variance 1, is approximately standard normal, whatever the terms' own distribution <a href="refs.html#r-blitzstein">[blitzstein]</a>. The dot product \(q^\top k / \sqrt d\) of the previous section is such a sum, so for large \(d\) it is close to \(N(0, 1)\).</p>
+<p>To sample it, the <b>Box&ndash;Muller method</b> turns two independent uniform numbers \(U_1, U_2\) in \((0, 1)\) into \(\sqrt{-2 \ln U_1}\, \cos(2\pi U_2)\), which is exactly \(N(0, 1)\) <a href="refs.html#r-knuth2">[knuth2]</a>. Why it works, in one line: the pair \((\sqrt{-2\ln U_1}\cos 2\pi U_2,\ \sqrt{-2\ln U_1}\sin 2\pi U_2)\) is a point at a uniformly random angle and a radius \(R\) with \(P(R &gt; r) = e^{-r^2/2}\), which is exactly how two independent standard normals look in polar coordinates, since their joint density \(\frac{1}{2\pi}e^{-(x^2 + y^2)/2}\) depends only on the radius. The uniform must avoid 0, where the log is \(-\infty\).</p>
+<p>A million Box&ndash;Muller samples (uniforms from a 64-bit splitmix generator, not C's <code>rand()</code>, whose quality varies between systems) match the theory:</p>
+<table class="t">
+<tr><th>quantity</th><th>sampled</th><th>exact</th></tr>
+<tr><td>\(P(|X| \le 1)\)</td><td class="n">0.6831</td><td class="n">0.6827</td></tr>
+<tr><td>\(P(|X| \le 2)\)</td><td class="n">0.9545</td><td class="n">0.9545</td></tr>
+<tr><td>\(P(|X| \le 3)\)</td><td class="n">0.9973</td><td class="n">0.9973</td></tr>
+<tr><td>density on \([0, 0.5)\), at 0.25</td><td class="n">0.3829</td><td class="n">0.3867</td></tr>
+<tr><td>density on \([1.5, 2)\), at 1.75</td><td class="n">0.0877</td><td class="n">0.0863</td></tr>
+<tr><td>\(P(|q^\top k / \sqrt{128}| \le 1)\), 100 000 pairs</td><td class="n">0.6826</td><td class="n">\(\approx 0.6827\) (CLT)</td></tr>
+</table>
+<p>(The exact probabilities are \(\operatorname{erf}(k/\sqrt 2)\). A bin's sampled density is its count over \(\text{samples} \times \text{width}\), compared with \(\varphi\) at its middle; the small gaps are the curvature of \(\varphi\) across the bin.) The midpoint rule with step \(10^{-3}\) on \([-10, 10]\) gives \(\int \varphi = 1.0000000000\) and variance \(1.0000000000\).</p>
+
+<h2 id="exercises">Exercises</h2>
+<ol class="ex">
+<li>An indicator variable is 1 with probability \(p\) and 0 otherwise. Find its mean and variance.
+<details><summary>Answer</summary><p>\(\mathbb{E}X = p\). \(X^2 = X\), so \(\mathbb{E}X^2 = p\) and \(\operatorname{Var}X = p - p^2 = p(1 - p)\), largest at \(p = \frac12\).</p></details></li>
+<li>Two clusters have masses \(p_C = 0.3, 0.7\) and conditional value means \(v_C = 1, -1\) (scalars). What is \(o\)? If an approximation gets the means right but uses masses \(0.5, 0.5\), what is the error?
+<details><summary>Answer</summary><p>\(o = 0.3 - 0.7 = -0.4\). The approximation gives 0, an error of 0.4, all from the first (mass) term of the decomposition.</p></details></li>
+<li>What is \(d_{TV}\) between a one-hot distribution on \(n\) points and the uniform one?
+<details><summary>Answer</summary><p>\(\frac12\big[(1 - \frac1n) + (n - 1)\frac1n\big] = 1 - \frac1n\). It tends to 1, the largest possible distance.</p></details></li>
+<li>Show that \(\sum_i |w_i - \frac1n| \le 2\) for any distribution \(w\), so Lemma A.3 is only informative because \(2\tanh(\delta/2) &lt; 2\).
+<details><summary>Answer</summary><p>\(\sum_i |w_i - \frac1n| \le \sum_i w_i + \sum_i \frac1n = 2\). And \(\tanh &lt; 1\), so the lemma's bound is below 2 for every finite \(\delta\), and close to \(\delta\) for small \(\delta\).</p></details></li>
+<li>(The paper.) A cluster has \(\delta_C = 0.2\) and \(V_C = 3\). Bound \(\|v_C - \bar v_C\|_2\).
+<details><summary>Answer</summary><p>\(2 V_C \tanh(\delta_C / 2) = 3 \cdot 2\tanh(0.1) = 3 \times 0.1993 = 0.598\).</p></details></li>
+<li>If the coordinates of \(q\) have variance \(\sigma_q^2\) and those of \(k\) variance \(\sigma_k^2\) (independent, mean 0), what is \(\operatorname{Var}(q^\top k / \sqrt d)\)?
+<details><summary>Answer</summary><p>Each term has variance \(\sigma_q^2 \sigma_k^2\); \(d\) of them add to \(d \sigma_q^2 \sigma_k^2\); dividing by \(\sqrt d\) divides the variance by \(d\): \(\sigma_q^2 \sigma_k^2\). The scaling removes the dependence on \(d\), not on the coordinate scales.</p></details></li>
+<li>Softmax over logits \(s_i\) at temperature \(T\) is the same as softmax at temperature 1 over which logits? What is the temperature of attention as a function of \(q^\top k_i\)?
+<details><summary>Answer</summary><p>Over \(s_i / T\). Attention is softmax of \(q^\top k_i\) at temperature \(\sqrt d\).</p></details></li>
+<li>For \(X\) standard normal, what is \(P(X &gt; 2)\)? Use the 95.4% rule and symmetry.
+<details><summary>Answer</summary><p>\(P(|X| &gt; 2) = 1 - 0.9545 = 0.0455\), half of it on each side: 0.0228.</p></details></li>
+</ol>
+
+<h2 id="references">References</h2>
+<ul>
+<li><a href="refs.html#r-blitzstein">[blitzstein]</a> Expectation and its linearity, variance, conditional probability and conditional expectation (the law of total expectation), the normal distribution and the central limit theorem, all with simulations.</li>
+<li><a href="refs.html#r-levin-peres">[levin-peres]</a> Chapter 4: total variation distance, its equivalent forms and the coupling view of it.</li>
+<li><a href="refs.html#r-wasserman">[wasserman]</a> A fast, complete tour of the same ground at a higher pace.</li>
+<li><a href="refs.html#r-knuth2">[knuth2]</a> Section 3.4.1: generating normal deviates, including the polar form of Box&ndash;Muller; chapter 3 for what makes a random number generator good.</li>
+<li><a href="refs.html#r-vaswani">[vaswani]</a> Section 3.2.1: scaled dot-product attention and the variance argument for \(1/\sqrt{d_k}\).</li>
+<li><a href="refs.html#r-refinekv">[refinekv]</a> Section 3.2 and Appendix A.1 (the quantities \(p_C\), \(v_C\), \(\hat p_C\), \(\bar v_C\)), A.2 (the decomposition), A.4 (value distortion) and Lemma A.3.</li>
+</ul>
+<hr>
+<p class="nav"><a href="./">Contents</a> &middot; <a rel="prev" href="11-convexity.html">&larr; 11. Convexity and Jensen's inequality</a> &middot; <a rel="next" href="13-statistics.html">13. Statistics: describing and comparing measurements &rarr;</a></p>
+</body>
+</html>

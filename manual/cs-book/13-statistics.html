@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>13. Statistics: describing and comparing measurements - From Derivatives to Attention</title>
+<link rel="stylesheet" href="book.css">
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-chtml.js" async></script>
+</head>
+<body>
+<p class="nav"><a href="../../">ScarletNX</a> / <a href="./">From Derivatives to Attention</a> / Chapter 13 &middot; <a rel="prev" href="12-probability.html">&larr; 12. Probability on finite sets</a> &middot; <a rel="next" href="14-floating-point.html">14. Floating point &rarr;</a></p>
+<h1>13. Statistics: describing and comparing measurements</h1>
+<p>Chapter 12 computed exact averages of known distributions. This chapter is about data: a list of measured numbers, from which we want a few numbers that describe it honestly. The paper reports such numbers throughout. Its motivation (Section 2) counts the smallest set of tokens holding 90% of the attention, a kind of percentile (<a href="#s1">section 13.1</a>). Its evidence that the risk score works is a Spearman rank correlation and a partial correlation given the attention mass, each a median over thousands of layer&ndash;head instances (Appendix B.3; <a href="#s4">sections 13.4</a> and <a href="#s5">13.5</a>). Its speed claims are ratios of time per output token (<a href="#s6">section 13.6</a>). For each statistic: what it measures, what it hides, and how it can mislead.</p>
+
+<h2 id="s1">13.1 Mean, median and percentiles</h2>
+<p>Take measurements \(x_1, \dots, x_n\). Sorted, they are the <b>order statistics</b> \(x_{(1)} \le x_{(2)} \le \dots \le x_{(n)}\). Three ways to say where the data sit:</p>
+<div class="box def"><p><b>Definition.</b> The <b>mean</b> is \(\bar x = \frac1n \sum_i x_i\). The <b>median</b> is the middle order statistic, \(x_{((n+1)/2)}\) for odd \(n\), and the average of the two middle ones for even \(n\). The <b>\(p\)-th percentile</b> (or quantile, \(0 \le p \le 1\)) interpolates between order statistics: with \(h = (n - 1)p\) and \(j = \lfloor h \rfloor\),</p>
+\[ Q(p) = x_{(j+1)} + (h - j)\big(x_{(j+2)} - x_{(j+1)}\big). \]</div>
+<p>\(Q(0)\) is the minimum, \(Q(\frac12)\) the median, \(Q(1)\) the maximum. Other interpolation conventions exist and give slightly different values on small samples; this one is the default of NumPy and R. The mean is the expectation of chapter 12 under the uniform distribution on the data; it is the number \(c\) that minimizes \(\sum_i (x_i - c)^2\). The median minimizes \(\sum_i |x_i - c|\): moving \(c\) toward the side with more points lowers the sum until both sides balance.</p>
+<p>Nine timings of one run each, in milliseconds: \(12, 15, 11, 14, 13, 40, 12, 13, 14\). One run hit a hiccup (a page fault, a context switch, a GPU clock change). Sorted: \(11, 12, 12, 13, 13, 14, 14, 15, 40\).</p>
+<table class="t">
+<tr><th>statistic</th><th>value</th><th>how</th></tr>
+<tr><td>mean</td><td class="n">16</td><td>\(144/9\)</td></tr>
+<tr><td>median</td><td class="n">13</td><td>\(x_{(5)}\)</td></tr>
+<tr><td>\(Q(0.25)\), \(Q(0.75)\)</td><td class="n">12, 14</td><td>\(h = 2\), \(h = 6\): exactly \(x_{(3)}\), \(x_{(7)}\)</td></tr>
+<tr><td>\(Q(0.9)\)</td><td class="n">20</td><td>\(h = 7.2\): \(x_{(8)} + 0.2(x_{(9)} - x_{(8)}) = 15 + 0.2 \cdot 25\)</td></tr>
+<tr><td>mean, median with 40 replaced by 15</td><td class="n">13.22, 13</td><td></td></tr>
+</table>
+<p>The mean is larger than eight of the nine runs: one outlier moved it by 2.8 ms, while the median did not move at all. That is the difference that matters in practice. Any single value can drag the mean anywhere; the median only moves if half the data move. The mean is the right summary when every unit counts toward a total (total energy, total time of a fixed workload); the median is the right one for a &ldquo;typical&rdquo; value.</p>
+<h3>The smallest set holding a fraction \(p\) of the mass</h3>
+<p>The paper's first experiment (Section 2 and Appendix C.1 of <a href="refs.html#r-refinekv">[refinekv]</a>) asks, for each query, how many keys carry most of the attention. For attention weights \(\alpha_1, \dots, \alpha_N\) and a target \(p\), it takes the <b>smallest set of tokens whose weights sum to at least \(p\)</b>. That set is found greedily: sort the weights in decreasing order, \(\alpha_{(1)} \ge \alpha_{(2)} \ge \dots\), and take the shortest prefix with \(\sum_{j \le k} \alpha_{(j)} \ge p\). No other set of \(k - 1\) tokens can do better, because the \(k - 1\) largest weights are the largest sum any \(k - 1\) tokens can have. The fraction \(k/N\) is a percentile turned around: not &ldquo;which value has \(p\) of the data below it&rdquo; but &ldquo;how much of the data holds \(p\) of the mass&rdquo;.</p>
+<p>How small \(k/N\) is depends on how peaked the weights are. For \(N = 1024\) tokens with logits drawn from a normal distribution of standard deviation \(\sigma\) (a toy, not a trained model):</p>
+<table class="t">
+<tr><th>logit \(\sigma\)</th><th>\(p = 0.5\)</th><th>0.75</th><th>0.9</th><th>0.95</th><th>0.99</th></tr>
+<tr><td class="n">1</td><td class="n">14.6%</td><td class="n">36.4%</td><td class="n">61.1%</td><td class="n">74.3%</td><td class="n">90.9%</td></tr>
+<tr><td class="n">2</td><td class="n">3.7%</td><td class="n">11.7%</td><td class="n">27.0%</td><td class="n">39.4%</td><td class="n">64.8%</td></tr>
+<tr><td class="n">4</td><td class="n">0.1%</td><td class="n">0.1%</td><td class="n">0.2%</td><td class="n">0.5%</td><td class="n">2.9%</td></tr>
+</table>
+<p>The paper measures 17.6% at \(p = 0.9\) on Llama-3.1-8B over WikiText-2, between the second and third rows. Its point is the second statistic it reports: the <em>union</em> of these per-query sets over all queries covers 96.4% of the cache. Each query needs few keys, but different queries need different ones, which is why RefineKV chooses per query rather than evicting once.</p>
+
+<h2 id="s2">13.2 Spread</h2>
+<p>Where the data sit is half the story; how much they scatter is the other half, and for timings it is often the more important half.</p>
+<div class="box def"><p><b>Definition.</b> The <b>sample variance</b> is \(s^2 = \frac{1}{n - 1}\sum_i (x_i - \bar x)^2\), the <b>sample standard deviation</b> is \(s = \sqrt{s^2}\). The <b>interquartile range</b> is \(\mathrm{IQR} = Q(0.75) - Q(0.25)\). The <b>median absolute deviation</b> (MAD) is the median of \(|x_i - \text{median}|\).</p></div>
+<p><b>Why \(n - 1\).</b> If the data are \(n\) independent draws from a distribution with variance \(\sigma^2\), then \(\mathbb{E}\sum_i (x_i - \bar x)^2 = (n - 1)\sigma^2\), not \(n\sigma^2\). The deviations are measured from \(\bar x\), which was fitted to the same data and so sits closer to them than the true mean does; the loss is exactly one \(\sigma^2\) (one &ldquo;degree of freedom&rdquo; used up by \(\bar x\)) <a href="refs.html#r-wasserman">[wasserman]</a>. A simulation with \(n = 5\) normal draws of variance 1, repeated 400 000 times, averages 0.8011 for the \(1/n\) version (theory: \(4/5\)) and 1.0014 for \(1/(n - 1)\). For large \(n\) the difference is negligible.</p>
+<p>On the nine timings: \(s^2 = 660/8 = 82.5\), \(s = 9.08\) ms; but \(\mathrm{IQR} = 14 - 12 = 2\) and \(\mathrm{MAD} = 1\) ms. The standard deviation says the runs scatter by 9 ms; eight of the nine are within 2 ms of each other. The one outlier contributes \(24^2 = 576\) of the 660 in the sum of squares (87%): squaring makes the largest deviation dominate. IQR and MAD, like the median, ignore the tails, which is what you want for describing typical scatter, and exactly wrong if the tail is what you care about (tail latency of a server is the 99th percentile, not the median).</p>
+<div class="box warn"><p><b>In the machine.</b> The textbook shortcut \(s^2 \approx \overline{x^2} - \bar x^2\) (one pass, two running sums) cancels catastrophically when the mean is large relative to the spread (<a href="14-floating-point.html#s4">section 14.4</a>). For the four values \(10^9 + \{4, 7, 13, 16\}\) in doubles it returns \(-100\) for a variance whose true value (with \(1/n\)) is 22.5: the squares are near \(10^{18}\), where adjacent doubles are 128 apart. Two passes (mean first, then squared deviations) give 22.5 exactly, as does Welford's one-pass update \(m_k = m_{k-1} + (x_k - m_{k-1})/k\), \(S_k = S_{k-1} + (x_k - m_{k-1})(x_k - m_k)\), \(s^2 = S_n/(n-1)\) <a href="refs.html#r-knuth2">[knuth2]</a>, <a href="refs.html#r-higham">[higham]</a>.</p></div>
+
+<h2 id="s3">13.3 Pearson correlation</h2>
+<p>Now pairs \((x_i, y_i)\): a risk score and an error for each cluster, say. Do they move together?</p>
+<div class="box def"><p><b>Definition.</b> The <b>Pearson correlation coefficient</b> <a href="refs.html#r-pearson">[pearson]</a> is</p>
+\[ r_{xy} = \frac{\sum_i (x_i - \bar x)(y_i - \bar y)}{\sqrt{\sum_i (x_i - \bar x)^2}\,\sqrt{\sum_i (y_i - \bar y)^2}}. \]</div>
+<p>Read it geometrically. Let \(a\) and \(b\) be the centered data vectors, \(a_i = x_i - \bar x\), \(b_i = y_i - \bar y\). Then \(r = a^\top b / (\|a\|\,\|b\|)\), the cosine of the angle between them (<a href="08-vectors.html#s4">section 8.4</a>). So \(-1 \le r \le 1\) by Cauchy&ndash;Schwarz (<a href="10-norms.html#s3">section 10.3</a>), with \(r = \pm 1\) exactly when \(b\) is a multiple of \(a\): the points lie on a line. It is the sample version of \(\operatorname{Cov}(X, Y)/(\sigma_X \sigma_Y)\) from <a href="12-probability.html#s3">section 12.3</a>. It does not change if either variable is shifted or scaled by a positive factor. Its square \(r^2\) is the fraction of the variance of \(y\) that the best straight line in \(x\) explains; section 13.5 uses that line.</p>
+<p>By hand, for \(x = 1, 2, 3, 4, 5\) and \(y = 2, 4, 5, 4, 5\): \(\bar x = 3\), \(\bar y = 4\), \(a = (-2, -1, 0, 1, 2)\), \(b = (-2, 0, 1, 0, 1)\). Then \(a^\top b = 4 + 0 + 0 + 0 + 2 = 6\), \(\|a\|^2 = 10\), \(\|b\|^2 = 6\), and \(r = 6/\sqrt{60} = 0.7746\).</p>
+<p>Pearson measures <em>linear</em> association, and it is as sensitive to outliers as the mean. For \(x = 1, \dots, 6\) and \(y = e^x\), \(y\) rises with \(x\) at every step, yet \(r = 0.847\): the points are on a curve, not a line. For \(y = x\) with the last value replaced by \(-20\), five of six points lie on a perfect line and \(r = -0.535\): one point flipped the sign. The paper's Figure 2 reports a &ldquo;log Pearson&rdquo;: Pearson correlation of \(\log R_C\) against \(\log\) error. Taking logs first is sensible there, because both quantities span many decades, and without logs the few largest clusters would decide \(r\) alone.</p>
+
+<h2 id="s4">13.4 Spearman rank correlation</h2>
+<p>Often the question is only &ldquo;does a larger \(x\) go with a larger \(y\)?&rdquo;, in any shape. Spearman's answer <a href="refs.html#r-spearman">[spearman]</a>: replace each value by its rank, then take Pearson's \(r\) of the ranks.</p>
+<div class="box def"><p><b>Definition.</b> The <b>rank</b> of \(x_i\) is its position in sorted order, 1 for the smallest. Tied values all get the <b>average</b> of the positions they occupy. <b>Spearman's \(\rho\)</b> is the Pearson correlation of the ranks of \(x\) with the ranks of \(y\).</p></div>
+<p>Averaging the ranks of ties keeps the sum of the ranks at \(n(n+1)/2\), as without ties, and treats tied values symmetrically. For \(y = 2, 4, 5, 4, 5\): the 2 is smallest, rank 1; the two 4s occupy positions 2 and 3, both get 2.5; the two 5s occupy 4 and 5, both get 4.5. With \(x = 1, \dots, 5\) (ranks are the values), the centered rank vectors are \((-2, -1, 0, 1, 2)\) and \((-2, -0.5, 1.5, -0.5, 1.5)\), with dot product 7 and squared norms 10 and 9, so \(\rho = 7/\sqrt{90} = 0.7379\).</p>
+<p>When there are no ties a shortcut holds: with \(d_i\) the difference of the two ranks of pair \(i\),</p>
+\[ \rho = 1 - \frac{6\sum_i d_i^2}{n(n^2 - 1)}. \]
+<p>It follows from \(\sum_i \text{rank}_i^2 = n(n+1)(2n+1)/6\) being the same for both variables. With ties it is only an approximation; compute Pearson on the average ranks instead.</p>
+<p>Because ranks only see order, \(\rho\) is unchanged by any increasing transformation of either variable: \(\rho(x, e^y) = \rho(x, y)\), and \(\rho(\log R_C, \text{err}) = \rho(R_C, \text{err})\). On the two examples of section 13.3, \(y = e^x\) gets \(\rho = 1\) (perfectly monotone), and the outlier \(-20\) gets \(\rho = 0.143\) (it is ranked last, not 26 units away). That fits the paper's use. Under a fixed budget, what RefineKV needs from the score is an ordering of clusters (expand the riskiest first), and Spearman asks exactly whether the score orders clusters as the true error does. Its Figure 2 reports \(\rho = 0.945\) (Llama-3.1-8B) and 0.947 (Qwen2.5-7B) between \(R_C\) and the cluster error \(\|o_C - \hat o_C\|_2\).</p>
+
+<h2 id="s5">13.5 Partial correlation</h2>
+<p>A high correlation can be borrowed. The paper's risk score is \(R_C = 2\hat p_C\big(\ldots\big)\): mass times a deviation term. The true cluster error also grows with the mass: a cluster holding 30% of the attention can do more damage than one holding 0.01%. Masses span several decades, so both the score and the error inherit the mass ordering, and they correlate strongly even if the deviation term carries no information. Appendix B.3 finds exactly this: \(\hat p_C\) alone has Spearman 0.975 with the error, as high as \(R_C\). The question &ldquo;does \(R_C\) know anything <em>beyond</em> the mass?&rdquo; needs a different statistic.</p>
+<div class="box def"><p><b>Definition.</b> The <b>partial correlation</b> of \(x\) and \(y\) given \(z\), written \(\rho_{xy \cdot z}\), is the Pearson correlation of the residuals \(e_x = x - (a_x + b_x z)\) and \(e_y = y - (a_y + b_y z)\), where \(a_x + b_x z\) is the least-squares line predicting \(x\) from \(z\) (and likewise for \(y\)).</p></div>
+<p>The least-squares line through points \((z_i, x_i)\) has slope \(b_x = \sum_i (z_i - \bar z)(x_i - \bar x) / \sum_i (z_i - \bar z)^2\) and passes through \((\bar z, \bar x)\) <a href="refs.html#r-vmls">[vmls]</a>. The residual \(e_x\) is the part of \(x\) that a linear function of \(z\) cannot predict, and it is uncorrelated with \(z\) by construction (that is the condition defining the least-squares slope). Correlating \(e_x\) with \(e_y\) asks whether what is left of \(x\) after removing \(z\) still goes with what is left of \(y\).</p>
+<p>It can be computed from the three pairwise correlations alone:</p>
+\[ \rho_{xy \cdot z} = \frac{\rho_{xy} - \rho_{xz}\,\rho_{yz}}{\sqrt{(1 - \rho_{xz}^2)(1 - \rho_{yz}^2)}}. \]
+<p>Why: standardize each variable to mean 0 and variance 1 (correlations do not change). Then the least-squares slope of \(x\) on \(z\) is \(\rho_{xz}\), so \(e_x = x - \rho_{xz} z\) and \(e_y = y - \rho_{yz} z\). Covariances are bilinear, so \(\operatorname{Cov}(e_x, e_y) = \rho_{xy} - \rho_{xz}\rho_{yz} - \rho_{yz}\rho_{xz} + \rho_{xz}\rho_{yz} = \rho_{xy} - \rho_{xz}\rho_{yz}\), and \(\operatorname{Var}(e_x) = 1 - 2\rho_{xz}^2 + \rho_{xz}^2 = 1 - \rho_{xz}^2\). Divide by the two standard deviations. The formula shows how borrowing works: if \(\rho_{xy} = \rho_{xz} = \rho_{yz} = 0.9\), the partial correlation is \((0.9 - 0.81)/(1 - 0.81) = 0.474\); most of the 0.9 came through \(z\). If \(\rho_{xy}\) is no larger than \(\rho_{xz}\rho_{yz}\), the partial correlation is zero or negative: \(x\) adds nothing beyond \(z\).</p>
+<p>The <b>partial Spearman correlation</b> is the same computation on ranks. That is what B.3 computes, and the program below does it for one toy instance of 10 clusters with mass \(\hat p_C\), score \(R_C\) and error \(y\) (rounded values of a simulation in which the error depends on mass and on a true logit spread, and the score on mass and a looser spread):</p>
+<pre><code>#include &lt;math.h&gt;
+#include &lt;stdio.h&gt;
+
+#define M 10                                  /* clusters in one (step, layer, head) */
+
+static double pearson(const double *x, const double *y)
+{
+    double mx = 0, my = 0, sxy = 0, sxx = 0, syy = 0;
+    for (int i = 0; i &lt; M; i++) { mx += x[i] / M; my += y[i] / M; }
+    for (int i = 0; i &lt; M; i++) {
+        sxy += (x[i] - mx) * (y[i] - my);
+        sxx += (x[i] - mx) * (x[i] - mx);
+        syy += (y[i] - my) * (y[i] - my);
+    }
+    return sxy / sqrt(sxx * syy);
+}
+
+static void ranks(const double *x, double *r)  /* ties share their average rank */
+{
+    for (int i = 0; i &lt; M; i++) {
+        int below = 0, equal = 0;
+        for (int j = 0; j &lt; M; j++) { below += x[j] &lt; x[i]; equal += x[j] == x[i]; }
+        r[i] = below + (equal + 1) / 2.0;
+    }
+}
+
+static void residual(const double *y, const double *x, double *e)   /* y - (a + b x) */
+{
+    double mx = 0, my = 0, sxy = 0, sxx = 0;
+    for (int i = 0; i &lt; M; i++) { mx += x[i] / M; my += y[i] / M; }
+    for (int i = 0; i &lt; M; i++) { sxy += (x[i] - mx) * (y[i] - my); sxx += (x[i] - mx) * (x[i] - mx); }
+    for (int i = 0; i &lt; M; i++) e[i] = y[i] - my - sxy / sxx * (x[i] - mx);
+}
+
+int main(void)
+{
+    double p[M] = { .0071, .416, .217, .00615, .0137, .0335, .0225, .176, .0234, .0847 };
+    double s[M] = { .00255, .268, .294, .000663, .0113, .0145, .382, .277, .00566, .0262 };
+    double y[M] = { .000775, .0678, .0634, .000452, .00385, .00793, .0379, .152, .0045, .0147 };
+    double rp[M], rs[M], ry[M], es[M], ey[M];
+    ranks(p, rp); ranks(s, rs); ranks(y, ry);
+    double rsy = pearson(rs, ry), rsp = pearson(rs, rp), ryp = pearson(ry, rp);
+    printf("Spearman: score-error %.4f, mass-error %.4f, score-mass %.4f\n", rsy, ryp, rsp);
+    residual(rs, rp, es);                     /* the part of each rank mass cannot predict */
+    residual(ry, rp, ey);
+    printf("partial, from residuals: %.4f\n", pearson(es, ey));
+    printf("partial, from formula:   %.4f\n", (rsy - rsp * ryp) / sqrt((1 - rsp * rsp) * (1 - ryp * ryp)));
+    return 0;
+}</code></pre>
+<pre class="out">Spearman: score-error 0.8788, mass-error 0.8909, score-mass 0.6848
+partial, from residuals: 0.8117
+partial, from formula:   0.8117</pre>
+<p>How it maps to the definitions. <code>ranks</code> computes each rank directly from its definition: the number of values strictly below \(x_i\), plus the average position among the values equal to it, \((\text{equal} + 1)/2\), so ties get the average rank without sorting (\(O(n^2)\), fine for a demonstration; a sort makes it \(O(n \log n)\)). After ranking, every correlation is Pearson on ranks, i.e. Spearman. <code>residual</code> is the least-squares line of the definition: <code>sxy / sxx</code> is the slope \(b\), and subtracting \(\bar y + b(x - \bar x)\) leaves the part the line misses; the intercept never appears because the line passes through the means. Both rank vectors are regressed on the <em>same</em> variable, the mass ranks, which is what &ldquo;given \(\hat p_C\)&rdquo; means. The last two lines compute the partial correlation both ways; they agree, as the derivation says. Here the raw correlations are high for both the score (0.879) and mass alone (0.891), but the score's partial correlation is 0.81: in this instance it ranks clusters well <em>among clusters of similar mass</em>, which mass alone cannot do.</p>
+<h3>What Appendix B.3 computed, and what it shows</h3>
+<p>The setup, in the paper's notation. For a cluster \(C\) and query \(q\), the target is \(\|o_C - \hat o_C\|_2\), with \(o_C = \frac{1}{Z}\sum_{i \in C} e^{q^\top k_i/\sqrt d}\, v_i = p_C v_C\) the cluster's contribution to the exact output and \(\hat o_C = \hat p_C \bar v_C\) its contribution to the all-representative approximation; \(\sum_C (o_C - \hat o_C) = o - \hat o\) is the approximation's total error. The data: Llama-3.1-8B on RULER at 128K context, 26 prompts, clusters of 32 tokens, the box bound for \(\delta_C\), \(\tau = 0.01\); every layer and head at decode steps 0, 31 and 126. For each (step, layer, head), they rank the score, the target and \(\hat p_C\) across clusters, compute Spearman's \(\rho\) and the partial \(\rho\) given \(\hat p_C\) (by regressing ranks on the rank of \(\hat p_C\), as above), and report the <b>median</b> over instances (their Table 5):</p>
+<table class="t">
+<tr><th>score</th><th>Spearman</th><th>partial given \(\hat p_C\)</th></tr>
+<tr><td>\(\hat p_C\)</td><td class="n">.975</td><td class="n">&ndash;</td></tr>
+<tr><td>\(\hat p_C \|\bar v_C\|\)</td><td class="n">.975</td><td class="n">.06</td></tr>
+<tr><td>Quest-style bound</td><td class="n">.864</td><td class="n">.32</td></tr>
+<tr><td>\(R_C\) (box \(\delta\))</td><td class="n">.975</td><td class="n">.49</td></tr>
+<tr><td>\(R_C\) (exact \(\delta\), oracle)</td><td class="n">.990</td><td class="n">.81</td></tr>
+</table>
+<p>A toy reproduction shows the same pattern and why it arises. With 128 clusters per instance, log-normal masses, a true spread \(\delta\) and a looser bound \(\delta^{\text{b}} = \delta \cdot U\), \(U\) uniform in \([1.2, 3]\); error \(= \hat p_C\, g(\delta)\) times log-normal noise, with \(g(\delta) = \cosh\delta - 1 + \tanh(\delta/2)\); medians over 301 instances:</p>
+<table class="t">
+<tr><th>toy score</th><th>median Spearman</th><th>median partial</th><th>partial, 10th&ndash;90th percentile</th></tr>
+<tr><td>\(\hat p_C\)</td><td class="n">0.913</td><td class="n">&ndash;</td><td></td></tr>
+<tr><td>\(\hat p_C\) times an unrelated factor</td><td class="n">0.903</td><td class="n">0.029</td><td class="n">&minus;0.098 to 0.150</td></tr>
+<tr><td>\(\hat p_C\, g(\delta^{\text{b}})\) (loose)</td><td class="n">0.967</td><td class="n">0.843</td><td class="n">0.804 to 0.877</td></tr>
+<tr><td>\(\hat p_C\, g(\delta)\) (exact)</td><td class="n">0.988</td><td class="n">0.924</td><td class="n">0.899 to 0.941</td></tr>
+</table>
+<p>The raw column barely separates the scores; the partial column separates them clearly. In the toy, the formula and the residual method agreed to \(3 \times 10^{-15}\) on every instance.</p>
+<p><b>What it shows.</b> Within a head at a decoding step, ordering clusters by \(R_C\) agrees with ordering them by their true error, and part of that agreement (median partial 0.49) does not come from the mass. The value-norm score's partial of 0.06 says the information is in the deviation term, not in the value norms; the rise to 0.81 with the exact \(\delta_C\) says a tighter bound on \(\delta_C\) would rank better, matching the ablation of their Table 2. Sampling noise is not the issue: each instance has thousands of clusters (128K tokens / 32), and for normally distributed data a sample partial correlation given one variable is distributed like an ordinary correlation from one observation fewer <a href="refs.html#r-fisher">[fisher]</a>, whose noise at that size is of order \(1/\sqrt{4096} \approx 0.016\).</p>
+<p><b>What it does not show.</b></p>
+<ul>
+<li><b>Order, not size.</b> Correlations ignore scale: a bound 100 times too large ranks just as well. Whether \(R_C\) really bounds the error is the proof's job (<a href="19-refinekv-bound.html">chapter 19</a>), not this table's.</li>
+<li><b>Within an instance only.</b> Each correlation compares clusters of one head at one step. Selection compares \(R_C\) with a single threshold \(\tau\) across heads and steps, so it also needs the scores to be comparable <em>across</em> instances. The table does not test that.</li>
+<li><b>&ldquo;Given \(\hat p_C\)&rdquo; is linear in ranks.</b> Regression removes only the straight-line part of the dependence of each rank on the mass rank. Any curved dependence stays in the residuals and can inflate or deflate the partial correlation.</li>
+<li><b>A median hides the spread.</b> The 10th&ndash;90th percentile range across instances (shown for the toy) is not reported, so it is unknown how many heads have a partial correlation near 0.</li>
+<li><b>Per-cluster errors are not additive in norm.</b> \(\|o - \hat o\| \le \sum_C \|o_C - \hat o_C\|\), with equality only when the errors point the same way; ranking clusters by their own error is a proxy for their effect on the output.</li>
+<li><b>Scope.</b> One model, one benchmark, 26 prompts, three decode steps.</li>
+</ul>
+
+<h2 id="s6">13.6 Summarizing benchmarks</h2>
+<p>Performance claims are ratios of measured times, and both the ratio and the averaging have traps.</p>
+<p><b>The quantity.</b> The paper times decoding as <b>TPOT</b>, time per output token. Each run generates exactly 128 tokens; the token produced by prefill and the first decode iteration (one-time initialization, the &ldquo;cold cache&rdquo; of the run) are excluded, and the remaining 126 iterations take \(T_{\text{steady}}\), so \(\text{TPOT} = T_{\text{steady}} / 126\) (its Appendix C.2.4). A <b>speedup</b> is \(\text{TPOT}_{\text{base}} / \text{TPOT}_{\text{new}}\): from their Table 3, \(24.43 / 15.68 = 1.558\), reported as 1.56&times;.</p>
+<p><b>Amdahl's law.</b> If a fraction \(f\) of the time is sped up by a factor \(S\), the whole speeds up by \(1/((1 - f) + f/S)\), never more than \(1/(1 - f)\) <a href="refs.html#r-hp">[hp]</a>. In the paper's Figure 5 (BF16, 128K), attention is 11.72 of 24.78 ms, \(f = 0.473\). Its 7.6&times; attention speedup predicts \(1/(0.527 + 0.473/7.6) = 1.70\times\) overall; it measures \(24.78/14.89 = 1.66\times\), the difference being the cost of selection. Even an infinitely fast attention would stop at \(1.90\times\). Under FP8, the GEMVs shrink, \(f\) grows, and the measured speedup rises to \(19.52/9.76 = 2.00\times\).</p>
+<p><b>Averaging ratios.</b> Suppose system A and B take times \((2, 1, 4)\) and \((1, 2, 4)\) on three benchmarks. The speedups of B over A are \((2, 0.5, 1)\), arithmetic mean 1.167: &ldquo;B is 17% faster&rdquo;. The speedups of A over B are \((0.5, 2, 1)\), arithmetic mean also 1.167: &ldquo;A is 17% faster&rdquo;. Both cannot be true. The arithmetic mean of ratios depends on which system is the reference. The <b>geometric mean</b> \(\big(\prod_i r_i\big)^{1/n}\) does not: the geometric mean of the reciprocals is the reciprocal of the geometric mean, so here both directions give exactly 1, a tie <a href="refs.html#r-fleming">[fleming]</a>. Use it to summarize normalized results, and remember from AM&ndash;GM (<a href="11-convexity.html#s4">section 11.4</a>) that it is never larger than the arithmetic mean. If instead the benchmarks are one fixed workload run back to back, the honest summary is the ratio of <em>total</em> times, no mean of ratios at all.</p>
+<p><b>Run-to-run noise.</b> Repeated runs differ: clocks boost and throttle, other processes interrupt, caches start warm or cold. The noise is rarely symmetric; most runs cluster near the true cost and a few are hit by an event and run long. A simulation with that shape: 15 runs of a 15.68 ms TPOT with 0.05 ms Gaussian jitter, a fifth of them delayed by up to 2 ms, repeated three times:</p>
+<table class="t">
+<tr><th>trial</th><th>min</th><th>median</th><th>mean</th><th>max</th><th>IQR</th></tr>
+<tr><td class="n">1</td><td class="n">15.58</td><td class="n">15.68</td><td class="n">15.79</td><td class="n">17.11</td><td class="n">0.10</td></tr>
+<tr><td class="n">2</td><td class="n">15.60</td><td class="n">15.69</td><td class="n">15.76</td><td class="n">16.92</td><td class="n">0.03</td></tr>
+<tr><td class="n">3</td><td class="n">15.60</td><td class="n">15.70</td><td class="n">15.86</td><td class="n">16.97</td><td class="n">0.11</td></tr>
+</table>
+<p>The median stays within 0.02 ms of the true 15.68 in every trial; the mean is pulled up by 0.08 to 0.18 ms and changes from trial to trial by more than the median does. That is why medians are the usual report for latency: they estimate the undisturbed cost and are stable across repetitions. Report with them the number of runs and a spread (IQR, or min and max), so a reader can tell a 2% difference from noise. The paper averages three runs in its prefill/decode breakdown (Table 6) and checks that TPOT changes by at most 1.43% when generating 256 or 512 tokens instead of 128 (Table 7): small next to the 1.56&times; it reports.</p>
+
+<h2 id="exercises">Exercises</h2>
+<ol class="ex">
+<li>Find the mean, median and \(Q(0.25)\) of \(3, 1, 4, 1, 5, 9, 2, 6\).
+<details><summary>Answer</summary><p>Sorted: \(1, 1, 2, 3, 4, 5, 6, 9\). Mean \(31/8 = 3.875\). Median \((3 + 4)/2 = 3.5\). \(Q(0.25)\): \(h = 7 \cdot 0.25 = 1.75\), so \(x_{(2)} + 0.75(x_{(3)} - x_{(2)}) = 1 + 0.75 = 1.75\).</p></details></li>
+<li>Give the ranks, with ties averaged, of \(10, 20, 20, 30, 20\).
+<details><summary>Answer</summary><p>10 is rank 1; the three 20s occupy positions 2, 3, 4 and all get 3; 30 is rank 5: \(1, 3, 3, 5, 3\).</p></details></li>
+<li>Attention weights are \((0.4, 0.25, 0.15, 0.1, 0.05, 0.05)\). What is the smallest set holding \(p = 0.9\) of the mass, as a fraction of the tokens?
+<details><summary>Answer</summary><p>\(0.4 + 0.25 + 0.15 + 0.1 = 0.9\): four tokens, \(4/6 = 67\%\). Three tokens hold at most 0.8.</p></details></li>
+<li>(The paper.) Suppose a score had \(\rho_{sy} = 0.95\) with the error, while \(\rho_{s\hat p} = 0.97\) and \(\rho_{y \hat p} = 0.975\). What is its partial correlation given \(\hat p\)? What does it say?
+<details><summary>Answer</summary><p>\((0.95 - 0.97 \cdot 0.975)/\sqrt{(1 - 0.9409)(1 - 0.950625)} = 0.00425/0.0540 = 0.079\). The 0.95 is almost entirely borrowed from the mass; the score adds little beyond ranking by \(\hat p\).</p></details></li>
+<li>Why is Spearman's \(\rho\) between \(R_C\) and the error the same as between \(\log R_C\) and the error, while Pearson's \(r\) is not?
+<details><summary>Answer</summary><p>\(\log\) is increasing, so it leaves every rank unchanged, and \(\rho\) only sees ranks. Pearson sees the values, and \(\log\) changes their spacing.</p></details></li>
+<li>A change speeds up one benchmark 2&times; and slows another to 0.5&times;. Summarize with the arithmetic and the geometric mean.
+<details><summary>Answer</summary><p>Arithmetic 1.25 (&ldquo;25% faster&rdquo;); geometric \(\sqrt{2 \cdot 0.5} = 1\): no net change, the honest answer for normalized ratios.</p></details></li>
+<li>Write a C function that returns the median of an array of doubles without modifying it. What does it cost, and when would you use a selection algorithm instead?
+<details><summary>Answer</summary><p>Copy the array, <code>qsort</code> the copy, return the middle element (or the mean of the two middle ones): \(O(n \log n)\) time and \(O(n)\) memory. Quickselect finds the \(k\)-th order statistic in \(O(n)\) expected time; worth it for large arrays or when one percentile is needed many times.</p></details></li>
+</ol>
+
+<h2 id="references">References</h2>
+<ul>
+<li><a href="refs.html#r-wasserman">[wasserman]</a> Sample mean and variance and their expectations, correlation, quantiles, and the bootstrap for intervals on any of them.</li>
+<li><a href="refs.html#r-pearson">[pearson]</a> The product-moment correlation coefficient, introduced with regression.</li>
+<li><a href="refs.html#r-spearman">[spearman]</a> Correlation of ranks, and why measurement error weakens correlations.</li>
+<li><a href="refs.html#r-fisher">[fisher]</a> The sampling distribution of the partial correlation coefficient.</li>
+<li><a href="refs.html#r-vmls">[vmls]</a> Least squares and regression: the fitted line and its residuals.</li>
+<li><a href="refs.html#r-fleming">[fleming]</a> Why normalized benchmark results must be summarized with the geometric mean.</li>
+<li><a href="refs.html#r-hp">[hp]</a> Chapter 1: measuring and reporting performance, and Amdahl's law.</li>
+<li><a href="refs.html#r-knuth2">[knuth2]</a>, <a href="refs.html#r-higham">[higham]</a> Accurate computation of the mean and variance in floating point.</li>
+<li><a href="refs.html#r-refinekv">[refinekv]</a> Section 2 and Appendix C.1 (the top-\(p\) analysis), Section 3.3 and Appendix B.3 (correlation analysis, Table 5), Section 5 and Appendix C.2.4 (TPOT, Tables 3, 6, 7, Figure 5).</li>
+</ul>
+<hr>
+<p class="nav"><a href="./">Contents</a> &middot; <a rel="prev" href="12-probability.html">&larr; 12. Probability on finite sets</a> &middot; <a rel="next" href="14-floating-point.html">14. Floating point &rarr;</a></p>
+</body>
+</html>
