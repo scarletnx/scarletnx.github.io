@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>2. Derivatives - From Derivatives to Attention</title>
+<link rel="stylesheet" href="book.css">
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-chtml.js" async></script>
+</head>
+<body>
+<p class="nav"><a href="../../">ScarletNX</a> / <a href="./">From Derivatives to Attention</a> / Chapter 2 &middot; <a rel="prev" href="01-limits.html">&larr; 1. Numbers, functions and limits</a> &middot; <a rel="next" href="03-integrals.html">3. Integrals &rarr;</a></p>
+<h1>2. Derivatives</h1>
+<p>A derivative is a rate: how fast an output moves when its input moves. This chapter defines it as a limit (<a href="01-limits.html#s3">section 1.3</a>), gives the rules that compute it without limits, and then uses it four ways that recur through the book: to approximate a function by a line, to measure a derivative numerically (and see floating point bite), to solve equations by Newton's method, and to bound how far a function can move. That last use, the mean value theorem of <a href="#s8">section 2.8</a>, is the shape of most bounds in the paper <a href="refs.html#r-refinekv">[refinekv]</a>: a change in the output is at most the steepest slope times the change in the input. Gradients and backpropagation (<a href="07-several-variables.html">chapter 7</a>) are this chapter with more inputs.</p>
+
+<h2 id="s1">2.1 The slope of a curve</h2>
+<p>The slope of a line is rise over run. A curve has no single slope, but over a short run it is nearly straight. Take two points on the graph of \(f\), at \(x\) and \(x + h\). The line through them, a <b>secant</b>, has slope</p>
+\[ \frac{f(x + h) - f(x)}{h}. \]
+<p>Now shrink \(h\). The second point slides along the curve toward the first, and the secant turns into the line that just touches the curve at \(x\): the <b>tangent</b>. Its slope is the limit of the secant slopes.</p>
+<figure>
+<svg viewBox="0 0 360 250" width="360" height="250" role="img" aria-label="Secants of y = x squared through one point turning into the tangent">
+<line x1="30" y1="225" x2="350" y2="225" stroke="currentColor"/>
+<line x1="40" y1="240" x2="40" y2="10" stroke="currentColor"/>
+<polyline fill="none" stroke="currentColor" stroke-width="2" points="40,225 45,224.9 50,224.8 55,224.4 60.1,224 65.1,223.5 70.1,222.8 75.1,222 80.1,221.1 85.1,220 90.2,218.8 95.2,217.5 100.2,216.1 105.2,214.6 110.2,212.9 115.2,211.1 120.3,209.2 125.3,207.2 130.3,205 135.3,202.8 140.3,200.3 145.3,197.8 150.4,195.2 155.4,192.4 160.4,189.5 165.4,186.5 170.4,183.3 175.4,180.1 180.5,176.7 185.5,173.2 190.5,169.5 195.5,165.8 200.5,161.9 205.6,157.9 210.6,153.8 215.6,149.5 220.6,145.1 225.6,140.6 230.6,136 235.7,131.3 240.7,126.4 245.7,121.4 250.7,116.3 255.7,111 260.7,105.7 265.8,100.2 270.8,94.6 275.8,88.9 280.8,83 285.8,77 290.8,70.9 295.9,64.7 300.9,58.3 305.9,51.9 310.9,45.3 315.9,38.6 320.9,31.7 325.9,24.8 331,17.7 336,10.5 341,3.1"/>
+<polyline fill="none" stroke="#c98a2a" stroke-width="1.5" points="104,234.1 333.3,14"/>
+<circle cx="334" cy="13.3" r="3" fill="#c98a2a"/>
+<polyline fill="none" stroke="#3f9a55" stroke-width="1.5" points="95.2,233.8 348,43.1"/>
+<circle cx="250" cy="117" r="3" fill="#3f9a55"/>
+<polyline fill="none" stroke="#4a7fc1" stroke-width="1.5" points="83.4,234.2 348,75.5"/>
+<circle cx="187" cy="172.1" r="3" fill="#4a7fc1"/>
+<polyline fill="none" stroke="#c94a4a" stroke-width="2.5" points="69.3,234.5 348,100.7"/>
+<circle cx="138" cy="201.5" r="4" fill="#c94a4a"/>
+<text x="138" y="239" font-size="12" text-anchor="middle" fill="currentColor">x</text>
+<text x="334" y="239" font-size="12" text-anchor="middle" fill="currentColor">x+h</text>
+<line x1="138" y1="225" x2="138" y2="201.5" stroke="currentColor" stroke-dasharray="3 3"/>
+<line x1="334" y1="225" x2="334" y2="13.3" stroke="currentColor" stroke-dasharray="3 3"/>
+<text x="257" y="196.2" font-size="12" text-anchor="start" fill="#c94a4a">tangent</text>
+<text x="264" y="37.8" font-size="12" text-anchor="start" fill="currentColor">y = x&#178;</text>
+</svg>
+<figcaption>Figure 2.1. Secants of \(y = x^2\) through \(x = 0.7\) and \(x + h\) for \(h = 1.4\) (orange), \(0.8\) (green), \(0.35\) (blue). As \(h\) shrinks they turn toward the tangent (red), whose slope is \(f'(0.7) = 1.4\).</figcaption>
+</figure>
+<div class="box def"><p><b>Definition.</b> The <b>derivative</b> of \(f\) at \(x\) is</p>
+\[ f'(x) = \lim_{h \to 0} \frac{f(x + h) - f(x)}{h}, \]
+<p>when the limit exists; then \(f\) is <b>differentiable</b> at \(x\). Other spellings: \(\dfrac{df}{dx}\), \(\dfrac{d}{dx} f(x)\). The derivative of \(f'\) is the <b>second derivative</b> \(f''\), and so on.</p></div>
+<p>The quotient is \(0/0\) at \(h = 0\), which is why a limit is needed. For \(f(x) = x^2\) the algebra removes the \(0/0\):</p>
+\[ \frac{(x + h)^2 - x^2}{h} = \frac{2xh + h^2}{h} = 2x + h \;\to\; 2x. \]
+<p>So \((x^2)' = 2x\). At \(x = 1\) the secant slope is exactly \(2 + h\): 3, 2.1, 2.01, 2.001 for \(h = 1, 0.1, 0.01, 0.001\). For \(e^x\) at 0 there is no algebra to do yet, but the secant slopes \((e^h - 1)/h\) still settle: 1.7183, 1.0517, 1.0050, 1.0005 for the same \(h\), each about \(1 + h/2\), heading for 1.</p>
+<p>That the slope of \(e^x\) at 0 is exactly 1 is what singles out the number \(e\) among all bases (<a href="04-exp-log.html#s1">section 4.1</a>). A function can fail to have a derivative: \(|x|\) has slope \(-1\) to the left of 0 and \(+1\) to the right, so the secant slopes at 0 have no single limit. A corner has no tangent.</p>
+
+<h2 id="s2">2.2 The rules</h2>
+<p>Nobody computes derivatives from the definition twice. A few base cases and a few combining rules cover every function built from them, the way a compiler handles any expression with a rule per node type <a href="refs.html#r-openstax">[openstax]</a>.</p>
+<table class="t">
+<tr><th>Function</th><th>Derivative</th><th>Note</th></tr>
+<tr><td>\(c\) (constant)</td><td>\(0\)</td><td>flat line</td></tr>
+<tr><td>\(x^n\)</td><td>\(n x^{n-1}\)</td><td>power rule; any real \(n\) for \(x &gt; 0\): \((\sqrt{x})' = \tfrac{1}{2} x^{-1/2}\)</td></tr>
+<tr><td>\(e^x\)</td><td>\(e^x\)</td><td>its own slope (<a href="04-exp-log.html">chapter 4</a>)</td></tr>
+<tr><td>\(\ln x\)</td><td>\(1/x\)</td><td>for \(x &gt; 0\) (<a href="04-exp-log.html#s3">section 4.3</a>)</td></tr>
+<tr><td>\(\sin x\), \(\cos x\)</td><td>\(\cos x\), \(-\sin x\)</td><td>\(x\) in radians</td></tr>
+</table>
+<p>And for combinations, where \(c\) is a constant:</p>
+\[ \begin{aligned} (c f)' &amp;= c f' &amp; (f + g)' &amp;= f' + g' \\ (f g)' &amp;= f' g + f g' &amp; \left(\frac{f}{g}\right)' &amp;= \frac{f' g - f g'}{g^2} \quad (g \ne 0). \end{aligned} \]
+<p>The <b>product rule</b> has a picture. Think of \(f g\) as the area of a rectangle with sides \(f\) and \(g\). Move \(x\) by \(h\): the sides grow by about \(f' h\) and \(g' h\), and the area gains two strips, \(f' h \cdot g\) and \(f \cdot g' h\), plus a corner \(f' g' h^2\) that vanishes faster than \(h\). Divide by \(h\), let \(h \to 0\), and the corner is gone. The <b>quotient rule</b> follows from the product rule applied to \(f = (f/g) \cdot g\).</p>
+<p>Example: \(\tan x = \sin x / \cos x\). The quotient rule gives \(\dfrac{\cos x \cos x - \sin x \, (-\sin x)}{\cos^2 x} = \dfrac{\cos^2 x + \sin^2 x}{\cos^2 x} = \dfrac{1}{\cos^2 x}\). (Every derivative in this section and the next was checked against a central difference, <a href="#s5">section 2.5</a>, at \(x = 0.7\); they agree to about \(10^{-10}\), the accuracy of that check.)</p>
+
+<h2 id="s3">2.3 The chain rule</h2>
+<p>A composition \(f(g(x))\) is a two-stage pipeline: \(g\) turns \(x\) into \(u = g(x)\), and \(f\) turns \(u\) into the output. If \(u\) moves \(g'(x)\) times as fast as \(x\), and the output moves \(f'(u)\) times as fast as \(u\), then the output moves \(f'(u) \cdot g'(x)\) times as fast as \(x\). Rates through a chain multiply, like gear ratios.</p>
+<div class="box thm"><p><b>Theorem (chain rule).</b> If \(g\) is differentiable at \(x\) and \(f\) at \(g(x)\), then</p>
+\[ \big(f(g(x))\big)' = f'(g(x)) \, g'(x). \]
+<p>A proof that handles the case \(g' = 0\) properly is in <a href="refs.html#r-spivak">[spivak]</a>.</p></div>
+<p>Examples. With \(u = \sin x\): \((e^{\sin x})' = e^{\sin x} \cos x\). With \(u = 1 + x^2\): \((\sqrt{1 + x^2})' = \dfrac{1}{2\sqrt{1 + x^2}} \cdot 2x = \dfrac{x}{\sqrt{1 + x^2}}\). With \(u = -x^2/2\), the shape of the normal density (<a href="12-probability.html#s8">section 12.8</a>):</p>
+\[ \frac{d}{dx} e^{-x^2/2} = e^{-x^2/2} \cdot (-x) = -x \, e^{-x^2/2}. \]
+<p>A scale inside is the commonest case: \((f(cx))' = c f'(cx)\). Attention divides its logits by \(\sqrt{d}\) before the exponential (<a href="16-attention.html#s4">section 16.4</a>), so \(\frac{d}{ds} e^{s/\sqrt{d}} = e^{s/\sqrt{d}}/\sqrt{d}\).</p>
+<p>A long chain \(f_n(\dots f_2(f_1(x)))\) has derivative \(f_n' \cdots f_2' \cdot f_1'\), each factor evaluated at the value that stage saw. Computing those factors from the output back to the input, reusing the values saved on the way forward, is backpropagation (<a href="07-several-variables.html#s4">section 7.4</a>).</p>
+
+<h2 id="s4">2.4 The linear approximation</h2>
+<p>Near \(x\), a differentiable function is close to its tangent line:</p>
+\[ f(x + h) \approx f(x) + f'(x)\, h. \]
+<p>This is the definition of the derivative read backwards. The error is \(o(h)\) (<a href="01-limits.html#s6">section 1.6</a>): it shrinks faster than \(h\). When \(f''\) exists it is \(O(h^2)\), and more precisely about \(\tfrac{1}{2} f''(x) h^2\), the first neglected term of the Taylor polynomial (<a href="05-series.html#s4">section 5.4</a>). Two cases used again and again:</p>
+\[ \sqrt{1 + h} \approx 1 + \frac{h}{2}, \qquad e^h \approx 1 + h. \]
+<p>Here \(f''\) is \(-\tfrac14\) for \(\sqrt{1+h}\) at \(h = 0\), and 1 for \(e^h\), so the errors should be near \(-h^2/8\) and \(h^2/2\). Computed:</p>
+<table class="t">
+<tr><th>\(h\)</th><th>\(\sqrt{1+h} - (1 + h/2)\)</th><th>divided by \(h^2\)</th><th>\(e^h - (1 + h)\)</th><th>divided by \(h^2\)</th></tr>
+<tr><td class="n">0.1</td><td class="n">\(-1.191 \times 10^{-3}\)</td><td class="n">\(-0.1191\)</td><td class="n">\(5.171 \times 10^{-3}\)</td><td class="n">0.5171</td></tr>
+<tr><td class="n">0.01</td><td class="n">\(-1.244 \times 10^{-5}\)</td><td class="n">\(-0.1244\)</td><td class="n">\(5.017 \times 10^{-5}\)</td><td class="n">0.5017</td></tr>
+<tr><td class="n">0.001</td><td class="n">\(-1.249 \times 10^{-7}\)</td><td class="n">\(-0.1249\)</td><td class="n">\(5.002 \times 10^{-7}\)</td><td class="n">0.5002</td></tr>
+</table>
+<p>Divide \(h\) by 10 and the error drops by 100: the signature of \(O(h^2)\). The ratio to \(h^2\) tends to \(\tfrac12 f''\), \(-0.125\) and \(0.5\). The approximation is how an engineer reads a formula: a small change in the input changes the output by the derivative times that change. The paper's bounds are of this kind. If a token's logit is within \(\delta = 0.1\) of its cluster representative's, its weight \(e^{s}\) is within a factor \(e^{\pm 0.1} \approx 1 \pm 0.1\) of the representative's: about 10% at worst, and <a href="04-exp-log.html#s6">section 4.6</a> shows that on average it is far less.</p>
+
+<h2 id="s5">2.5 Finite differences and their error</h2>
+<p>When \(f\) is a program with no formula, its derivative is estimated from values. Two standard estimates <a href="refs.html#r-burden">[burden]</a>:</p>
+\[ \text{forward: } \frac{f(x + h) - f(x)}{h}, \qquad \text{central: } \frac{f(x + h) - f(x - h)}{2h}. \]
+<p>Their errors come from the Taylor expansion \(f(x \pm h) = f(x) \pm f'(x) h + \tfrac12 f''(x) h^2 \pm \tfrac16 f'''(x) h^3 + \dots\) (<a href="05-series.html#s4">section 5.4</a>). For the forward difference the \(h^2\) term survives the division: the error is about \(\tfrac12 f''(x) h\), which is \(O(h)\). In the central difference the even terms cancel in the subtraction, and the error is about \(\tfrac16 f'''(x) h^2\), which is \(O(h^2)\). Same two function calls, one order better.</p>
+<p>In exact arithmetic, smaller \(h\) is always better. In doubles it is not. Each computed \(f\) value carries a relative error of about \(u = 2^{-53} \approx 1.1 \times 10^{-16}\), so the difference \(f(x+h) - f(x)\) carries an absolute error up to about \(\varepsilon |f(x)|\) with \(\varepsilon = 2u\), and dividing by \(h\) magnifies it. This is the cancellation of <a href="01-limits.html#s3">section 1.3</a> again. The total error of the forward difference is about</p>
+\[ E(h) \approx \frac{|f''|}{2} h + \frac{\varepsilon |f|}{h}. \]
+<p>The first term falls as \(h\) falls, the second rises. Their sum is smallest where its derivative is zero (<a href="#s7">section 2.7</a>): \(h^* = \sqrt{2 \varepsilon |f| / |f''|}\). When \(f\) and \(f''\) are of similar size, \(h^*\) is near \(\sqrt{\varepsilon} \approx 1.5 \times 10^{-8}\) and the best error is also near \(\sqrt{\varepsilon}\): half the digits are lost. For the central difference \(E(h) \approx \tfrac16 |f'''| h^2 + \varepsilon |f| / (2h)\), smallest at \(h^* = (3 \varepsilon |f| / (2 |f'''|))^{1/3}\), near \(\sqrt[3]{\varepsilon} \approx 6 \times 10^{-6}\), with a best error near \(\varepsilon^{2/3} \approx 4 \times 10^{-11}\).</p>
+<p>The error model is a prediction; running both formulas shows it. The program differentiates \(e^x\) at many step sizes:</p>
+<pre><code>#include &lt;float.h&gt;
+#include &lt;math.h&gt;
+#include &lt;stdio.h&gt;
+
+int main(void)
+{
+    for (int k = 1; k &lt;= 15; k++) {
+        double h = pow(10, -k), ef = 0, ec = 0;
+        for (int j = 0; j &lt; 1000; j++) {       /* average over x in [0.5, 1.5) */
+            double x = 0.5 + j / 1000.0, exact = exp(x);   /* (e^x)' = e^x */
+            double fwd = (exp(x + h) - exp(x)) / h;
+            double cen = (exp(x + h) - exp(x - h)) / (2 * h);
+            ef += fabs(fwd - exact) / exact / 1000;
+            ec += fabs(cen - exact) / exact / 1000;
+        }
+        printf("h = 1e-%02d  forward err %.1e  central err %.1e\n", k, ef, ec);
+    }
+    printf("sqrt(eps) = %.1e   cbrt(eps) = %.1e\n", sqrt(DBL_EPSILON), cbrt(DBL_EPSILON));
+    return 0;
+}</code></pre>
+<pre class="out">h = 1e-01  forward err 5.2e-02  central err 1.7e-03
+h = 1e-02  forward err 5.0e-03  central err 1.7e-05
+h = 1e-03  forward err 5.0e-04  central err 1.7e-07
+h = 1e-04  forward err 5.0e-05  central err 1.7e-09
+h = 1e-05  forward err 5.0e-06  central err 1.8e-11
+h = 1e-06  forward err 5.0e-07  central err 6.0e-11
+h = 1e-07  forward err 5.0e-08  central err 5.8e-10
+h = 1e-08  forward err 8.0e-09  central err 5.7e-09
+h = 1e-09  forward err 7.6e-08  central err 6.0e-08
+h = 1e-10  forward err 5.7e-07  central err 2.9e-07
+h = 1e-11  forward err 5.5e-06  central err 2.7e-06
+h = 1e-12  forward err 7.8e-05  central err 6.1e-05
+h = 1e-13  forward err 7.4e-04  central err 5.9e-04
+h = 1e-14  forward err 5.7e-03  central err 2.9e-03
+h = 1e-15  forward err 8.6e-02  central err 7.0e-02
+sqrt(eps) = 1.5e-08   cbrt(eps) = 6.1e-06</pre>
+<p>How it maps to the math. The test function is \(e^x\) because its exact derivative is known (itself), and because \(f = f'' = f''' = e^x\) the constants in \(E(h)\) are all equal, so the predicted optima are the clean \(\sqrt{2\varepsilon}\) and \(\sqrt[3]{1.5\,\varepsilon}\). The outer loop sets \(h = 10^{-k}\): one point per decade, since \(E(h)\) is a sum of powers of \(h\) and is best read on log scales. <code>fwd</code> and <code>cen</code> are the two formulas verbatim. The inner loop is there because the rounding term \(\varepsilon|f|/h\) is a bound, not a value: at a single \(x\) the roundings may happen to cancel or to add up, and the measured error jumps by factors of ten from one \(h\) to the next. Averaging the relative error \(|{\rm estimate} - f'(x)|/f'(x)\) over 1000 points \(x_j = 0.5 + j/1000\) turns the bound into a typical size. The last line prints the two scales the theory names.</p>
+<figure>
+<svg viewBox="0 0 380 266" width="380" height="266" role="img" aria-label="Log-log plot of finite-difference error against step h: both curves fall, then rise">
+<line x1="50" y1="223.5" x2="358" y2="223.5" stroke="currentColor"/>
+<line x1="50" y1="223.5" x2="50" y2="20" stroke="currentColor"/>
+<text x="50" y="238.5" font-size="12" text-anchor="middle" fill="currentColor">1e&#8722;1</text>
+<text x="116" y="238.5" font-size="12" text-anchor="middle" fill="currentColor">1e&#8722;4</text>
+<text x="204" y="238.5" font-size="12" text-anchor="middle" fill="currentColor">1e&#8722;8</text>
+<text x="292" y="238.5" font-size="12" text-anchor="middle" fill="currentColor">1e&#8722;12</text>
+<text x="358" y="238.5" font-size="12" text-anchor="middle" fill="currentColor">1e&#8722;15</text>
+<text x="45" y="24" font-size="12" text-anchor="end" fill="currentColor">1e&#8722;1</text>
+<text x="45" y="79.5" font-size="12" text-anchor="end" fill="currentColor">1e&#8722;4</text>
+<text x="45" y="153.5" font-size="12" text-anchor="end" fill="currentColor">1e&#8722;8</text>
+<text x="45" y="209" font-size="12" text-anchor="end" fill="currentColor">1e&#8722;11</text>
+<polyline fill="none" stroke="#4a7fc1" stroke-width="2" points="50,25.3 72,44.1 94,62.6 116,81.1 138,99.6 160,118.1 182,136.6 204,151.3 226,133.2 248,117 270,98.8 292,77.5 314,59.4 336,43 358,21.2"/>
+<polyline fill="none" stroke="#c94a4a" stroke-width="2" points="50,52.7 72,89.7 94,126.7 116,163.7 138,200.3 160,190.6 182,172.4 204,154 226,135.1 248,122.4 270,104.5 292,79.5 314,61.2 336,48.4 358,22.9"/>
+<text x="105" y="69.9" font-size="12" text-anchor="start" fill="#4a7fc1">forward</text>
+<text x="217.2" y="199.4" font-size="12" text-anchor="start" fill="#c94a4a">central</text>
+<text x="204" y="262" font-size="12" text-anchor="middle" fill="currentColor">step h</text>
+<text x="237" y="29.7" font-size="12" text-anchor="start" fill="currentColor">relative error</text>
+</svg>
+<figcaption>Figure 2.2. The same numbers on log scales. Left of the minimum the method's error (slope 1 for forward, 2 for central) dominates; right of it, rounding (slope \(-1\) for both). The minima are at \(h = 10^{-8}\) and \(10^{-5}\).</figcaption>
+</figure>
+<p>The forward error bottoms out near \(10^{-8}\) at \(h = 10^{-8}\), the central one near \(2 \times 10^{-11}\) at \(h = 10^{-5}\), as predicted. Past the minimum both climb with slope \(-1\): at \(h = 10^{-15}\) only one or two digits are left.</p>
+<div class="box warn"><p><b>In the machine.</b> Two more sources of error hide in the code. <code>x + h</code> is rounded, so the step actually taken is <code>(x + h) - x</code>, not <code>h</code>; computing <code>volatile double t = x + h; h = t - x;</code> first makes the step exact <a href="refs.html#r-nr">[nr]</a>. And in <code>float</code>, \(\varepsilon = 2^{-23} \approx 1.2 \times 10^{-7}\), so the best forward step is near \(3 \times 10^{-4}\) and only three or four digits survive (exercise 4).</p></div>
+
+<h2 id="s6">2.6 Newton's method</h2>
+<p>To solve \(f(x) = 0\), replace \(f\) by its tangent line at a guess \(x_n\) and solve that instead. The tangent \(f(x_n) + f'(x_n)(x - x_n)\) is zero at</p>
+\[ x_{n+1} = x_n - \frac{f(x_n)}{f'(x_n)}. \]
+<figure>
+<svg viewBox="0 0 360 230" width="360" height="230" role="img" aria-label="Two Newton steps for x squared minus 2: tangents meet the axis closer and closer to the root">
+<line x1="20" y1="190" x2="350" y2="190" stroke="currentColor"/>
+<polyline fill="none" stroke="currentColor" stroke-width="2" points="30,243 35.2,241.1 40.5,239 45.7,236.9 51,234.8 56.2,232.5 61.5,230.2 66.7,227.8 71.9,225.3 77.2,222.7 82.4,220.1 87.7,217.4 92.9,214.6 98.1,211.8 103.4,208.8 108.6,205.8 113.9,202.8 119.1,199.6 124.3,196.4 129.6,193.1 134.8,189.7 140.1,186.3 145.3,182.8 150.6,179.2 155.8,175.5 161,171.8 166.3,168 171.5,164.1 176.8,160.1 182,156.1 187.2,152 192.5,147.8 197.7,143.5 203,139.2 208.2,134.8 213.5,130.3 218.7,125.7 223.9,121.1 229.2,116.4 234.4,111.6 239.7,106.8 244.9,101.8 250.2,96.8 255.4,91.8 260.6,86.6 265.9,81.4 271.1,76.1 276.4,70.7 281.6,65.3 286.8,59.7 292.1,54.1 297.3,48.5 302.6,42.7 307.8,36.9 313,31 318.3,25.1 323.5,19 328.8,12.9 334,6.7 339.3,0.5 344.5,-5.9"/>
+<line x1="302" y1="190" x2="302" y2="43.4" stroke="currentColor" stroke-dasharray="3 3"/>
+<polyline fill="none" stroke="#4a7fc1" stroke-width="2" points="302,43.4 168.8,190"/>
+<circle cx="302" cy="43.4" r="3" fill="#4a7fc1"/>
+<line x1="168.8" y1="190" x2="168.8" y2="166.1" stroke="currentColor" stroke-dasharray="3 3"/>
+<polyline fill="none" stroke="#3f9a55" stroke-width="2" points="168.8,166.1 136.6,190"/>
+<circle cx="168.8" cy="166.1" r="3" fill="#3f9a55"/>
+<circle cx="134.4" cy="190" r="4" fill="none" stroke="#c94a4a" stroke-width="2"/>
+<text x="302" y="206" font-size="12" text-anchor="middle" fill="currentColor">x&#8320;</text>
+<text x="168.8" y="206" font-size="12" text-anchor="middle" fill="currentColor">x&#8321;</text>
+<text x="128.4" y="206" font-size="12" text-anchor="middle" fill="#c94a4a">&#8730;2</text>
+<text x="64" y="104.2" font-size="12" text-anchor="start" fill="currentColor">y = x&#178; &#8722; 2</text>
+</svg>
+<figcaption>Figure 2.3. Newton's method on \(f(x) = x^2 - 2\) from \(x_0 = 2.4\). Each tangent (blue, then green) meets the axis much closer to the root \(\sqrt{2}\) than the last guess was.</figcaption>
+</figure>
+<p><b>Square root.</b> With \(f(x) = x^2 - c\), \(f'(x) = 2x\), the step is \(x - \dfrac{x^2 - c}{2x} = \dfrac{1}{2}\left(x + \dfrac{c}{x}\right)\): Heron's rule of <a href="01-limits.html#s5">section 1.5</a>.</p>
+<p><b>Reciprocal without dividing.</b> With \(f(x) = 1/x - a\), whose root is \(1/a\), \(f'(x) = -1/x^2\) and the step is</p>
+\[ x_{n+1} = x_n - \frac{1/x_n - a}{-1/x_n^2} = x_n (2 - a x_n). \]
+<p>Two multiplies and a subtract: no division. This is how hardware and fast libraries divide. SSE's <code>rcpps</code> returns an approximate reciprocal from a table with relative error at most \(1.5 \times 2^{-12}\) <a href="refs.html#r-intel-sdm">[intel-sdm]</a>, about 12 bits, and one Newton step lifts that to about 22 bits, nearly a full <code>float</code> (24). Why it doubles: write \(a x_n = 1 - e\), where \(e\) is the relative error. Then \(a x_{n+1} = (1 - e)(1 + e) = 1 - e^2\). The new error is exactly the old one squared.</p>
+<p>The program starts from a guess with relative error \(2^{-12}\) and also solves \(\cos x = x\), which bisection needed about fifty steps for (<a href="01-limits.html#s4">section 1.4</a>):</p>
+<pre><code>#include &lt;math.h&gt;
+#include &lt;stdio.h&gt;
+
+int main(void)
+{
+    /* 1/a: Newton on f(x) = 1/x - a gives x &lt;- x (2 - a x) */
+    double a = 3.7;
+    double x = (1 / a) * (1 - 0x1p-12);        /* a guess good to 12 bits, like rcpps */
+    for (int n = 0; n &lt;= 4; n++) {
+        printf("1/a  step %d: %.17f  rel err %.1e\n", n, x, fabs(x * a - 1));
+        x = x * (2 - a * x);
+    }
+
+    /* cos x = x: Newton on f(x) = cos x - x, f'(x) = -sin x - 1 */
+    double y = 1;
+    for (int n = 1; n &lt;= 5; n++) {
+        y = y - (cos(y) - y) / (-sin(y) - 1);
+        printf("cos x = x  step %d: %.17f  f = %.1e\n", n, y, cos(y) - y);
+    }
+    return 0;
+}</code></pre>
+<pre class="out">1/a  step 0: 0.27020428631756754  rel err 2.4e-04
+1/a  step 1: 0.27027025416090678  rel err 6.0e-08
+1/a  step 2: 0.27027027027026929  rel err 3.6e-15
+1/a  step 3: 0.27027027027027023  rel err 1.0e-16
+1/a  step 4: 0.27027027027027023  rel err 1.0e-16
+cos x = x  step 1: 0.75036386784024389  f = -1.9e-02
+cos x = x  step 2: 0.73911289091136168  f = -4.6e-05
+cos x = x  step 3: 0.73908513338528403  f = -2.8e-10
+cos x = x  step 4: 0.73908513321516067  f = 0.0e+00
+cos x = x  step 5: 0.73908513321516067  f = 0.0e+00</pre>
+<p>How it maps to the math. The start <code>x = (1/a) * (1 - 0x1p-12)</code> is \(x_0 = \frac{1}{a}(1 - e_0)\) with \(e_0 = 2^{-12}\), the accuracy of a 12-bit table; the division in it only manufactures the test case. The printed error \(|a x_n - 1|\) is \(|e_n|\), the quantity the algebra above says is squared. The update <code>x * (2 - a * x)</code> is \(x_n(2 - a x_n)\): the operation that would run on the hardware, with no division. The second loop is the general step \(x - f(x)/f'(x)\) with \(f(x) = \cos x - x\) and \(f'(x) = -\sin x - 1\), started at \(x_0 = 1\); it prints \(f(x_n)\), which near the root is \(f'(r)\) times the error.</p>
+<p>Errors \(2.4 \times 10^{-4}\), \(6 \times 10^{-8}\), \(3.6 \times 10^{-15}\): squared each time until the double runs out. For \(\cos x = x\), four steps where bisection needed about fifty. This is <b>quadratic convergence</b>. In general, near a root \(r\) with \(f'(r) \ne 0\), the error \(e_n = x_n - r\) satisfies \(e_{n+1} \approx \dfrac{f''(r)}{2 f'(r)} e_n^2\) <a href="refs.html#r-burden">[burden]</a>; for Heron's rule it is exactly \(e_{n+1} = e_n^2 / (2 x_n)\) (exercise 7 of chapter 1).</p>
+<div class="box warn"><p><b>Watch out.</b> The speed is only near the root. Far away, a tangent can point anywhere: where \(f' = 0\) the step divides by zero, and the reciprocal iteration diverges unless \(0 &lt; x_0 &lt; 2/a\) (then \(|e| &lt; 1\) and \(e^2\) shrinks). Hardware gets a good start from a table; software often brackets the root first with bisection.</p></div>
+
+<h2 id="s7">2.7 Maxima and minima</h2>
+<p>At the top of a smooth hill the tangent is flat. If \(f\) has a maximum or minimum at an interior point \(x\) and is differentiable there, then \(f'(x) = 0\). The reverse is not true: \(x^3\) is flat at 0 and has neither. Points with \(f' = 0\) are <b>critical points</b>, the candidates.</p>
+<p>The second derivative sorts them. If \(f'(x) = 0\) and \(f''(x) &gt; 0\), the slope is increasing through zero, from downhill to uphill: a <b>minimum</b>. If \(f''(x) &lt; 0\), a <b>maximum</b>. If \(f''(x) = 0\), the test says nothing. On a closed interval \([a, b]\), also compare the values at the ends: the largest value may sit at an end where \(f' \ne 0\). (Functions with \(f'' \ge 0\) everywhere are the convex functions of <a href="11-convexity.html">chapter 11</a>; for them a critical point is always the global minimum.)</p>
+<p><b>Example: the mean.</b> Which single number \(c\) best stands for the numbers \(k_1, \dots, k_n\), in the sense of least total squared distance \(f(c) = \sum_i (k_i - c)^2\)? Differentiate in \(c\):</p>
+\[ f'(c) = -2 \sum_{i=1}^{n} (k_i - c) = 0 \iff c = \frac{1}{n} \sum_{i=1}^{n} k_i, \qquad f''(c) = 2n &gt; 0. \]
+<p>The mean, and it is a minimum. This is why the representative of a cluster of keys is its mean \(\bar{k}_C\) (<a href="18-clustering.html#s2">section 18.2</a>; with vectors, the same computation runs coordinate by coordinate). <b>Example: a peak.</b> \(g(x) = x e^{-x}\) has \(g'(x) = (1 - x) e^{-x}\), zero at \(x = 1\), and \(g''(x) = (x - 2) e^{-x}\), which is \(-1/e &lt; 0\) there: a maximum, of value \(1/e\). (A brute-force scan in steps of \(10^{-4}\) agrees with both: for \(k = (0.3, 1.1, -0.4, 2.0, 0.9)\) the smallest \(f(c)\) is at \(c = 0.7800\), their mean; the largest \(x e^{-x}\) is 0.367879 at \(x = 1.0000\).)</p>
+<p>The optimal step \(h^*\) of <a href="#s5">section 2.5</a> came from the same recipe: set \(E'(h) = 0\) and solve.</p>
+
+<h2 id="s8">2.8 The mean value theorem</h2>
+<p>Drive 120 km in one hour and at some instant the speedometer read exactly 120 km/h. You cannot have been below it the whole time, nor above it.</p>
+<div class="box thm"><p><b>Theorem (mean value).</b> If \(f\) is continuous on \([a, b]\) and differentiable on \((a, b)\), then for some \(\xi\) strictly between \(a\) and \(b\),</p>
+\[ f'(\xi) = \frac{f(b) - f(a)}{b - a}. \]
+<p>Some tangent is parallel to the chord. Proof in <a href="refs.html#r-spivak">[spivak]</a> and <a href="refs.html#r-openstax">[openstax]</a> (volume 1, section 4.4).</p></div>
+<p>The theorem never says where \(\xi\) is. Its use is that \(\xi\) is <em>somewhere</em> in the interval, so whatever bounds \(f'\) on the whole interval bounds the chord's slope:</p>
+<div class="box thm"><p><b>Corollary (slope bound).</b> If \(|f'| \le M\) on an interval, then for \(x, y\) in it</p>
+\[ |f(x) - f(y)| \le M \, |x - y|. \]</div>
+<p>Three consequences used later: if \(f' = 0\) everywhere on an interval then \(f\) is constant there; if \(f' &gt; 0\) then \(f\) is increasing (so \(e^x\) is, <a href="04-exp-log.html#s4">section 4.4</a>); and \(|\sin x - \sin y| \le |x - y|\), because \(|\cos| \le 1\).</p>
+<p>This is the paper's style of bound. In a cluster \(C\), every token's logit \(s_i\) is within \(\delta_C\) of the representative's logit \(s_C\). Between them \((e^s)' = e^s \le e^{s_C + \delta_C}\), so</p>
+\[ \left| e^{s_i} - e^{s_C} \right| \le e^{s_C} \, e^{\delta_C} \, |s_i - s_C| \le e^{s_C} \, e^{\delta_C} \, \delta_C. \]
+<p>Each token's weight is its representative's weight, up to a relative error of \(e^{\delta_C} \delta_C\). Small spread, small error, whatever the keys are. The bound is sharp: over a million random \((s_C, \delta_C, s_i)\) the ratio of the left side to the middle one never exceeds 1, and its largest value is 0.999999, approached when \(\delta_C\) is tiny, so that \(e^s\) is nearly a straight line over the interval.</p>
+<p>For a whole cluster the paper does better than this term-by-term bound: the errors of the tokens above and below the mean partly cancel, and the result is \(\cosh \delta_C - 1 \approx \delta_C^2/2\) instead of \(\approx \delta_C\) (<a href="04-exp-log.html#s6">section 4.6</a>, <a href="19-refinekv-bound.html#s4">section 19.4</a>).</p>
+
+<h2 id="exercises">Exercises</h2>
+<ol class="ex">
+<li>From the definition, find the derivative of \(x^3\).
+<details><summary>Answer</summary><p>\(\dfrac{(x+h)^3 - x^3}{h} = \dfrac{3x^2 h + 3x h^2 + h^3}{h} = 3x^2 + 3xh + h^2 \to 3x^2\).</p></details></li>
+<li>Differentiate \(\dfrac{x}{1 + x^2}\). Where is it largest for \(x \ge 0\)?
+<details><summary>Answer</summary><p>Quotient rule: \(\dfrac{(1 + x^2) - x \cdot 2x}{(1 + x^2)^2} = \dfrac{1 - x^2}{(1 + x^2)^2}\). It is zero at \(x = 1\), positive before and negative after: the maximum is \(1/2\) at \(x = 1\).</p></details></li>
+<li>The logistic function is \(\sigma(x) = \dfrac{1}{1 + e^{-x}}\). Show that \(\sigma'(x) = \sigma(x)(1 - \sigma(x))\).
+<details><summary>Answer</summary><p>Chain rule on \(u^{-1}\) with \(u = 1 + e^{-x}\): \(\sigma' = -u^{-2} \cdot (-e^{-x}) = \dfrac{e^{-x}}{(1 + e^{-x})^2} = \dfrac{1}{1 + e^{-x}} \cdot \dfrac{e^{-x}}{1 + e^{-x}} = \sigma (1 - \sigma)\). Training code uses this: the derivative costs one multiply once \(\sigma\) is known.</p></details></li>
+<li>Differentiate \(\sin\) at 1 with the forward difference in <code>float</code>. Which \(h\) is best, and how many digits are right?
+<details><summary>Answer</summary><p>Theory says \(h^*\) near \(\sqrt{\varepsilon_f} = \sqrt{1.2 \times 10^{-7}} \approx 3.5 \times 10^{-4}\), with an error of the same order. A scan of \(h = 2^{-k/4}\) finds the best at \(h \approx 2 \times 10^{-4}\) with relative error \(1.6 \times 10^{-5}\): four or five digits, on a lucky step. Never trust more than three.</p></details></li>
+<li><code>rsqrtps</code> approximates \(1/\sqrt{a}\). Derive Newton's step for \(f(x) = 1/x^2 - a\) and show it needs no division or square root.
+<details><summary>Answer</summary><p>\(f'(x) = -2/x^3\), so \(x - \dfrac{1/x^2 - a}{-2/x^3} = x + \dfrac{x - a x^3}{2} = \dfrac{x (3 - a x^2)}{2}\): multiplies and a subtract (the halving is an exponent decrement). From 12 bits the errors are \(2.4 \times 10^{-4}\), \(8.9 \times 10^{-8}\), \(1.2 \times 10^{-14}\): quadratic again.</p></details></li>
+<li>With weights \(w_i &gt; 0\) summing to 1, which \(c\) minimizes \(\sum_i w_i (k_i - c)^2\)? What does this say about the output of attention?
+<details><summary>Answer</summary><p>\(f'(c) = -2 \sum_i w_i (k_i - c) = 0\) gives \(c = \sum_i w_i k_i\), the weighted mean, and \(f'' = 2 \sum_i w_i &gt; 0\). Attention's output \(\sum_i \alpha_i v_i\) is a weighted mean of the values, so it is the point closest, in weighted squared distance, to all of them (<a href="16-attention.html#s2">section 16.2</a>).</p></details></li>
+<li>Let \(|x_i| \le \delta\) for each \(i\), and \(m = \frac{1}{n} \sum_i e^{x_i}\). Use the slope bound to show \(|m - 1| \le e^{\delta} \delta\). For \(x = (-0.1, 0.05, 0.08, -0.03)\), compare \(m - 1\), \(e^{\delta}\delta\) and \(\cosh \delta - 1\) with \(\delta = 0.1\).
+<details><summary>Answer</summary><p>On \([-\delta, \delta]\), \((e^x)' \le e^{\delta}\), so \(|e^{x_i} - 1| = |e^{x_i} - e^0| \le e^{\delta} |x_i| \le e^{\delta} \delta\); averaging keeps the bound. The numbers: \(m - 1 = 0.00246\), \(e^{\delta}\delta = 0.1105\), \(\cosh \delta - 1 = 0.0050\). These \(x_i\) average to 0, which is the paper's setting, and there the cosh bound of <a href="04-exp-log.html#s6">section 4.6</a> is twenty times tighter.</p></details></li>
+</ol>
+
+<h2 id="references">References</h2>
+<ul>
+<li><a href="refs.html#r-openstax">[openstax]</a> Volume 1, chapter 3 (derivatives, the rules, the chain rule) and chapter 4 (linear approximation, maxima and minima, the mean value theorem, Newton's method).</li>
+<li><a href="refs.html#r-spivak">[spivak]</a> Proofs of the chain rule and the mean value theorem.</li>
+<li><a href="refs.html#r-burden">[burden]</a> Numerical differentiation and its error with rounding; Newton's method and its order of convergence.</li>
+<li><a href="refs.html#r-nr">[nr]</a> Numerical derivatives: choosing \(h\), and making the step exactly representable.</li>
+<li><a href="refs.html#r-intel-sdm">[intel-sdm]</a> Volume 2, the <code>RCPPS</code> and <code>RSQRTPS</code> instructions and their error bound.</li>
+<li><a href="refs.html#r-refinekv">[refinekv]</a> Appendix A: bounds of the form &ldquo;change in output at most a function of the logit spread \(\delta_C\)&rdquo;.</li>
+</ul>
+<hr>
+<p class="nav"><a rel="prev" href="01-limits.html">&larr; 1. Numbers, functions and limits</a> &middot; <a href="./">Contents</a> &middot; <a rel="next" href="03-integrals.html">3. Integrals &rarr;</a></p>
+</body>
+</html>
