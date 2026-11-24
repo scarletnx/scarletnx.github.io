@@ -9,13 +9,72 @@
   <body>
     <center>
       <img src="https://raw.githubusercontent.com/scarletnx/ScarletNX/refs/heads/main/dist/wimsy.svg" alt="Wimsy, the mascot of ScarletNX">
+      <h1>ScarletNX</h1>
+      <p>
+        <i>
+          If a Switch is an ARM64-verse.<br>
+          Then ScarletNX is FEX but in reverse.
+        </i>
+      </p>
+      <p>
+        ScarletNX is a static recompiler for Switch and Linux ARM programs.<br>
+        Runs on FreeBSD, Android, Windows, Linux, Solaris, NetBSD, OpenBSD, DragonFlyBSD, and AIX!<br>
+        Runs on x86_64, aarch64, powerpc64le, riscv64, mips64, loongarch64, sparc64, and DEC Alpha!<br>
+        Stay tuned on our Discord for updates.
+      </p>
       <h2>
         <a href="https://github.com/scarletnx/ScarletNX">Source code</a>
         -
         <a href="https://github.com/scarletnx/nightly/releases/latest">Nightly release</a>
         -
         <a href="https://discord.gg/tRTRXXbyjp">Discord</a>
+      </h2>
+
+      <h2>Getting started</h2>
+      <p>
+        <a href="manual/snx/user/install.html">Install</a>
         -
+        <a href="manual/snx/user/usage.html">Usage</a>
+        -
+        <a href="manual/snx/dev/build.html">Build from source</a>
+        -
+        <a href="https://github.com/scarletnx/ScarletNX/issues/new?template=game-report.yml">Report a game</a>
+      </p>
+
+      <h2>Downloads</h2>
+      <p>The latest builds of our CI:</p>
+      <table cellpadding="4">
+        <tr>
+          <th align="right">Windows</th>
+          <td><a href="https://github.com/scarletnx/nightly/releases/latest/download/ScarletNX-windows-x86_64.zip">x86_64</a></td>
+        </tr>
+        <tr>
+          <th align="right">Linux</th>
+          <td>
+            <a href="https://github.com/scarletnx/nightly/releases/latest/download/ScarletNX-linux-x86_64.AppImage">x86_64</a>
+            -
+            <a href="https://github.com/scarletnx/nightly/releases/latest/download/ScarletNX-linux-aarch64.AppImage">aarch64</a>
+            -
+            <a href="https://github.com/scarletnx/nightly/releases/latest/download/ScarletNX-linux-riscv64.AppImage">riscv64</a>
+            -
+            <a href="https://github.com/scarletnx/nightly/releases/latest/download/ScarletNX-linux-ppc64.AppImage">ppc64 (ELFv2)</a>
+            -
+            <a href="https://github.com/scarletnx/nightly/releases/latest/download/ScarletNX-linux-ppc64le.AppImage">ppc64le</a>
+            -
+            <a href="https://github.com/scarletnx/nightly/releases/latest/download/ScarletNX-linux-loongarch64.AppImage">loongarch64</a>
+          </td>
+        </tr>
+        <tr>
+          <th align="right">Android</th>
+          <td><a href="https://github.com/scarletnx/nightly/releases/latest/download/ScarletNX-android-universal.apk">x86_64, aarch64</a></td>
+        </tr>
+      </table>
+
+      <h2>Documentation</h2>
+      <p>
+        <a href="manual/snx/">ScarletNX documentation</a>: using, building and changing ScarletNX, its platforms and layers
+      </p>
+      <p>
         <a href="manual/">ARM ISA</a>
         -
         <a href="manual/sm53/">Maxwell ISA</a>
@@ -23,38 +82,10 @@
         <a href="manual/sm86/">Ampere ISA</a>
         -
         <a href="manual/nvn/">NVN API</a>
-        -
-        <a href="manual/cs-book/">From Derivatives to Attention</a>
-        <br>
-        <i>
-          If a Switch is an ARM64-verse.<br>
-          Then ScarletNX is FEX but in reverse.<br>
-        </i>
-        <br>
-        <p>
-          ScarletNX is a static recompiler for Switch and Linux ARM programs.<br>
-          Runs on FreeBSD, Android, Windows, Linux, Solaris, NetBSD, OpenBSD, DragonFlyBSD, and AIX!<br>
-          Runs on x86_64, aarch64, powerpc64le, riscv64, mips64, loongarch64, sparc64, and DEC Alpha!<br>
-          Stay tuned on our Discord for updates.<br>
-          <br>
-          We offer the following CI images:<br>
-          <a href="https://github.com/scarletnx/nightly/releases/latest/download/ScarletNX-windows-x86_64.zip">Windows x86_64</a><br>
-          <a href="https://github.com/scarletnx/nightly/releases/latest/download/ScarletNX-linux-x86_64.AppImage">Linux x86_64</a><br>
-          <a href="https://github.com/scarletnx/nightly/releases/latest/download/ScarletNX-linux-aarch64.AppImage">Linux aarch64</a><br>
-          <a href="https://github.com/scarletnx/nightly/releases/latest/download/ScarletNX-linux-riscv64.AppImage">Linux riscv64</a><br>
-          <a href="https://github.com/scarletnx/nightly/releases/latest/download/ScarletNX-linux-ppc64.AppImage">Linux ppc64 (ELFv2)</a><br>
-          <a href="https://github.com/scarletnx/nightly/releases/latest/download/ScarletNX-linux-ppc64le.AppImage">Linux ppc64le</a><br>>
-          <a href="https://github.com/scarletnx/nightly/releases/latest/download/ScarletNX-linux-loongarch64.AppImage">Linux loongarch64</a><br>
-          <a href="https://github.com/scarletnx/nightly/releases/latest/download/ScarletNX-android-universal.apk">Android (x86_64, aarch64)</a><br>
-          <br>
-          Getting started:<br>
-          <a href="https://github.com/scarletnx/ScarletNX/blob/main/docs/USAGE.md">Usage</a>
-          -
-          <a href="https://github.com/scarletnx/ScarletNX/blob/main/docs/BUILD.md">Build from source</a>
-          -
-          <a href="https://github.com/scarletnx/ScarletNX/issues/new?template=game-report.yml">Report a game</a><br>
-        </p>
-      </h2>
+      </p>
+      <p>
+        <a href="manual/cs-book/">From Derivatives to Attention</a>: mathematics for programmers
+      </p>
     </center>
   </body>
 </html>

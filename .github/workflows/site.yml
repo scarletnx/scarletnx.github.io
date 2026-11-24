@@ -1,7 +1,8 @@
-# The site made from its sources (tools/build-site.sh) and deployed to GitHub Pages from main: the ISA manuals and
-# the NVN API from ScarletNX's main (tools/gen-manual.py), the book from book/ (tools/gen-book.py, which compiles
-# and runs its programs). Every push and pull request builds and checks it; main deploys it, and again every day
-# for ScarletNX's changes. Nothing made is committed. The repository's Pages source is "GitHub Actions".
+# The site made from its sources (tools/build-site.sh) and deployed to GitHub Pages from main: the ISA manuals,
+# the NVN API (tools/gen-manual.py) and the documentation (tools/gen-docs.py) from ScarletNX's main, the book from
+# book/ (tools/gen-book.py, which compiles and runs its programs). Every push and pull request builds and checks
+# it; main deploys it, and again every day for ScarletNX's changes. Nothing made is committed. The repository's
+# Pages source is "GitHub Actions".
 name: Site
 on:
   push:
@@ -23,6 +24,7 @@ jobs:
       - run: sh tests/check-site.sh
       - run: sh tests/check-manual.sh
       - run: sh tests/check-book.sh
+      - run: sh tests/check-docs.sh
       - uses: actions/checkout@v5
         with:
           repository: scarletnx/ScarletNX
@@ -30,6 +32,7 @@ jobs:
           fetch-depth: 0
           filter: blob:none
           sparse-checkout: |
+            docs
             src/common/cpu/aarch64/sail
             src/common/cpu/arm/sail
             src/nx/gpu/shader

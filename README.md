@@ -28,6 +28,13 @@ python3 tools/gen-manual.py ~/ScarletNX
 
 `tests/check-manual.sh` makes it from `tests/sail`, a few instructions cut from that Sail.
 
+`manual/snx/` is ScarletNX's documentation, its `docs/` made into pages by `tools/gen-docs.py` from ScarletNX's
+`main` (`docs/README.md`, the documents' index, is its first page). A document too long for a 16 KB page is cut at
+its sections, then its subsections, then between its blocks, and its links go to the page that has the heading
+they name; links out of `docs/` go to the file in ScarletNX's repository at that commit. It reads the Markdown the
+documents use (headings, lists, fenced code, GitHub's tables, links, emphasis); other HTML in them is text.
+`tests/check-docs.sh` makes a few documents written for it and checks the pages.
+
 `manual/cs-book/` is a book, *From Derivatives to Attention*: mathematics for programmers, from derivatives, ODEs
 and integrals to what the paper RefineKV (arXiv:2611.28171) needs (linear algebra, norms and inequalities, convexity,
 probability and statistics, floating point, softmax, attention and the KV cache), with C programs where they show something,
