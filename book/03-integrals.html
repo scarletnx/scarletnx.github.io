@@ -1,0 +1,141 @@
+<h1>3. Integrals</h1>
+<p>An integral is a sum over a continuum: the area under a curve, cut into thin strips and added up. In a program it is a loop with an accumulator. This chapter defines it, connects it to the derivative (they undo each other, the way a prefix sum and an adjacent difference do), gives the two hand techniques worth knowing, and ends with the numerical rules that compute it when no formula does. The book needs integrals for two things: the solutions of differential equations (<a href="06-odes.html">chapter 6</a>) and densities, the continuous form of a probability distribution (<a href="12-probability.html#s8">section 12.8</a>). There an integral is a <em>weighted average</em>, the continuous twin of the softmax-weighted sum at the heart of attention.</p>
+
+<h2 id="s1">3.1 Area as a sum</h2>
+<p>To find the area under \(f\) between \(a\) and \(b\), cut \([a, b]\) into \(n\) strips of width \(h = (b - a)/n\). Over each strip, pretend \(f\) is constant and take a rectangle: height \(f\) at some point of the strip, width \(h\). Add the rectangles:</p>
+\[ \sum_{i=0}^{n-1} f(x_i^*) \, h, \qquad x_i^* \in [a + i h, \, a + (i+1) h]. \]
+<p>This is a <b>Riemann sum</b>. Taking \(x_i^*\) at the left end of each strip gives the left sum, at the right end the right sum, in the middle the midpoint sum.</p>
+<figure>
+<svg viewBox="0 0 360 220" width="360" height="220" role="img" aria-label="Eight midpoint rectangles under a curve">
+<rect x="60" y="103.3" width="32.5" height="86.7" fill="#4a7fc1" fill-opacity="0.25" stroke="#4a7fc1"/>
+<rect x="92.5" y="83.8" width="32.5" height="106.2" fill="#4a7fc1" fill-opacity="0.25" stroke="#4a7fc1"/>
+<rect x="125" y="71.7" width="32.5" height="118.3" fill="#4a7fc1" fill-opacity="0.25" stroke="#4a7fc1"/>
+<rect x="157.5" y="68.7" width="32.5" height="121.3" fill="#4a7fc1" fill-opacity="0.25" stroke="#4a7fc1"/>
+<rect x="190" y="75.2" width="32.5" height="114.8" fill="#4a7fc1" fill-opacity="0.25" stroke="#4a7fc1"/>
+<rect x="222.5" y="89.5" width="32.5" height="100.5" fill="#4a7fc1" fill-opacity="0.25" stroke="#4a7fc1"/>
+<rect x="255" y="108.8" width="32.5" height="81.2" fill="#4a7fc1" fill-opacity="0.25" stroke="#4a7fc1"/>
+<rect x="287.5" y="129.5" width="32.5" height="60.5" fill="#4a7fc1" fill-opacity="0.25" stroke="#4a7fc1"/>
+<line x1="30" y1="190" x2="350" y2="190" stroke="currentColor"/>
+<line x1="40" y1="205" x2="40" y2="10" stroke="currentColor"/>
+<polyline fill="none" stroke="currentColor" stroke-width="2" points="45,126.2 50,122.4 55,118.6 60,114.9 65,111.3 70,107.7 75,104.2 80,100.8 85,97.5 90,94.3 95,91.3 100,88.4 105,85.7 110,83.2 115,80.8 120,78.6 125,76.7 130,74.9 135,73.3 140,72 145,70.8 150,69.9 155,69.3 160,68.8 165,68.6 170,68.6 175,68.8 180,69.3 185,69.9 190,70.8 195,71.9 200,73.3 205,74.8 210,76.5 215,78.3 220,80.4 225,82.6 230,85 235,87.5 240,90.2 245,92.9 250,95.8 255,98.8 260,101.8 265,104.9 270,108 275,111.2 280,114.4 285,117.6 290,120.8 295,124 300,127.2 305,130.2 310,133.2 315,136.2 320,139 325,141.7 330,144.3 335,146.8 340,149.1 345,151.3"/>
+<text x="60" y="205" font-size="12" text-anchor="middle" fill="currentColor">a</text>
+<text x="320" y="205" font-size="12" text-anchor="middle" fill="currentColor">b</text>
+<text x="157.5" y="205" font-size="12" text-anchor="middle" fill="#4a7fc1">h</text>
+<text x="335" y="138.8" font-size="12" text-anchor="end" fill="currentColor">f</text>
+</svg>
+<figcaption>Figure 3.1. A midpoint sum with \(n = 8\). Each rectangle has the height of the curve at the middle of its strip. Where the curve rises over a strip, the rectangle loses a small triangle on one side and gains one on the other.</figcaption>
+</figure>
+<p>As \(n\) grows the rectangles hug the curve better. For \(f(x) = x^2\) on \([0, 1]\) the area is \(1/3\) (section 3.3 shows why), and the three sums give:</p>
+<table class="t">
+<tr><th>\(n\)</th><th>left</th><th>right</th><th>midpoint</th><th>midpoint error</th></tr>
+<tr><td class="n">10</td><td class="n">0.2850000000</td><td class="n">0.3850000000</td><td class="n">0.3325000000</td><td class="n">\(-8.3 \times 10^{-4}\)</td></tr>
+<tr><td class="n">100</td><td class="n">0.3283500000</td><td class="n">0.3383500000</td><td class="n">0.3333250000</td><td class="n">\(-8.3 \times 10^{-6}\)</td></tr>
+<tr><td class="n">1000</td><td class="n">0.3328335000</td><td class="n">0.3338335000</td><td class="n">0.3333332500</td><td class="n">\(-8.3 \times 10^{-8}\)</td></tr>
+</table>
+<p>The left and right sums are off by about \(1/(2n)\) in opposite directions: their error is \(O(h)\). The midpoint sum is off by \(1/(12 n^2)\): ten times more strips, a hundred times less error, \(O(h^2)\). The triangles in the figure explain it: at the midpoint, what the rectangle gains on one side it loses on the other, to first order. It is the same cancellation that made the central difference better than the forward one (<a href="02-derivatives.html#s5">section 2.5</a>).</p>
+
+<h2 id="s2">3.2 The definite integral</h2>
+<div class="box def"><p><b>Definition.</b> The <b>definite integral</b> of \(f\) over \([a, b]\) is the limit of its Riemann sums as the strip width goes to 0,</p>
+\[ \int_a^b f(x) \, dx = \lim_{h \to 0} \sum_i f(x_i^*) \, h, \]
+<p>when the limit exists and does not depend on the choice of the points \(x_i^*\). It exists for every continuous \(f\) on \([a, b]\) <a href="refs.html#r-spivak">[spivak]</a>.</p></div>
+<p>Read \(\int\) as a stretched S, for sum, and \(dx\) as the width \(h\) in the limit. The \(x\) is a loop variable: \(\int_a^b f(x)\,dx\) and \(\int_a^b f(t)\,dt\) are the same number. Where \(f\) is negative the rectangles have negative height, so the integral is a <em>signed</em> area: \(\int_0^{2\pi} \sin x \, dx = 0\).</p>
+<p>Properties that follow from the sums, each the obvious fact about a loop:</p>
+<ul>
+<li><b>Linear:</b> \(\int (c f + g) = c \int f + \int g\).</li>
+<li><b>Additive over intervals:</b> \(\int_a^b f + \int_b^c f = \int_a^c f\). (One loop split into two.)</li>
+<li><b>Monotone:</b> if \(f \le g\) on \([a, b]\) then \(\int_a^b f \le \int_a^b g\). In particular \(m (b - a) \le \int_a^b f \le M (b - a)\) when \(m \le f \le M\), and \(\left|\int_a^b f\right| \le \int_a^b |f|\).</li>
+</ul>
+<p><b>The integral as an average.</b> The mean of an array is its sum divided by its length. The mean of \(f\) over \([a, b]\) is its integral divided by the length:</p>
+\[ \bar{f} = \frac{1}{b - a} \int_a^b f(x) \, dx. \]
+<p>The mean of \(\sin\) over \([0, \pi]\) is \(2/\pi \approx 0.637\). More generally, if \(w(x) \ge 0\) and \(\int w = 1\), then \(\int f(x)\, w(x)\, dx\) is the average of \(f\) weighted by \(w\): the continuous form of \(\sum_i \alpha_i v_i\) with \(\alpha_i \ge 0\), \(\sum_i \alpha_i = 1\). A \(w\) like that is a <b>probability density</b>, and the weighted average is an expectation (<a href="12-probability.html#s8">section 12.8</a>). The monotone property above says such an average lies between the smallest and largest value of \(f\), exactly as a convex combination of numbers does (<a href="08-vectors.html#s2">section 8.2</a>).</p>
+
+<h2 id="s3">3.3 The fundamental theorem</h2>
+<p>Integrals and derivatives undo each other. You know this from arrays. Given <code>f[]</code>, its prefix sum <code>F[i] = f[0] + ... + f[i-1]</code> has adjacent difference <code>F[i+1] - F[i] = f[i]</code>, and a range sum is a difference of two prefix sums: <code>f[a] + ... + f[b-1] = F[b] - F[a]</code>. The continuous version:</p>
+<div class="box thm"><p><b>Theorem (fundamental theorem of calculus).</b> Let \(f\) be continuous on \([a, b]\).</p>
+<p>1. The running integral \(F(x) = \int_a^x f(t)\, dt\) is differentiable and \(F'(x) = f(x)\).</p>
+<p>2. If \(G\) is any function with \(G' = f\) on \([a, b]\), then \(\displaystyle \int_a^b f(x)\, dx = G(b) - G(a)\).</p>
+<p>Proofs in <a href="refs.html#r-spivak">[spivak]</a> and <a href="refs.html#r-openstax">[openstax]</a> (volume 1, section 5.3).</p></div>
+<p>Why part 1 holds: \(F(x + h) - F(x)\) is the area of one thin strip, about \(f(x) \cdot h\); divide by \(h\) and let \(h \to 0\). Part 2 follows: \(F\) and \(G\) have the same derivative, so by the mean value theorem (<a href="02-derivatives.html#s8">section 2.8</a>) they differ by a constant, which cancels in \(G(b) - G(a)\).</p>
+<p>So an area becomes an evaluation. \((x^3/3)' = x^2\), hence \(\int_0^1 x^2 \, dx = \tfrac13 - 0 = \tfrac13\), the limit section 3.1 was approaching. \((-\cos x)' = \sin x\), hence \(\int_0^\pi \sin x \, dx = -\cos \pi + \cos 0 = 2\). The notation \([G(x)]_a^b\) means \(G(b) - G(a)\).</p>
+<p>Part 1 also gives functions that have no formula. \(F(x) = \int_0^x e^{-t^2} dt\) is not built from exp, powers and the like, but it is a perfectly good function with \(F'(x) = e^{-x^2}\); up to a factor it is the error function <code>erf</code> of <code>&lt;math.h&gt;</code>. Numerically (with Simpson's rule, <a href="#s7">section 3.7</a>), the central difference of \(F\) at 0.8 is 0.5272924, and \(e^{-0.64} = 0.5272924\). The same check confirms \(\int_0^\pi \sin x\,dx = 2\) and the examples of the next two sections to 12 digits.</p>
+
+<h2 id="s4">3.4 Antiderivatives and substitution</h2>
+<p>A function \(G\) with \(G' = f\) is an <b>antiderivative</b> of \(f\), written \(\int f(x)\,dx = G(x) + C\): defined up to a constant \(C\), since constants have derivative 0. Reading the table of derivatives (<a href="02-derivatives.html#s2">section 2.2</a>) right to left gives</p>
+\[ \begin{aligned} \int x^n dx &amp;= \frac{x^{n+1}}{n + 1} + C \;\; (n \ne -1), &amp; \int \frac{dx}{x} &amp;= \ln |x| + C, &amp; \int e^x dx &amp;= e^x + C, \\ \int \sin x \, dx &amp;= -\cos x + C, &amp; \int \cos x \, dx &amp;= \sin x + C. \end{aligned} \]
+<p>Differentiating is mechanical; antidifferentiating is a search. There is no product rule or chain rule to run backwards automatically, and many simple functions (\(e^{-x^2}\), \(\sin(x)/x\)) have no antiderivative built from the usual functions at all. Two techniques cover most cases that do.</p>
+<p><b>Substitution</b> is the chain rule backwards. Since \(\big(G(g(x))\big)' = G'(g(x))\, g'(x)\),</p>
+\[ \int_a^b f(g(x))\, g'(x)\, dx = \int_{g(a)}^{g(b)} f(u)\, du. \]
+<p>In practice: spot an inner function \(u = g(x)\) whose derivative also appears as a factor, write \(du = g'(x)\,dx\), and change the limits. Example: in \(\int_0^1 2x\, e^{x^2} dx\), put \(u = x^2\), \(du = 2x\,dx\), and the limits 0, 1 stay 0, 1:</p>
+\[ \int_0^1 2x\, e^{x^2} dx = \int_0^1 e^u \, du = e - 1. \]
+<p>The same move gives \(\int x\, e^{-x^2/2} dx = -e^{-x^2/2} + C\) (with \(u = -x^2/2\)), which is what makes the normal distribution's mean and variance computable (<a href="12-probability.html#s8">section 12.8</a>). A linear substitution \(u = c x\) gives the rule for scales: \(\int f(cx)\, dx = \frac{1}{c} G(cx) + C\).</p>
+
+<h2 id="s5">3.5 Integration by parts</h2>
+<p>The product rule \((fg)' = f'g + fg'\), integrated over \([a, b]\) with the fundamental theorem, gives</p>
+\[ \int_a^b f(x)\, g'(x)\, dx = \big[ f(x) g(x) \big]_a^b - \int_a^b f'(x)\, g(x)\, dx. \]
+<p>It trades one integral for another; it helps when \(f'\) is simpler than \(f\) and \(g'\) is easy to integrate. Example: with \(f = x\), \(g' = e^x\) (so \(f' = 1\), \(g = e^x\)),</p>
+\[ \int_0^1 x e^x dx = \big[x e^x\big]_0^1 - \int_0^1 e^x dx = e - (e - 1) = 1. \]
+<p>And \(\ln\), which looks hopeless, falls to \(f = \ln x\), \(g' = 1\): \(\int_1^e \ln x \, dx = [x \ln x]_1^e - \int_1^e x \cdot \frac{1}{x} dx = e - (e - 1) = 1\). Both are checked in the program of section 3.3. The discrete twin, summation by parts, rearranges sums the same way <a href="refs.html#r-gkp">[gkp]</a>.</p>
+
+<h2 id="s6">3.6 Improper integrals</h2>
+<p>An integral over an infinite range is the limit of integrals over finite ones:</p>
+\[ \int_a^\infty f(x)\, dx = \lim_{R \to \infty} \int_a^R f(x)\, dx, \]
+<p>if the limit exists (the integral <b>converges</b>). The area of an infinitely long region can be finite, if the curve falls fast enough:</p>
+\[ \int_0^\infty e^{-x} dx = \lim_{R \to \infty} \big[-e^{-x}\big]_0^R = \lim_{R \to \infty} (1 - e^{-R}) = 1, \qquad \int_1^\infty \frac{dx}{x^2} = \lim_{R \to \infty} \left(1 - \frac{1}{R}\right) = 1. \]
+<p>But \(\int_1^\infty dx/x = \lim \ln R = \infty\): \(1/x\) falls too slowly. Between them is the dividing line: \(\int_1^\infty x^{-p} dx\) converges exactly when \(p &gt; 1\), the same rule as for \(\sum 1/n^p\) (<a href="05-series.html#s1">section 5.1</a>).</p>
+<p>The integral the normal distribution rests on is over the whole line:</p>
+\[ \int_{-\infty}^{\infty} e^{-x^2/2} dx = \sqrt{2\pi}. \]
+<figure>
+<svg viewBox="0 0 360 170" width="360" height="170" role="img" aria-label="The bell curve e to the minus x squared over 2, its whole area shaded">
+<polygon points="12,145 12,145 16,145 20,145 24,144.9 28,144.9 32,144.9 36,144.8 40,144.7 44,144.6 48,144.5 52,144.3 56,144 60,143.7 64,143.2 68,142.6 72,141.9 76,140.9 80,139.7 84,138.3 88,136.5 92,134.3 96,131.8 100,128.8 104,125.3 108,121.3 112,116.7 116,111.6 120,106 124,100 128,93.5 132,86.6 136,79.5 140,72.2 144,65 148,57.9 152,51.1 156,44.8 160,39.1 164,34.2 168,30.3 172,27.4 176,25.6 180,25 184,25.6 188,27.4 192,30.3 196,34.2 200,39.1 204,44.8 208,51.1 212,57.9 216,65 220,72.2 224,79.5 228,86.6 232,93.5 236,100 240,106 244,111.6 248,116.7 252,121.3 256,125.3 260,128.8 264,131.8 268,134.3 272,136.5 276,138.3 280,139.7 284,140.9 288,141.9 292,142.6 296,143.2 300,143.7 304,144 308,144.3 312,144.5 316,144.6 320,144.7 324,144.8 328,144.9 332,144.9 336,144.9 340,145 344,145 348,145 348,145" fill="#3f9a55" fill-opacity="0.25"/>
+<line x1="10" y1="145" x2="350" y2="145" stroke="currentColor"/>
+<line x1="180" y1="155" x2="180" y2="15" stroke="currentColor"/>
+<polyline fill="none" stroke="currentColor" stroke-width="2" points="12,145 16,145 20,145 24,144.9 28,144.9 32,144.9 36,144.8 40,144.7 44,144.6 48,144.5 52,144.3 56,144 60,143.7 64,143.2 68,142.6 72,141.9 76,140.9 80,139.7 84,138.3 88,136.5 92,134.3 96,131.8 100,128.8 104,125.3 108,121.3 112,116.7 116,111.6 120,106 124,100 128,93.5 132,86.6 136,79.5 140,72.2 144,65 148,57.9 152,51.1 156,44.8 160,39.1 164,34.2 168,30.3 172,27.4 176,25.6 180,25 184,25.6 188,27.4 192,30.3 196,34.2 200,39.1 204,44.8 208,51.1 212,57.9 216,65 220,72.2 224,79.5 228,86.6 232,93.5 236,100 240,106 244,111.6 248,116.7 252,121.3 256,125.3 260,128.8 264,131.8 268,134.3 272,136.5 276,138.3 280,139.7 284,140.9 288,141.9 292,142.6 296,143.2 300,143.7 304,144 308,144.3 312,144.5 316,144.6 320,144.7 324,144.8 328,144.9 332,144.9 336,144.9 340,145 344,145 348,145"/>
+<text x="60" y="160" font-size="12" text-anchor="middle" fill="currentColor">&#8722;3</text>
+<text x="100" y="160" font-size="12" text-anchor="middle" fill="currentColor">&#8722;2</text>
+<text x="140" y="160" font-size="12" text-anchor="middle" fill="currentColor">&#8722;1</text>
+<text x="220" y="160" font-size="12" text-anchor="middle" fill="currentColor">1</text>
+<text x="260" y="160" font-size="12" text-anchor="middle" fill="currentColor">2</text>
+<text x="300" y="160" font-size="12" text-anchor="middle" fill="currentColor">3</text>
+<text x="228" y="55" font-size="12" text-anchor="start" fill="currentColor">e^(&#8722;x&#178;/2)</text>
+<text x="180" y="109" font-size="12" text-anchor="middle" fill="#3f9a55">area &#8730;(2&#960;)</text>
+</svg>
+<figcaption>Figure 3.2. The bell curve \(e^{-x^2/2}\). The whole shaded area is \(\sqrt{2\pi} \approx 2.5066\). Almost all of it lies within \(\pm 4\).</figcaption>
+</figure>
+<p>\(e^{-x^2/2}\) has no elementary antiderivative, so the fundamental theorem cannot do this one. The standard proof squares the integral, reads it as a volume over the plane, and switches to polar coordinates, where the substitution of section 3.4 works <a href="refs.html#r-openstax">[openstax]</a> (volume 3, double integrals in polar coordinates) <a href="refs.html#r-blitzstein">[blitzstein]</a>. Dividing by \(\sqrt{2\pi}\) gives the standard normal density, whose total weight is 1 (<a href="12-probability.html#s8">section 12.8</a>). Numerically a finite range does it, because the tails die fast. \(\int_{-R}^{R} e^{-x^2/2} dx\) is 1.7112 for \(R = 1\), 2.3926 for \(R = 2\), 2.506469 for \(R = 4\), and 2.506628274631 for \(R = 8\), which is \(\sqrt{2\pi}\) to all 12 digits: the tail beyond 8 is below \(e^{-32}\). Compare \(\int_0^R e^{-x} dx = 1 - e^{-R}\), whose tail \(e^{-R}\) shrinks much more slowly (0.99966 at \(R = 8\)), and \(\int_1^R dx/x = \ln R\), 3.4657 at \(R = 32\) and still growing.</p>
+
+<h2 id="s7">3.7 Numerical integration</h2>
+<p>When there is no antiderivative, or \(f\) is a program, the integral is computed from samples \(f_i = f(a + i h)\), \(i = 0, \dots, n\). Two rules <a href="refs.html#r-burden">[burden]</a>:</p>
+<ul>
+<li><b>Trapezoid.</b> Join the samples by straight lines and add the trapezoids: \(T = h \left( \tfrac12 f_0 + f_1 + \dots + f_{n-1} + \tfrac12 f_n \right)\). Exact for straight lines. Error about \(-\tfrac{1}{12}(b - a) h^2 f''\): \(O(h^2)\).</li>
+<li><b>Simpson.</b> Fit a parabola through each three consecutive samples (\(n\) even): \(S = \tfrac{h}{3} \left( f_0 + 4 f_1 + 2 f_2 + 4 f_3 + \dots + 4 f_{n-1} + f_n \right)\). Exact for cubics (one degree more than it was built for, by symmetry). Error about \(-\tfrac{1}{180}(b - a) h^4 f^{(4)}\): \(O(h^4)\).</li>
+</ul>
+<p>The order shows in what happens when \(h\) halves: an \(O(h^p)\) error drops by \(2^p\). Halving \(h\) should divide the trapezoid error by 4 and Simpson's by 16. On \(\int_0^1 e^x dx = e - 1\):</p>
+<!--prog quad.c recorded-->
+<p>How it maps to the formulas. <code>h = 1.0 / n</code> is \(h = (b - a)/n\) with \([a, b] = [0, 1]\); the loop visits the interior samples \(x_i = ih\), \(i = 1, \dots, n - 1\), and both sums start from the endpoints. The trapezoid sum <code>t</code> gives the ends weight \(\tfrac12\) and every interior point weight 1, because each interior point is the right end of one trapezoid and the left end of the next, and each trapezoid gives its two ends \(\tfrac{h}{2}\). Simpson's <code>s</code> gives odd \(i\) weight 4 and even interior \(i\) weight 2: each pair of strips \([x_{2j}, x_{2j+2}]\) is a parabola through three points, whose integral is \(\tfrac{h}{3}(f_{2j} + 4 f_{2j+1} + f_{2j+2})\), and neighbouring pairs share the endpoint \(x_{2j+2}\), so it collects \(1 + 1 = 2\). That is also why \(n\) must be even, here a power of 2: the strips come in pairs. The common factors \(h\) and \(h/3\) are applied once at the end rather than per term. The ratio printed is error at \(n/2\) over error at \(n\), the \(2^p\) the order predicts. The test integrand \(e^x\) is smooth, with all derivatives between 1 and \(e\), so the asymptotic error formulas apply from the start.</p>
+<p>The ratios settle at 4.00 and 16.00. Simpson's error at 512 strips is \(10^{-13}\), and the last ratio, 15.83, is the first sign of rounding: the sum's own floating-point error (<a href="14-floating-point.html#s5">section 14.5</a>) is starting to matter. The same table is a practical tool. Compute with \(n\) and \(2n\) strips; the ratio of the changes tells you whether the rule is in its asymptotic regime, and the last change estimates the remaining error. Richardson extrapolation and Romberg integration automate this <a href="refs.html#r-burden">[burden]</a>.</p>
+<div class="box warn"><p><b>Watch out.</b> The \(O(h^4)\) promise needs a smooth \(f\): it is a statement about \(f^{(4)}\). At a kink or a jump (an <code>if</code> in the function) Simpson degrades to the accuracy of the crudest rule, and the halving ratios stop being 16. Integrate piecewise, splitting at the kink.</p></div>
+
+<h2 id="exercises">Exercises</h2>
+<ol class="ex">
+<li>Compute \(\int_0^2 (3x^2 - 2x)\, dx\).
+<details><summary>Answer</summary><p>\([x^3 - x^2]_0^2 = 8 - 4 = 4\).</p></details></li>
+<li>Compute \(\int_0^\infty x\, e^{-x^2/2}\, dx\).
+<details><summary>Answer</summary><p>Substitute \(u = x^2/2\), \(du = x\,dx\): \(\int_0^\infty e^{-u} du = 1\).</p></details></li>
+<li>Compute \(\int_0^\infty x\, e^{-x}\, dx\). (It is the mean waiting time of an exponential distribution.)
+<details><summary>Answer</summary><p>By parts with \(f = x\), \(g' = e^{-x}\): \([-x e^{-x}]_0^\infty + \int_0^\infty e^{-x} dx = 0 + 1 = 1\).</p></details></li>
+<li>The paper bounds the average of \(e^{x_i}\) over a cluster's logit deviations \(x_i \in [-\delta, \delta]\) by \(\cosh \delta\). If instead the deviations were spread evenly over \([-\delta, \delta]\), what would the average of \(e^x\) be? Compare at \(\delta = 1\).
+<details><summary>Answer</summary><p>\(\dfrac{1}{2\delta} \int_{-\delta}^{\delta} e^x dx = \dfrac{e^\delta - e^{-\delta}}{2\delta} = \dfrac{\sinh \delta}{\delta}\) (<a href="04-exp-log.html#s5">section 4.5</a>). At \(\delta = 1\): \(1.1752\) against \(\cosh 1 = 1.5431\). The cosh bound is the worst case, all deviations at the ends (<a href="04-exp-log.html#s6">section 4.6</a>); for small \(\delta\) the even spread gives \(1 + \delta^2/6\), a third of the worst-case excess \(\delta^2/2\).</p></details></li>
+<li>With \(n\) strips, let \(M\) be the midpoint sum and \(T\) the trapezoid sum. Show numerically that \((2M + T)/3\) is Simpson's rule with \(2n\) strips, and that the midpoint error is about \(-\tfrac12\) times the trapezoid error. Why does the combination cancel the \(h^2\) error?
+<details><summary>Answer</summary><p>For \(\int_0^1 e^x\) with \(n = 8\), both give 1.718281974051892, and \((M - I)/(T - I) = -0.4999\). Since \(M \approx I - E/2\) and \(T \approx I + E\), \((2M + T)/3 \approx I + (-E + E)/3 = I\): the leading errors cancel. Writing out the weights shows it is exactly Simpson's \(1, 4, 2, 4, \dots\) pattern on the finer grid.</p></details></li>
+<li>From the table of section 3.7, about how many strips does each rule need for an error of \(10^{-10}\) on \(\int_0^1 e^x dx\)? What does that say about cost?
+<details><summary>Answer</summary><p>Simpson: between 64 (\(5.7 \times 10^{-10}\)) and 128 (\(3.6 \times 10^{-11}\)), about 100. Trapezoid: the error is \(3.6 \times 10^{-2}\) at \(n = 2\) and falls as \(1/n^2\), so \(n \approx 2 \sqrt{3.6 \times 10^{-2} / 10^{-10}} \approx 38000\). Same loop, same cost per sample, 400 times fewer samples: order matters more than constant factors.</p></details></li>
+</ol>
+
+<h2 id="references">References</h2>
+<ul>
+<li><a href="refs.html#r-openstax">[openstax]</a> Volume 1, chapter 5 (Riemann sums, the definite integral, the fundamental theorem, substitution); volume 2, chapter 3 (integration by parts, numerical integration, improper integrals); volume 3, double integrals in polar coordinates.</li>
+<li><a href="refs.html#r-spivak">[spivak]</a> Integrals, existence for continuous functions, and the fundamental theorem, with proofs.</li>
+<li><a href="refs.html#r-burden">[burden]</a> The trapezoid and Simpson rules with their error terms, Richardson extrapolation and Romberg integration.</li>
+<li><a href="refs.html#r-gkp">[gkp]</a> Chapter 2: sums, finite calculus and summation by parts, the discrete side of this chapter.</li>
+<li><a href="refs.html#r-blitzstein">[blitzstein]</a> The normal distribution and its normalizing constant \(\sqrt{2\pi}\).</li>
+</ul>

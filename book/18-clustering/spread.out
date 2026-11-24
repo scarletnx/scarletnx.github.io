@@ -1,0 +1,6 @@
+sigma 0.00: mean delta 0.000 |  tau 0: 8.81e-15  tau 1: 5.09e-15  tau 4: 5.06e-15
+sigma 0.05: mean delta 0.114 |  tau 0: 5.23e-05  tau 1: 1.59e-03  tau 4: 6.26e-03
+sigma 0.10: mean delta 0.229 |  tau 0: 2.09e-04  tau 1: 3.17e-03  tau 4: 1.25e-02
+sigma 0.20: mean delta 0.458 |  tau 0: 8.31e-04  tau 1: 6.40e-03  tau 4: 2.50e-02
+sigma 0.40: mean delta 0.915 |  tau 0: 3.32e-03  tau 1: 1.33e-02  tau 4: 5.08e-02
+sigma 0.80: mean delta 1.831 |  tau 0: 1.39e-02  tau 1: 3.18e-02  tau 4: 1.12e-01

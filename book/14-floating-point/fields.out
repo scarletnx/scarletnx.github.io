@@ -1,0 +1,10 @@
+1          bits 3f800000  sign 0  exp 127 (2^0   )  frac 0x000000  -> 1
+-6.5       bits c0d00000  sign 1  exp 129 (2^2   )  frac 0x500000  -> -6.5
+0.1        bits 3dcccccd  sign 0  exp 123 (2^-4  )  frac 0x4ccccd  -> 0.1000000015
+65504      bits 477fe000  sign 0  exp 142 (2^15  )  frac 0x7fe000  -> 65504
+
+format bits  exp frac  bias  max          min normal   eps (2^-p)
+fp64     64   11   52  1023  1.7977e+308  2.2251e-308  2.2204e-16
+fp32     32    8   23   127  3.4028e+38   1.1755e-38   1.1921e-07
+fp16     16    5   10    15  65504        6.1035e-05   0.00097656
+bf16     16    8    7   127  3.3895e+38   1.1755e-38   0.0078125

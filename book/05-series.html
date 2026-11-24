@@ -1,0 +1,201 @@
+<h1>5. Sequences, series and Taylor polynomials</h1>
+<p>A machine adds and multiplies. It has no fast instruction for \(e^x\) or \(\cos x\). To compute them we replace each one by a polynomial, and to trust the result we need to know how far off the polynomial is. This chapter does both. An infinite sum (a <b>series</b>) is the limit of a running total; a <b>Taylor polynomial</b> is the polynomial that matches a function's derivatives at a point; its <b>remainder</b> says how wrong it is.</p>
+<p>The rest of the book uses the results constantly. The limit \((1 - \cos x)/x^2 \to 1/2\) of <a href="01-limits.html#s3">section 1.3</a> is explained here. The paper's risk score contains \(\cosh \delta - 1\), which for a small logit spread \(\delta\) is \(\delta^2/2\) to within a factor \(1 + \delta^2/12\) (<a href="#s4">section 5.4</a>); <a href="19-refinekv-bound.html#s4">section 19.4</a> leans on that. And <a href="#s6">section 5.6</a> shows why the polynomial inside the exponential of <a href="04-exp-log.html#s7">section 4.7</a> is chosen the way it is.</p>
+
+<h2 id="s1">5.1 Convergence</h2>
+<p>A sequence \(a_1, a_2, \dots\) converges when its terms settle on a value (<a href="01-limits.html#s5">section 1.5</a>). A <b>series</b> \(\sum_{n=1}^{\infty} a_n\) is a sequence in disguise: the sequence of its <b>partial sums</b></p>
+\[ S_N = \sum_{n=1}^{N} a_n = a_1 + a_2 + \dots + a_N, \]
+<p>the running total after \(N\) terms.</p>
+<div class="box def"><p><b>Definition.</b> The series \(\sum a_n\) <b>converges</b> to \(S\) if its partial sums do: \(S_N \to S\) as \(N \to \infty\). Then we write \(\sum_{n=1}^{\infty} a_n = S\). Otherwise it <b>diverges</b>.</p></div>
+<p>Three series side by side: the <b>harmonic series</b> \(1 + \tfrac12 + \tfrac13 + \dots\), the squares \(1 + \tfrac14 + \tfrac19 + \dots\), and the alternating harmonic series \(1 - \tfrac12 + \tfrac13 - \dots\). Their partial sums, computed in doubles:</p>
+<table class="t">
+<tr><th>\(N\)</th><th>\(\sum 1/n\)</th><th>\(\ln N + 0.5772\)</th><th>\(\sum 1/n^2\)</th><th>\(\sum (-1)^{n+1}/n\)</th></tr>
+<tr><td class="n">\(10\)</td><td class="n">2.928968</td><td class="n">2.879801</td><td class="n">1.5497677312</td><td class="n">0.6456349206</td></tr>
+<tr><td class="n">\(10^3\)</td><td class="n">7.485471</td><td class="n">7.484971</td><td class="n">1.6439345667</td><td class="n">0.6926474306</td></tr>
+<tr><td class="n">\(10^5\)</td><td class="n">12.090146</td><td class="n">12.090141</td><td class="n">1.6449240669</td><td class="n">0.6931421806</td></tr>
+<tr><td class="n">\(10^7\)</td><td class="n">16.695311</td><td class="n">16.695311</td><td class="n">1.6449339668</td><td class="n">0.6931471306</td></tr>
+<tr><td>limit</td><td class="n">none</td><td></td><td class="n">1.6449340668</td><td class="n">0.6931471806</td></tr>
+</table>
+<p>The squares settle on \(\pi^2/6\) and the alternating sum on \(\ln 2\) (<a href="#s3">section 5.3</a> shows why). The harmonic series does not settle: it grows like \(\ln N + 0.5772\), slowly but without bound, though its terms go to 0. So:</p>
+<div class="box thm"><p><b>Fact.</b> If \(\sum a_n\) converges then \(a_n \to 0\). The converse is false: \(\sum 1/n\) diverges <a href="refs.html#r-openstax">[openstax]</a>.</p></div>
+<p>The harmonic series diverges because its terms do not shrink fast enough. Group them: \(\tfrac13 + \tfrac14 &gt; \tfrac12\), \(\tfrac15 + \dots + \tfrac18 &gt; \tfrac12\), \(\tfrac19 + \dots + \tfrac1{16} &gt; \tfrac12\), and so on: infinitely many halves. The squares shrink fast enough; the error after \(N\) terms is about \(1/N\) (the table: \(1.6449340668 - 1.6439345667 \approx 10^{-3}\) at \(N = 1000\)). The alternating series converges for a different reason, cancellation: its partial sums step over and under the limit, and the error is at most the next term, here about \(1/(2N)\).</p>
+<p>A series whose absolute values \(\sum |a_n|\) converge is <b>absolutely convergent</b>; it converges, and to the same sum in any order. The alternating harmonic series is not: \(\sum 1/n\) diverges. Reorder its terms (say, two positive terms per negative one) and it converges to a different number <a href="refs.html#r-spivak">[spivak]</a>. Every series in the rest of the book is absolutely convergent, so order does not matter in exact arithmetic.</p>
+<div class="box warn"><p><b>In the machine.</b> In floating point order always matters. In <code>float</code> the harmonic sum stops growing at \(n = 2^{21} = 2097152\), with sum \(15.403683\): \(1/n\) is then less than half an ulp of the total, and <code>s + 1.0f/n == s</code>. The math says the sum goes to infinity; the machine says 15.4. Adding small terms first, or carrying the lost bits (Kahan summation, <a href="14-floating-point.html#s5">section 14.5</a>), fixes much of this.</p></div>
+
+<h2 id="s2">5.2 Geometric series</h2>
+<p>The series where each term is the last times a fixed ratio \(x\):</p>
+\[ 1 + x + x^2 + x^3 + \dots \]
+<p>Its partial sums have a closed form. Let \(S_N = 1 + x + \dots + x^{N-1}\). Multiply by \(x\): \(x S_N = x + x^2 + \dots + x^N\). Subtract, and everything but the ends cancels: \(S_N - x S_N = 1 - x^N\). So for \(x \ne 1\)</p>
+\[ S_N = \sum_{n=0}^{N-1} x^n = \frac{1 - x^N}{1 - x}. \]
+<p>If \(|x| &lt; 1\) then \(x^N \to 0\), and</p>
+<div class="box thm"><p><b>Theorem (geometric series).</b> For \(|x| &lt; 1\), \(\displaystyle \sum_{n=0}^{\infty} x^n = \frac{1}{1 - x}\). For \(|x| \ge 1\) the series diverges.</p></div>
+<p>The error after \(N\) terms is \(\dfrac{1}{1-x} - S_N = \dfrac{x^N}{1 - x}\): it shrinks by the factor \(x\) per term. Close to \(x = 1\) that is slow:</p>
+<table class="t">
+<tr><th>\(x\)</th><th>\(S_{10}\)</th><th>\(S_{100}\)</th><th>\(S_{1000}\)</th><th>\(1/(1-x)\)</th></tr>
+<tr><td class="n">0.5</td><td class="n">1.9980469</td><td class="n">2</td><td class="n">2</td><td class="n">2</td></tr>
+<tr><td class="n">&minus;0.5</td><td class="n">0.66601562</td><td class="n">0.66666667</td><td class="n">0.66666667</td><td class="n">0.666667</td></tr>
+<tr><td class="n">0.9</td><td class="n">6.5132156</td><td class="n">9.9997344</td><td class="n">10</td><td class="n">10</td></tr>
+<tr><td class="n">0.99</td><td class="n">9.5617925</td><td class="n">63.396766</td><td class="n">99.995683</td><td class="n">100</td></tr>
+<tr><td class="n">1.01</td><td class="n">10.462213</td><td class="n">170.48138</td><td class="n">2095815.6</td><td class="n">&minus;100</td></tr>
+</table>
+<p>At \(x = 0.99\), 1000 terms still miss by \(0.99^{1000}/0.01 \approx 0.004\). At \(x = 1.01\) the partial sums explode, while the formula \(1/(1-x) = -100\) cheerfully returns a number: a closed form is only valid where the series converges.</p>
+<p>The geometric series is behind a trick you may have used. <code>rcpps</code> returns \(y_0 \approx 1/a\) to 12 bits; a Newton step \(y_1 = y_0 (2 - a y_0)\) doubles that (<a href="02-derivatives.html#s6">section 2.6</a>). Why: write \(a y_0 = 1 - e\), with \(e\) the small relative error. Then</p>
+\[ \frac{1}{a} = \frac{y_0}{1 - e} = y_0 (1 + e + e^2 + \dots), \qquad y_1 = y_0 (2 - a y_0) = y_0 (1 + e). \]
+<p>The Newton step keeps the first two terms of the geometric series, so what it misses starts at \(e^2\): its relative error is exactly \(1 - a y_1 = 1 - (1-e)(1+e) = e^2\). Starting from \(y_0 = 0.33\) for \(a = 3\) (\(e = 0.01\)), the errors in doubles are \(10^{-4}\), \(10^{-8}\), then \(2.2 \times 10^{-16}\): squared each step until they reach rounding level, \(2^{-53}\), where they stop.</p>
+
+<h2 id="s3">5.3 Power series</h2>
+<p>Let the terms of a series depend on \(x\) through powers: \(\sum_{n=0}^{\infty} c_n x^n = c_0 + c_1 x + c_2 x^2 + \dots\). That is a <b>power series</b>: a polynomial of infinite degree. The geometric series is the one with every \(c_n = 1\). Where it converges, it defines a function of \(x\).</p>
+<div class="box thm"><p><b>Theorem (radius of convergence).</b> For each power series there is an \(R\), \(0 \le R \le \infty\), such that the series converges absolutely for \(|x| &lt; R\) and diverges for \(|x| &gt; R\). When the limit exists, \(R = \lim_{n \to \infty} |c_n / c_{n+1}|\). Inside \(|x| &lt; R\), the function it defines can be differentiated and integrated term by term <a href="refs.html#r-openstax">[openstax]</a>.</p></div>
+<p>The formula for \(R\) comes from comparing with a geometric series: the ratio of successive terms is \(|c_{n+1} x / c_n|\), and if that ends up below 1 the terms shrink at least geometrically.</p>
+<p>Two power series matter most here.</p>
+<p><b>The exponential.</b> \(\displaystyle \exp x = \sum_{n=0}^{\infty} \frac{x^n}{n!} = 1 + x + \frac{x^2}{2} + \frac{x^3}{6} + \dots\) Here \(c_n / c_{n+1} = (n+1)!/n! = n + 1 \to \infty\), so \(R = \infty\): it converges for every \(x\). Differentiate term by term: \(x^n/n!\) becomes \(n x^{n-1}/n! = x^{n-1}/(n-1)!\), the previous term. So the series is its own derivative, the defining property of \(\exp\) (<a href="04-exp-log.html#s1">section 4.1</a>, and <a href="06-odes.html#s2">section 6.2</a> for the equation \(y' = y\)).</p>
+<p><b>The logarithm.</b> Put \(-t\) in the geometric series: \(\dfrac{1}{1+t} = 1 - t + t^2 - t^3 + \dots\) for \(|t| &lt; 1\). Integrate both sides from 0 to \(x\) (<a href="03-integrals.html#s4">section 3.4</a>), term by term:</p>
+\[ \ln(1 + x) = x - \frac{x^2}{2} + \frac{x^3}{3} - \frac{x^4}{4} + \dots, \qquad -1 &lt; x \le 1. \]
+<p>\(R = 1\), as for the geometric series it came from. At \(x = 1\) it is the alternating harmonic series of section 5.1, which is why that sum is \(\ln 2\).</p>
+<p>Converging is not the same as converging usefully. Errors of the partial sums up to degree \(n\), computed in doubles, against the libm value:</p>
+<table class="t">
+<tr><th>\(n\)</th><th>\(e^{1}\)</th><th>\(e^{10}\)</th><th>\(e^{-20}\)</th><th>\(\ln 1.5\)</th><th>\(\ln 2\)</th><th>\(\ln 3\)</th></tr>
+<tr><td class="n">4</td><td class="n">\(-9.9 \times 10^{-3}\)</td><td class="n">\(-2.1 \times 10^{4}\)</td><td class="n">\(5.5 \times 10^{3}\)</td><td class="n">\(-4.4 \times 10^{-3}\)</td><td class="n">\(-0.11\)</td><td class="n">\(-2.4\)</td></tr>
+<tr><td class="n">16</td><td class="n">\(-2.7 \times 10^{-15}\)</td><td class="n">\(-6.0 \times 10^{2}\)</td><td class="n">\(1.7 \times 10^{7}\)</td><td class="n">\(-3.0 \times 10^{-7}\)</td><td class="n">\(-0.030\)</td><td class="n">\(-2.7 \times 10^{3}\)</td></tr>
+<tr><td class="n">32</td><td class="n">0</td><td class="n">\(-1.6 \times 10^{-4}\)</td><td class="n">\(6.2 \times 10^{5}\)</td><td class="n">\(-2.4 \times 10^{-12}\)</td><td class="n">\(-0.015\)</td><td class="n">\(-8.9 \times 10^{7}\)</td></tr>
+<tr><td class="n">64</td><td class="n">0</td><td class="n">\(-3.6 \times 10^{-12}\)</td><td class="n">\(3.5 \times 10^{-7}\)</td><td class="n">\(-1.1 \times 10^{-16}\)</td><td class="n">\(-0.0078\)</td><td class="n">\(-1.9 \times 10^{17}\)</td></tr>
+</table>
+<p>Read the columns. \(\exp(1)\): degree 18 reaches rounding level. \(\exp(10)\): converges, but the terms grow until \(n \approx 10\) before they shrink, so it needs degree 46 (<code>nterms.c</code>). \(\exp(-20)\): the terms alternate in sign and peak near \(20^{20}/20! \approx 4 \times 10^7\); the sum, \(2 \times 10^{-9}\), is what is left after they cancel, and the rounding errors of the big terms (about \(4 \times 10^7 \times 10^{-16}\)) are larger than the answer. Even at degree 100 the sum is \(6.1 \times 10^{-9}\) against the true \(2.06 \times 10^{-9}\). Computing \(1/\exp(20)\) instead, a sum of positive terms, gives full accuracy. \(\ln(1.5)\) converges fast, \(\ln 2\) (the edge, \(x = 1\)) like \(1/n\), and \(\ln 3\) (\(x = 2\), outside the radius) not at all.</p>
+<p>The lesson for computing: use a power series only on a small interval around its center, where the terms fall fast. <a href="#s6">Section 5.6</a> shows how a library arranges for the argument to be small.</p>
+
+<h2 id="s4">5.4 Taylor polynomials</h2>
+<p>Given a function, which polynomial best imitates it near 0? Match the value, the slope, the curvature, and so on. If \(p(x) = c_0 + c_1 x + c_2 x^2 + \dots + c_n x^n\), differentiating \(k\) times and setting \(x = 0\) kills every term but one: \(p^{(k)}(0) = k!\, c_k\). Setting \(p^{(k)}(0) = f^{(k)}(0)\) for \(k = 0, \dots, n\) gives the coefficients.</p>
+<div class="box def"><p><b>Definition.</b> The <b>Taylor polynomial</b> of degree \(n\) of \(f\) at \(a\) is</p>
+\[ P_n(x) = \sum_{k=0}^{n} \frac{f^{(k)}(a)}{k!} (x - a)^k = f(a) + f'(a)(x-a) + \frac{f''(a)}{2}(x-a)^2 + \dots \]
+<p>At \(a = 0\) it is also called the Maclaurin polynomial. Letting \(n \to \infty\) gives the <b>Taylor series</b>.</p></div>
+<p>\(P_1\) is the tangent line, the linear approximation of <a href="02-derivatives.html#s4">section 2.4</a>; \(P_2\) adds the curvature. The table of the functions this book uses, all at \(a = 0\):</p>
+\[ \begin{aligned}
+e^x &amp;= 1 + x + \frac{x^2}{2!} + \frac{x^3}{3!} + \frac{x^4}{4!} + \dots &amp; &amp;\text{all } x \\
+\sin x &amp;= x - \frac{x^3}{3!} + \frac{x^5}{5!} - \frac{x^7}{7!} + \dots &amp; &amp;\text{all } x \\
+\cos x &amp;= 1 - \frac{x^2}{2!} + \frac{x^4}{4!} - \frac{x^6}{6!} + \dots &amp; &amp;\text{all } x \\
+\sinh x &amp;= x + \frac{x^3}{3!} + \frac{x^5}{5!} + \frac{x^7}{7!} + \dots &amp; &amp;\text{all } x \\
+\cosh x &amp;= 1 + \frac{x^2}{2!} + \frac{x^4}{4!} + \frac{x^6}{6!} + \dots &amp; &amp;\text{all } x \\
+\ln(1 + x) &amp;= x - \frac{x^2}{2} + \frac{x^3}{3} - \frac{x^4}{4} + \dots &amp; &amp;-1 &lt; x \le 1
+\end{aligned} \]
+<p>Where they come from:</p>
+<ul>
+<li>\(e^x\): every derivative is \(e^x\), which is 1 at 0, so \(c_k = 1/k!\).</li>
+<li>\(\sin\): the derivatives cycle \(\sin, \cos, -\sin, -\cos\), which at 0 are \(0, 1, 0, -1\). Only odd powers survive, with alternating signs. \(\cos\) is the same cycle shifted by one: only even powers.</li>
+<li>\(\cosh x = (e^x + e^{-x})/2\): in \(e^{-x}\) the odd powers flip sign, so the average keeps the even terms of \(e^x\) and drops the odd ones. \(\sinh x = (e^x - e^{-x})/2\) keeps the odd ones. They are \(\cos\) and \(\sin\) without the alternating signs (<a href="04-exp-log.html#s5">section 4.5</a>).</li>
+<li>\(\ln(1+x)\): integrated from the geometric series in <a href="#s3">section 5.3</a>.</li>
+</ul>
+<figure>
+<svg viewBox="0 0 480 240" width="480" height="240" role="img" aria-label="sin x and its Taylor polynomials of degree 1 to 11">
+<line x1="20" y1="115.0" x2="460" y2="115.0" stroke="currentColor"/>
+<line x1="240.0" y1="15" x2="240.0" y2="215" stroke="currentColor"/>
+<text x="51.4" y="129.0" font-size="11" text-anchor="middle" fill="currentColor">-6</text>
+<text x="114.3" y="129.0" font-size="11" text-anchor="middle" fill="currentColor">-4</text>
+<text x="177.1" y="129.0" font-size="11" text-anchor="middle" fill="currentColor">-2</text>
+<text x="302.9" y="129.0" font-size="11" text-anchor="middle" fill="currentColor">2</text>
+<text x="365.7" y="129.0" font-size="11" text-anchor="middle" fill="currentColor">4</text>
+<text x="428.6" y="129.0" font-size="11" text-anchor="middle" fill="currentColor">6</text>
+<polyline fill="none" stroke="#c94a4a" stroke-width="1.5" points="178.4,213.0 182.8,206.0 187.2,199.0 191.6,192.0 196.0,185.0 200.4,178.0 204.8,171.0 209.2,164.0 213.6,157.0 218.0,150.0 222.4,143.0 226.8,136.0 231.2,129.0 235.6,122.0 240.0,115.0 244.4,108.0 248.8,101.0 253.2,94.0 257.6,87.0 262.0,80.0 266.4,73.0 270.8,66.0 275.2,59.0 279.6,52.0 284.0,45.0 288.4,38.0 292.8,31.0 297.2,24.0 301.6,17.0"/>
+<polyline fill="none" stroke="#c98a2a" stroke-width="1.5" points="143.2,25.5 147.6,50.2 152.0,72.1 156.4,91.2 160.8,107.6 165.2,121.7 169.6,133.3 174.0,142.8 178.4,150.3 182.8,155.8 187.2,159.5 191.6,161.6 196.0,162.1 200.4,161.3 204.8,159.3 209.2,156.2 213.6,152.1 218.0,147.1 222.4,141.5 226.8,135.4 231.2,128.8 235.6,122.0 240.0,115.0 244.4,108.0 248.8,101.2 253.2,94.6 257.6,88.5 262.0,82.9 266.4,77.9 270.8,73.8 275.2,70.7 279.6,68.7 284.0,67.9 288.4,68.4 292.8,70.5 297.2,74.2 301.6,79.7 306.0,87.2 310.4,96.7 314.8,108.3 319.2,122.4 323.6,138.8 328.0,157.9 332.4,179.8 336.8,204.5"/>
+<polyline fill="none" stroke="#3f9a55" stroke-width="1.5" points="116.8,194.7 121.2,175.5 125.6,161.3 130.0,151.5 134.4,145.3 138.8,142.0 143.2,141.0 147.6,141.8 152.0,143.8 156.4,146.6 160.8,150.0 165.2,153.5 169.6,156.8 174.0,159.8 178.4,162.3 182.8,164.1 187.2,165.1 191.6,165.2 196.0,164.4 200.4,162.7 204.8,160.0 209.2,156.5 213.6,152.2 218.0,147.2 222.4,141.6 226.8,135.4 231.2,128.8 235.6,122.0 240.0,115.0 244.4,108.0 248.8,101.2 253.2,94.6 257.6,88.4 262.0,82.8 266.4,77.8 270.8,73.5 275.2,70.0 279.6,67.3 284.0,65.6 288.4,64.8 292.8,64.9 297.2,65.9 301.6,67.7 306.0,70.2 310.4,73.2 314.8,76.5 319.2,80.0 323.6,83.4 328.0,86.2 332.4,88.2 336.8,89.0 341.2,88.0 345.6,84.7 350.0,78.5 354.4,68.7 358.8,54.5 363.2,35.3"/>
+<polyline fill="none" stroke="#4a7fc1" stroke-width="1.5" points="108.0,23.4 112.4,39.6 116.8,53.6 121.2,66.1 125.6,77.4 130.0,87.7 134.4,97.4 138.8,106.4 143.2,114.9 147.6,122.9 152.0,130.4 156.4,137.3 160.8,143.6 165.2,149.2 169.6,154.0 174.0,158.1 178.4,161.2 182.8,163.4 187.2,164.7 191.6,165.0 196.0,164.3 200.4,162.6 204.8,160.0 209.2,156.5 213.6,152.2 218.0,147.2 222.4,141.6 226.8,135.4 231.2,128.8 235.6,122.0 240.0,115.0 244.4,108.0 248.8,101.2 253.2,94.6 257.6,88.4 262.0,82.8 266.4,77.8 270.8,73.5 275.2,70.0 279.6,67.4 284.0,65.7 288.4,65.0 292.8,65.3 297.2,66.6 301.6,68.8 306.0,71.9 310.4,76.0 314.8,80.8 319.2,86.4 323.6,92.7 328.0,99.6 332.4,107.1 336.8,115.1 341.2,123.6 345.6,132.6 350.0,142.3 354.4,152.6 358.8,163.9 363.2,176.4 367.6,190.4 372.0,206.6"/>
+<polyline fill="none" stroke="#c94a4a" stroke-width="1.5" stroke-dasharray="5 3" points="68.4,212.5 72.8,175.7 77.2,146.9 81.6,124.8 86.0,108.1 90.4,96.0 94.8,87.7 99.2,82.5 103.6,79.9 108.0,79.5 112.4,80.9 116.8,83.7 121.2,87.8 125.6,92.8 130.0,98.6 134.4,104.9 138.8,111.5 143.2,118.4 147.6,125.2 152.0,131.8 156.4,138.2 160.8,144.1 165.2,149.5 169.6,154.2 174.0,158.2 178.4,161.3 182.8,163.5 187.2,164.7 191.6,165.0 196.0,164.3 200.4,162.6 204.8,160.0 209.2,156.5 213.6,152.2 218.0,147.2 222.4,141.6 226.8,135.4 231.2,128.8 235.6,122.0 240.0,115.0 244.4,108.0 248.8,101.2 253.2,94.6 257.6,88.4 262.0,82.8 266.4,77.8 270.8,73.5 275.2,70.0 279.6,67.4 284.0,65.7 288.4,65.0 292.8,65.3 297.2,66.5 301.6,68.7 306.0,71.8 310.4,75.8 314.8,80.5 319.2,85.9 323.6,91.8 328.0,98.2 332.4,104.8 336.8,111.6 341.2,118.5 345.6,125.1 350.0,131.4 354.4,137.2 358.8,142.2 363.2,146.3 367.6,149.1 372.0,150.5 376.4,150.1 380.8,147.5 385.2,142.3 389.6,134.0 394.0,121.9 398.4,105.2 402.8,83.1 407.2,54.3 411.6,17.5"/>
+<polyline fill="none" stroke="#c98a2a" stroke-width="1.5" stroke-dasharray="5 3" points="55.2,26.5 59.6,38.4 64.0,46.4 68.4,51.5 72.8,54.7 77.2,56.6 81.6,58.0 86.0,59.1 90.4,60.4 94.8,62.0 99.2,64.2 103.6,67.0 108.0,70.5 112.4,74.7 116.8,79.5 121.2,85.0 125.6,91.0 130.0,97.4 134.4,104.1 138.8,111.1 143.2,118.1 147.6,125.0 152.0,131.7 156.4,138.2 160.8,144.1 165.2,149.5 169.6,154.2 174.0,158.2 178.4,161.3 182.8,163.5 187.2,164.7 191.6,165.0 196.0,164.3 200.4,162.6 204.8,160.0 209.2,156.5 213.6,152.2 218.0,147.2 222.4,141.6 226.8,135.4 231.2,128.8 235.6,122.0 240.0,115.0 244.4,108.0 248.8,101.2 253.2,94.6 257.6,88.4 262.0,82.8 266.4,77.8 270.8,73.5 275.2,70.0 279.6,67.4 284.0,65.7 288.4,65.0 292.8,65.3 297.2,66.5 301.6,68.7 306.0,71.8 310.4,75.8 314.8,80.5 319.2,85.9 323.6,91.8 328.0,98.3 332.4,105.0 336.8,111.9 341.2,118.9 345.6,125.9 350.0,132.6 354.4,139.0 358.8,145.0 363.2,150.5 367.6,155.3 372.0,159.5 376.4,163.0 380.8,165.8 385.2,168.0 389.6,169.6 394.0,170.9 398.4,172.0 402.8,173.4 407.2,175.3 411.6,178.5 416.0,183.6 420.4,191.6 424.8,203.5"/>
+<polyline fill="none" stroke="currentColor" stroke-width="2.5" points="20.0,147.8 24.4,142.3 28.8,136.2 33.2,129.6 37.6,122.8 42.0,115.8 46.4,108.9 50.8,102.0 55.2,95.4 59.6,89.2 64.0,83.4 68.4,78.3 72.8,73.9 77.2,70.4 81.6,67.7 86.0,65.9 90.4,65.1 94.8,65.2 99.2,66.3 103.6,68.4 108.0,71.4 112.4,75.3 116.8,79.9 121.2,85.2 125.6,91.1 130.0,97.5 134.4,104.2 138.8,111.1 143.2,118.1 147.6,125.0 152.0,131.7 156.4,138.2 160.8,144.1 165.2,149.5 169.6,154.2 174.0,158.2 178.4,161.3 182.8,163.5 187.2,164.7 191.6,165.0 196.0,164.3 200.4,162.6 204.8,160.0 209.2,156.5 213.6,152.2 218.0,147.2 222.4,141.6 226.8,135.4 231.2,128.8 235.6,122.0 240.0,115.0 244.4,108.0 248.8,101.2 253.2,94.6 257.6,88.4 262.0,82.8 266.4,77.8 270.8,73.5 275.2,70.0 279.6,67.4 284.0,65.7 288.4,65.0 292.8,65.3 297.2,66.5 301.6,68.7 306.0,71.8 310.4,75.8 314.8,80.5 319.2,85.9 323.6,91.8 328.0,98.3 332.4,105.0 336.8,111.9 341.2,118.9 345.6,125.8 350.0,132.5 354.4,138.9 358.8,144.8 363.2,150.1 367.6,154.7 372.0,158.6 376.4,161.6 380.8,163.7 385.2,164.8 389.6,164.9 394.0,164.1 398.4,162.3 402.8,159.6 407.2,156.1 411.6,151.7 416.0,146.6 420.4,140.8 424.8,134.6 429.2,128.0 433.6,121.1 438.0,114.2 442.4,107.2 446.8,100.4 451.2,93.8 455.6,87.7 460.0,82.2"/>
+<text x="303.7" y="20.0" font-size="11" fill="#c94a4a">n=1</text>
+<text x="152.9" y="56.8" font-size="11" fill="#c98a2a">n=3</text>
+<text x="357.1" y="71.9" font-size="11" fill="#3f9a55">n=5</text>
+<text x="108.9" y="20.0" font-size="11" fill="#4a7fc1">n=7</text>
+<text x="404.3" y="96.5" font-size="11" fill="#c94a4a">n=9</text>
+<text x="61.7" y="33.9" font-size="11" fill="#c98a2a">n=11</text>
+<text x="290.3" y="57.5" font-size="12" fill="currentColor">sin x</text>
+</svg>
+<figcaption>Figure 5.1. \(\sin x\) (thick) and its Taylor polynomials at 0 of degree 1, 3, 5, 7, 9 and 11. Each one follows the curve a little farther before it turns away; every one of them eventually runs off to \(\pm\infty\), while \(\sin\) stays between \(-1\) and 1.</figcaption>
+</figure>
+<p>Each row of the table was checked numerically: \((f(x) - P_n(x))/x^{n+1}\) tends to the next coefficient as \(x \to 0\).</p>
+<h3>Two expansions the book uses</h3>
+<p>Subtract the cosine series from 1 and divide by \(x^2\):</p>
+\[ \frac{1 - \cos x}{x^2} = \frac{1}{2} - \frac{x^2}{24} + \frac{x^4}{720} - \dots = \frac{1}{2} - \frac{x^2}{24} + O(x^4). \]
+<p>That is the limit \(1/2\) of <a href="01-limits.html#s3">section 1.3</a>, with the rate at which it is approached: the error of \(1/2\) is \(x^2/24\), the big-O statement of <a href="01-limits.html#s6">section 1.6</a>.</p>
+<p>The cosh series, for a spread \(\delta\):</p>
+\[ \cosh \delta = 1 + \frac{\delta^2}{2} + \frac{\delta^4}{24} + \frac{\delta^6}{720} + \dots, \qquad \cosh \delta - 1 = \frac{\delta^2}{2}\left(1 + \frac{\delta^2}{12} + \dots\right). \]
+<p>All terms are positive, so \(\cosh \delta \ge 1 + \delta^2/2\) for every \(\delta\), and \(\cosh \delta - 1\) is \(\delta^2/2\) up to a relative error of about \(\delta^2/12\): at \(\delta = 0.1\), 0.08%. In the paper's risk score (<a href="19-refinekv-bound.html#s7">section 19.7</a>) the cluster's term is \(\cosh \delta_C - 1\): for small spreads, the error grows with the <em>square</em> of the spread. Halve \(\delta_C\) and that part of the bound drops by 4. Its other factor, \(\tanh(\delta/2)\), has the series \(\tanh x = x - x^3/3 + 2x^5/15 - \dots\), so \(\tanh(\delta/2) \approx \delta/2\): linear in the spread.</p>
+<p>Numerically, with the left sides computed without cancellation through \(1 - \cos x = 2\sin^2(x/2)\) and \(\cosh x - 1 = 2\sinh^2(x/2)\): at \(x = 0.1\), \(\big(\tfrac{1-\cos x}{x^2} - \tfrac12 + \tfrac{x^2}{24}\big)/x^4 = 0.00138864\) and \(\big(\cosh x - 1 - \tfrac{x^2}{2}\big)/x^4 = 0.04168056\); at \(x = 0.01\), 0.00138888 and 0.04166681. They approach \(1/720 = 0.00138889\) and \(1/24 = 0.04166667\), the next coefficients of the two series. At \(\delta = 0.1\) the ratio \((\cosh\delta - 1)/(\delta^2/2)\) is 1.00083361, against \(1 + \delta^2/12 = 1.00083333\).</p>
+
+<h2 id="s5">5.5 The remainder</h2>
+<p>A Taylor polynomial is useful only with a bound on its error. The <b>remainder</b> \(R_n(x) = f(x) - P_n(x)\) has an exact formula with one unknown in it.</p>
+<div class="box thm"><p><b>Theorem (Taylor, Lagrange form of the remainder).</b> If \(f\) has \(n+1\) derivatives on an interval containing 0 and \(x\), then</p>
+\[ f(x) = P_n(x) + \frac{f^{(n+1)}(c)}{(n+1)!}\, x^{n+1} \]
+<p>for some \(c\) between 0 and \(x\) <a href="refs.html#r-spivak">[spivak]</a>, <a href="refs.html#r-openstax">[openstax]</a>.</p></div>
+<p>The error looks exactly like the next term of the series, except that the derivative is taken at an unknown point \(c\) instead of at 0. For \(n = 0\) it reads \(f(x) = f(0) + f'(c)\,x\): the mean value theorem (<a href="02-derivatives.html#s8">section 2.8</a>), of which this is the generalization. We never learn \(c\); we bound \(f^{(n+1)}\) over the whole interval, and that bounds the error.</p>
+<p><b>Example: \(e^1\).</b> Every derivative of \(e^x\) is \(e^x\), and \(0 &lt; c &lt; 1\) gives \(1 &lt; e^c &lt; e\). So</p>
+\[ \frac{1}{(n+1)!} &lt; e - P_n(1) &lt; \frac{e}{(n+1)!}. \]
+<table class="t">
+<tr><th>\(n\)</th><th>\(1/(n+1)!\)</th><th>\(e - P_n(1)\)</th><th>\(e/(n+1)!\)</th></tr>
+<tr><td class="n">2</td><td class="n">\(1.67 \times 10^{-1}\)</td><td class="n">\(2.18 \times 10^{-1}\)</td><td class="n">\(4.53 \times 10^{-1}\)</td></tr>
+<tr><td class="n">6</td><td class="n">\(1.98 \times 10^{-4}\)</td><td class="n">\(2.26 \times 10^{-4}\)</td><td class="n">\(5.39 \times 10^{-4}\)</td></tr>
+<tr><td class="n">10</td><td class="n">\(2.51 \times 10^{-8}\)</td><td class="n">\(2.73 \times 10^{-8}\)</td><td class="n">\(6.81 \times 10^{-8}\)</td></tr>
+<tr><td class="n">12</td><td class="n">\(1.61 \times 10^{-10}\)</td><td class="n">\(1.73 \times 10^{-10}\)</td><td class="n">\(4.37 \times 10^{-10}\)</td></tr>
+</table>
+<p>The actual error sits between the two bounds, as promised. The same reasoning answers a design question: on \(|r| \le \tfrac12 \ln 2\) (the interval <a href="#s6">section 5.6</a> reduces to), how many terms of the exponential series give a relative error below \(2^{-53}\)? For \(r &gt; 0\), \(e^c / e^r \le 1\); for \(r &lt; 0\), \(e^c \le 1\) and \(e^r \ge e^{-|r|}\). Either way the relative error is at most \(e^{|r|} |r|^{n+1}/(n+1)! \le \sqrt{2}\, |r|^{n+1}/(n+1)!\). That bound is \(2.4 \times 10^{-16}\) at degree 12 and \(5.9 \times 10^{-18}\) at degree 13: degree 13 is enough.</p>
+<p><b>Example: cosh.</b> With \(n = 1\): \(\cosh \delta = 1 + 0 \cdot \delta + \cosh(c)\, \delta^2 / 2\), with \(|c| \le |\delta|\). Since \(1 \le \cosh c \le \cosh \delta\),</p>
+\[ 1 + \frac{\delta^2}{2} \;\le\; \cosh \delta \;\le\; 1 + \frac{\delta^2}{2} \cosh \delta. \]
+<p>Two-sided bounds like this one, with the function itself on the right, are the kind the paper uses (<a href="04-exp-log.html#s6">section 4.6</a>, <a href="19-refinekv-bound.html#s4">section 19.4</a>).</p>
+<p>For \(\sin\) and \(\cos\) every derivative is bounded by 1, so \(|R_n(x)| \le |x|^{n+1}/(n+1)!\) for all \(x\). With \(n = 3\) for cosine (whose \(P_3 = P_2\)): \(|\cos x - (1 - x^2/2)| \le x^4/24\).</p>
+<div class="box warn"><p><b>Watch out.</b> The remainder theorem bounds the error of the polynomial in exact arithmetic. Evaluated in doubles, each operation adds its own rounding (<a href="14-floating-point.html#s3">section 14.3</a>). A library makes the remainder smaller than the rounding error and then works on the rounding. And Taylor series can fail to converge to \(f\) even where they converge at all; for every function in the table above they do <a href="refs.html#r-spivak">[spivak]</a>.</p></div>
+
+<h2 id="s6">5.6 How a libm approximates</h2>
+<p>A libm <code>exp</code> is accurate to within about an ulp over the full range of doubles. The Taylor series alone could not do that: at \(x = 700\) it needs over 900 terms, and at \(x = -20\) it cancels to garbage (<a href="#s3">section 5.3</a>). <a href="04-exp-log.html#s7">Section 4.7</a> shows how a libm exp is assembled: range reduction \(x = k \ln 2 + r\) with \(|r| \le \tfrac12 \ln 2\), a polynomial for \(e^r\), and scaling by \(2^k\). The same shape serves every elementary function: an identity moves the argument into a short interval (for sin and cos, reduction modulo \(\pi/2\), which for huge arguments needs many hundreds of bits of \(2/\pi\)), a polynomial does the work there, and the identity is undone <a href="refs.html#r-muller">[muller]</a>. This section is about the middle step: which polynomial, and why.</p>
+<h3>Horner's rule</h3>
+<p>Evaluate \(c_0 + c_1 r + \dots + c_n r^n\) from the inside out:</p>
+\[ c_0 + r\,(c_1 + r\,(c_2 + \dots + r\,(c_{n-1} + r\, c_n))). \]
+<p>That is \(n\) multiply-adds and no powers. Each step can be one fused multiply-add, which computes \(p r + c_k\) with a single rounding (<a href="14-floating-point.html#s6">section 14.6</a>). Each step also depends on the previous one, so on a pipelined FPU Horner runs at the latency of an fma per coefficient, not at its throughput; libraries split the polynomial into independent pieces (exercise 6) to fill the pipeline. Either way the cost is set by the degree, so the question is how low a degree can reach the target accuracy, \(2^{-53}\) relative on \(|r| \le 0.347\). <a href="#s5">Section 5.5</a> showed that the Taylor polynomial needs degree 13.</p>
+<h3>Why not Taylor</h3>
+<p>The Taylor polynomial is perfect at 0 and worst at the ends of the interval: its error is about \(r^{n+1}/(n+1)!\), nearly all of it near \(|r| = 0.347\). It spends its accuracy where nothing needs it. A polynomial that spreads the error over the interval can have the same degree and a much smaller maximum error.</p>
+<p>One way to get it is <b>interpolation</b>: take the polynomial of degree \(n\) that equals \(f\) at \(n+1\) chosen points \(r_0, \dots, r_n\). Its error is</p>
+\[ f(r) - p(r) = \frac{f^{(n+1)}(\xi)}{(n+1)!} \prod_{j=0}^{n} (r - r_j) \]
+<p>for some \(\xi\) in the interval <a href="refs.html#r-burden">[burden]</a>. The first factor is the same as in the Lagrange remainder; the points only enter through the product. The Taylor polynomial is the limit with all points at 0, where the product is \(r^{n+1}\), as large as \(A^{n+1}\) on \([-A, A]\).</p>
+<p>The best choice of points makes the largest value of the product as small as possible. The answer is the <b>Chebyshev points</b>, the roots of the Chebyshev polynomial \(T_{n+1}\), defined by \(T_m(\cos\theta) = \cos m\theta\): on \([-A, A]\) they are \(r_j = A \cos \theta_j\) with \(\theta_j = \pi (j + \tfrac12)/(n+1)\). Equal steps in angle, so the points crowd toward the ends, where Taylor's error lives. With them the product is \(A^{n+1}\, T_{n+1}(r/A)/2^n\) (\(T_{n+1}\) has leading coefficient \(2^n\)), and since \(|T_{n+1}| \le 1\) its largest value is \(A^{n+1}/2^n\) <a href="refs.html#r-trefethen">[trefethen]</a>. Against Taylor's \(A^{n+1}\), the error bound drops by a factor of \(2^n\).</p>
+<p>That is a prediction about real numbers; the program checks it in doubles:</p>
+<!--prog cheb.c recorded-->
+<p>How the program carries out the construction:</p>
+<ul>
+<li><b><code>horner</code></b> is the nested form above with one <code>fma</code> per coefficient. Both polynomials go through it, so the only difference between the two columns is the coefficients.</li>
+<li><b>The table <code>t</code></b> holds the Chebyshev polynomials in powers of \(u\), built by the recurrence \(T_k(u) = 2u\,T_{k-1}(u) - T_{k-2}(u)\), which is the identity \(\cos k\theta = 2\cos\theta \cos (k-1)\theta - \cos (k-2)\theta\) with \(u = \cos\theta\).</li>
+<li><b>The coefficients <code>a[k]</code></b> write the interpolant as \(\sum_k a_k T_k(u)\), \(u = r/A\). At the Chebyshev points the \(T_k\) are discretely orthogonal: \(\sum_j T_k(u_j) T_m(u_j) = 0\) for \(k \ne m\), \(= (n+1)/2\) for \(k = m &gt; 0\), and \(= n+1\) for \(k = m = 0\). So each \(a_k\) is a weighted sum of the samples \(f(u_j) = e^{A u_j}\) with weight \(2/(n+1)\), and \(a_0\) is halved. No linear system has to be solved, which is one reason these points are used.</li>
+<li><b>The last loop</b> substitutes \(u = r/A\) and collects powers of \(r\): \(c_i = A^{-i} \sum_k a_k\, t_{k,i}\), where \(t_{k,i}\) is the coefficient of \(u^i\) in \(T_k\). The result is an ordinary polynomial, ready for Horner. The conversion adds terms of alternating sign, a cancellation; done in <code>double</code> it left the error stuck near \(2 \times 10^{-15}\) at degree 10, so the fit runs in <code>long double</code> and only the final coefficients are rounded to doubles, as a libm's are.</li>
+<li><b><code>max_rel_err</code></b> samples 100&thinsp;001 points of \([-A, A]\) and takes the largest relative error against <code>expl</code>. Relative, because \(2^k e^r\) keeps the relative error of \(e^r\) and an ulp is a relative unit.</li>
+<li><b><code>main</code></b> builds the Taylor coefficients \(1/k!\) by \(c_k = c_{k-1}/k\) and prints both errors and their ratio for each degree.</li>
+</ul>
+<p>The ratio is \(2^n\), as derived (8, 16, 32, &hellip;, 512), until the errors reach the rounding floor \(2^{-53} \approx 1.1 \times 10^{-16}\): the Chebyshev polynomial gets there at degree 11, Taylor at 13. Two fewer fmas on the critical path of every <code>exp</code>. The coefficients differ from \(1/k!\) only slightly, most in the highest powers, which make up for the terms left off: at degree 5 the coefficient of \(r^4\) is 0.0419175 instead of \(1/24 = 0.0416667\), and that of \(r^5\) is 0.0083691 instead of \(1/120 = 0.0083333\).</p>
+<h3>What minimax adds</h3>
+<p>The best polynomial of degree \(n\), the one with the smallest maximum error on the interval, is the <b>minimax</b> polynomial. It is characterized by its error curve: the error reaches its maximum size at \(n+2\) points, with alternating signs (equioscillation). The Chebyshev interpolant nearly has this shape already, because its error is dominated by the \(T_{n+1}\) term, which itself equioscillates; so minimax improves on it only by a small factor, which the Remez algorithm finds by moving the points until the peaks are equal <a href="refs.html#r-trefethen">[trefethen]</a>. A libm takes that last step because it is free at run time, and it fits relative rather than absolute error, with the coefficients rounded to doubles as part of the fit <a href="refs.html#r-muller">[muller]</a>. The bigger gain is in the interval: Tang's method reduces with a 32-entry table of \(2^{j/32}\) to \(|r| \le \ln 2/64\) (<a href="04-exp-log.html#s7">section 4.7</a>), where the factor \(A^{n+1}\) is so small that about degree 5 suffices <a href="refs.html#r-tang-exp">[tang-exp]</a>. A lookup table plus a short polynomial: the same trade of memory for latency as anywhere else.</p>
+
+<h2 id="exercises">Exercises</h2>
+<ol class="ex">
+<li>Sum \(1 + \tfrac13 + \tfrac19 + \tfrac1{27} + \dots\), and \(0.1 + 0.01 + 0.001 + \dots\).
+<details><summary>Answer</summary><p>Geometric with \(x = 1/3\): \(1/(1 - 1/3) = 3/2\). The second is \(0.1 \cdot 1/(1 - 0.1) = 1/9\), which is \(0.111\ldots\)</p></details></li>
+<li>Write the Taylor polynomial of degree 6 of \(e^{-x^2}\) at 0 without differentiating.
+<details><summary>Answer</summary><p>Put \(-x^2\) for \(x\) in the exponential series: \(1 - x^2 + x^4/2 - x^6/6\). A power series can be substituted into, inside its radius.</p></details></li>
+<li>Bound the error of \(\sin x \approx x\) for \(|x| \le 0.1\).
+<details><summary>Answer</summary><p>\(P_1 = P_2 = x\) for sine, so use \(n = 2\): \(|R_2| \le |x|^3/3! \le 0.001/6 \approx 1.7 \times 10^{-4}\). The true worst error, \(0.1 - \sin 0.1 \approx 1.67 \times 10^{-4}\), is close to it.</p></details></li>
+<li>How many terms of the exponential series give \(e^{0.5}\) to within \(10^{-10}\)? Use the Lagrange bound, then check with a program.
+<details><summary>Answer</summary><p>The bound is \(e^{0.5}\, 0.5^{n+1}/(n+1)!\). It is \(4.4 \times 10^{-10}\) at \(n = 9\) and \(2.0 \times 10^{-11}\) at \(n = 10\): degree 10, eleven terms. <code>terms.c</code> prints an actual error of \(1.3 \times 10^{-11}\).</p></details></li>
+<li>In the paper, a cluster with logit spread \(\delta_C = 0.2\) contributes \(\cosh \delta_C - 1\). How close is \(\delta_C^2/2\), and in which direction?
+<details><summary>Answer</summary><p>\(\cosh 0.2 - 1 = 0.02 (1 + 0.04/12 + \dots) \approx 0.020067\). \(\delta^2/2 = 0.02\) is below it by about 0.33%: \(\cosh \delta - 1 \ge \delta^2/2\) always, since every term of the series is positive.</p></details></li>
+<li>Horner's rule for \(c_0 + c_1 x + c_2 x^2 + c_3 x^3\) is a chain of three dependent fmas. Rewrite it as \((c_0 + c_1 x) + x^2 (c_2 + c_3 x)\) (Estrin's scheme). Why can it be faster, if the operation count is the same or larger?
+<details><summary>Answer</summary><p>\(c_0 + c_1 x\), \(c_2 + c_3 x\) and \(x^2\) do not depend on each other: they issue together, in different pipeline slots. Then one fma finishes: two fma latencies on the critical path instead of three. Latency, not operation count, bounds a dependent chain; for degree 13 the difference is large.</p></details></li>
+<li>Explain why the series for \(e^{-20}\) loses all its digits, and give two ways to compute \(e^{-20}\) with it accurately.
+<details><summary>Answer</summary><p>The terms alternate and the largest is \(\approx 4.3 \times 10^7\); each carries a rounding error near \(10^{-16}\) of its size, about \(4 \times 10^{-9}\), more than the answer \(2.1 \times 10^{-9}\). Fixes: \(1/e^{20}\), whose series has only positive terms (<code>terms.c</code> prints \(2.061154 \times 10^{-9}\), correct), or range reduction: \(e^{-20} = 2^{-29} e^{r}\) with \(r = -20 + 29 \ln 2 \approx 0.101\).</p></details></li>
+<li>Show from the geometric series that \(\dfrac{1}{(1-x)^2} = 1 + 2x + 3x^2 + 4x^3 + \dots\) for \(|x| &lt; 1\).
+<details><summary>Answer</summary><p>Differentiate \(1/(1-x) = \sum x^n\) term by term (allowed inside the radius): \(1/(1-x)^2 = \sum n x^{n-1}\).</p></details></li>
+</ol>
+
+<h2 id="references">References</h2>
+<ul>
+<li><a href="refs.html#r-openstax">[openstax]</a> Volume 2: chapter 5 (sequences, series, the geometric series, convergence tests) and chapter 6 (power series, Taylor and Maclaurin series, the remainder).</li>
+<li><a href="refs.html#r-spivak">[spivak]</a> Taylor's theorem with its remainders and proofs; rearranging conditionally convergent series.</li>
+<li><a href="refs.html#r-trefethen">[trefethen]</a> Chebyshev points and interpolants, why they are near-best, best (minimax) approximation and the Remez algorithm.</li>
+<li><a href="refs.html#r-burden">[burden]</a> Polynomial interpolation and its error formula.</li>
+<li><a href="refs.html#r-muller">[muller]</a> How elementary functions are evaluated: range reduction, polynomial approximation, Horner and fma.</li>
+<li><a href="refs.html#r-tang-exp">[tang-exp]</a> The table-driven exponential: reduction by \(\ln 2/32\), a 32-entry table and a short polynomial.</li>
+</ul>

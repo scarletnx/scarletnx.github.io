@@ -1,0 +1,4 @@
+b =    10  naive 5.0126076e-02 (rel err 8.9e-06)  stable 5.0125629e-02 (rel err 4.5e-09)
+b =   100  naive 4.9972534e-03 (rel err 5.7e-04)  stable 5.0001252e-03 (rel err 2.9e-08)
+b =  1000  naive 4.8828125e-04 (rel err 2.3e-02)  stable 5.0000014e-04 (rel err 3.0e-08)
+b = 10000  naive 0.0000000e+00 (rel err 1.0e+00)  stable 4.9999999e-05 (rel err 2.8e-08)

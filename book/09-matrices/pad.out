@@ -1,0 +1,6 @@
+n = 1000  ijk    1.352 s   1.48 GFLOP/s  max diff 0e+00
+n = 1000  ikj    0.375 s   5.33 GFLOP/s  max diff 0e+00
+n = 1000  tiled  0.219 s   9.14 GFLOP/s  max diff 0e+00
+n = 1024  ijk    1.195 s   1.80 GFLOP/s  max diff 0e+00
+n = 1024  ikj    0.391 s   5.50 GFLOP/s  max diff 0e+00
+n = 1024  tiled  0.234 s   9.16 GFLOP/s  max diff 0e+00

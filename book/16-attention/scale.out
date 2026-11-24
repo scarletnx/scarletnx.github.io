@@ -1,0 +1,4 @@
+d =  16: var(q.k) =   15.7 | raw: max weight 0.41, eff. keys   8.1 | scaled: max weight 0.016, eff. keys 420.7
+d =  64: var(q.k) =   63.8 | raw: max weight 0.70, eff. keys   2.3 | scaled: max weight 0.017, eff. keys 393.0
+d = 128: var(q.k) =  127.4 | raw: max weight 0.78, eff. keys   1.7 | scaled: max weight 0.016, eff. keys 392.1
+d = 256: var(q.k) =  256.6 | raw: max weight 0.86, eff. keys   1.4 | scaled: max weight 0.017, eff. keys 385.6

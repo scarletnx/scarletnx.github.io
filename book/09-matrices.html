@@ -1,0 +1,166 @@
+<h1>9. Matrices</h1>
+<p>A matrix is a grid of numbers, and it is also a function: it takes a vector and returns a vector, moving every point of space in a way that keeps straight lines straight. This chapter covers both views, the products that compose such functions, and what those products cost on a real machine. Attention stores its keys and values as matrices, and one decoding step multiplies the key matrix by the query (<a href="#s3">section 9.3</a>, <a href="17-kv-cache.html#s4">section 17.4</a>). Diagonal matrices (<a href="#s5">section 9.5</a>) give the weighted lengths behind the paper's ellipsoid bound (<a href="10-norms.html#s6">section 10.6</a>), and rotations (<a href="#s6">section 9.6</a>) are how RoPE encodes positions (<a href="16-attention.html#s7">section 16.7</a>). <a href="08-vectors.html">Chapter 8</a> is assumed: vectors, dot products, lengths.</p>
+
+<h2 id="s1">9.1 Matrices as linear maps</h2>
+<p>An \(m \times n\) <b>matrix</b> \(A\) is a table of \(m\) rows and \(n\) columns; \(A_{ij}\) is the entry in row \(i\), column \(j\). In C, <code>double A[m][n]</code>, stored row after row (row-major). It acts on a vector \(x \in \mathbb{R}^n\) and gives \(y = Ax \in \mathbb{R}^m\):</p>
+\[ y_i = \sum_{j=1}^{n} A_{ij} x_j , \qquad i = 1, \dots, m. \]
+<p>Read it two ways. <b>By rows</b>: \(y_i\) is the dot product of row \(i\) of \(A\) with \(x\). <b>By columns</b>: \(y = x_1 a_1 + \dots + x_n a_n\), a linear combination of the columns \(a_j\) of \(A\) with the coordinates of \(x\) as weights. The second view says what the matrix <em>does</em>: column \(j\) is where the \(j\)-th unit vector \(e_j = (0, \dots, 1, \dots, 0)\) lands, and every other vector lands at the same combination of those images.</p>
+<p>The map \(x \mapsto Ax\) is <b>linear</b>: \(A(x + y) = Ax + Ay\) and \(A(cx) = c\,Ax\). Conversely, every linear map from \(\mathbb{R}^n\) to \(\mathbb{R}^m\) is a matrix: record where it sends each \(e_j\), as columns <a href="refs.html#r-axler">[axler]</a>. Linear maps keep the origin fixed, send lines to lines and parallelograms to parallelograms. They can stretch, shear, rotate, reflect and flatten, but not bend.</p>
+<figure>
+<svg viewBox="0 0 210 150" width="210" height="150" role="img" aria-label="The unit square and its image under a shear, a parallelogram">
+<line x1="20" y1="130" x2="200" y2="130" stroke="currentColor" stroke-width="0.5"/>
+<line x1="30" y1="140" x2="30" y2="20" stroke="currentColor" stroke-width="0.5"/>
+<polygon points="30,130 100,130 170,60 100,60" fill="#c94a4a" fill-opacity="0.15" stroke="#c94a4a" stroke-width="2"/>
+<polygon points="30,130 100,130 100,60 30,60" fill="#4a7fc1" fill-opacity="0.15" stroke="#4a7fc1" stroke-width="2"/>
+<text x="100" y="145" font-size="12" text-anchor="middle" fill="currentColor">1</text>
+<text x="170" y="145" font-size="12" text-anchor="middle" fill="currentColor">2</text>
+<text x="24" y="64" font-size="12" text-anchor="end" fill="currentColor">1</text>
+<text x="64" y="100" font-size="12" text-anchor="middle" fill="#4a7fc1">square</text>
+<text x="148" y="54" font-size="12" text-anchor="middle" fill="#c94a4a">S &#215; square</text>
+</svg>
+<figcaption>Figure 9.1. The shear \(S = \begin{pmatrix} 1 &amp; 1 \\ 0 &amp; 1 \end{pmatrix}\) keeps \(e_1 = (1, 0)\) (its first column) and sends \(e_2 = (0, 1)\) to \((1, 1)\) (its second). The unit square becomes the parallelogram on those two columns.</figcaption>
+</figure>
+<p>A key matrix is the plainest example. Stack the \(N\) cached keys as rows: \(K\) is \(N \times d\) with row \(i\) equal to \(k_i^\top\). Then \(Kq\) is the vector of all \(N\) dot products \(q^\top k_i\), and the logits are \(s = Kq / \sqrt{d}\). The value matrix \(V\) (\(N \times d_v\), rows \(v_i^\top\)) gives the output as \(o = V^\top \alpha\), by the column view: a combination of the values with the weights \(\alpha_i\).</p>
+
+<h2 id="s2">9.2 Matrix multiplication</h2>
+<p>Apply \(B\), then \(A\): \(x \mapsto A(Bx)\). That is again linear, so it is a matrix, the <b>product</b> \(AB\). Its column \(j\) is \(A\) applied to column \(j\) of \(B\), and its entry \((i, j)\) is a dot product:</p>
+\[ (AB)_{ij} = \sum_{k} A_{ik} B_{kj} = (\text{row } i \text{ of } A) \cdot (\text{column } j \text{ of } B). \]
+<p>\(A\) must have as many columns as \(B\) has rows: \((m \times n)(n \times p) = m \times p\). The product is associative, \((AB)C = A(BC)\), since both mean &ldquo;apply \(C\), then \(B\), then \(A\)&rdquo;. It is not commutative: shearing then rotating is not rotating then shearing.</p>
+<p>An example. With the shear \(S\) of figure 9.1 and the quarter turn \(R = \begin{pmatrix} 0 &amp; -1 \\ 1 &amp; 0 \end{pmatrix}\),</p>
+\[ RS = \begin{pmatrix} 0 &amp; -1 \\ 1 &amp; 1 \end{pmatrix}, \qquad SR = \begin{pmatrix} 1 &amp; -1 \\ 1 &amp; 0 \end{pmatrix}, \]
+<p>and for \(x = (2, 3)\), \(R(Sx) = R(5, 3) = (-3, 5) = (RS)x\). Cost: an \(m \times n\) matrix times a vector is \(mn\) multiply-adds; \((m \times n)(n \times p)\) is \(mnp\).</p>
+<p>The program <code>laws.c</code> in this chapter's sources checks every identity of the chapter (associativity, \((AB)x = A(Bx)\), the transpose rules of section 9.4, the diagonal rules of section 9.5, the 2&times;2 inverse) on 20&thinsp;000 random 5&times;5 matrices; the largest discrepancy is \(3.6 \times 10^{-15}\).</p>
+<p>Matrix&ndash;matrix products are how attention handles many queries at once: with the queries as rows of \(Q\) (\(n \times d\)), \(QK^\top\) is the \(n \times N\) table of all logits. In prefill all \(n\) prompt tokens are queries; in decode there is one, and the product shrinks to a matrix&ndash;vector product (<a href="17-kv-cache.html#s2">section 17.2</a>).</p>
+
+<h2 id="s3">9.3 Its cost and blocking</h2>
+<p>Multiplying two \(n \times n\) matrices takes \(n^2\) dot products of length \(n\): \(n^3\) multiply-adds, \(2n^3\) flops. The data is only \(3n^2\) numbers, so each number is used about \(n\) times. That reuse is the whole game: if every use came from DRAM the multiply units would sit idle; if the reused numbers stay in cache, the work can run at the speed of the arithmetic <a href="refs.html#r-hp">[hp]</a>.</p>
+<p>The loop order decides which. In the textbook <code>ijk</code> order the inner loop walks down a column of \(B\), touching one double per 64-byte cache line and a new line every step. Swapping to <code>ikj</code> makes the inner loop run along a row of \(B\) and of \(C\): sequential, every byte of every line used, and vectorizable. <b>Tiling</b> (blocking) goes further: split the matrices into \(T \times T\) tiles small enough that a tile of \(A\), one of \(B\) and one of \(C\) fit in cache together, and finish all the work on those tiles before moving on <a href="refs.html#r-drepper">[drepper]</a>. With \(T = 64\) doubles the three tiles take 96 KB: more than the 32 KB L1 of this machine's core, well inside its 256 KB L2.</p>
+<figure>
+<svg viewBox="0 0 320 125" width="320" height="125" role="img" aria-label="A tile of C computed from a row of tiles of A and a column of tiles of B">
+<rect x="120" y="40" width="80" height="20" fill="#4a7fc1" fill-opacity="0.2"/>
+<rect x="120" y="40" width="20" height="20" fill="#4a7fc1" fill-opacity="0.6"/>
+<rect x="270" y="20" width="20" height="80" fill="#3f9a55" fill-opacity="0.2"/>
+<rect x="270" y="20" width="20" height="20" fill="#3f9a55" fill-opacity="0.6"/>
+<rect x="50" y="40" width="20" height="20" fill="#c94a4a" fill-opacity="0.6"/>
+<rect x="10" y="20" width="80" height="80" fill="none" stroke="currentColor"/>
+<rect x="120" y="20" width="80" height="80" fill="none" stroke="currentColor"/>
+<rect x="230" y="20" width="80" height="80" fill="none" stroke="currentColor"/>
+<path d="M30,20v80M50,20v80M70,20v80M10,40h80M10,60h80M10,80h80M140,20v80M160,20v80M180,20v80M120,40h80M120,60h80M120,80h80M250,20v80M270,20v80M290,20v80M230,40h80M230,60h80M230,80h80" stroke="currentColor" stroke-width="0.4"/>
+<text x="50" y="117" font-size="12" text-anchor="middle" fill="currentColor">C</text>
+<text x="160" y="117" font-size="12" text-anchor="middle" fill="currentColor">A</text>
+<text x="270" y="117" font-size="12" text-anchor="middle" fill="currentColor">B</text>
+<text x="105" y="65" font-size="16" text-anchor="middle" fill="currentColor">=</text>
+<text x="215" y="65" font-size="16" text-anchor="middle" fill="currentColor">&#215;</text>
+</svg>
+<figcaption>Figure 9.2. Tiling. The red tile of \(C\) is the sum over \(k\) of (tile \(k\) of the blue row of \(A\)) times (tile \(k\) of the green column of \(B\)). The dark pair is the one being multiplied: three tiles in cache, \(T^3\) multiply-adds done on them.</figcaption>
+</figure>
+<!--prog matmul.c recorded-->
+<p>How it maps to the math. All three functions compute \(C_{ij} = \sum_k A_{ik} B_{kj}\); they differ only in the order in which the \(n^3\) terms are visited. Matrices are flat arrays with \(A_{ik}\) at <code>A[i*n + k]</code> (row-major), so consecutive \(k\) in a row of \(A\) are adjacent in memory and consecutive \(k\) in a column of \(B\) are \(n\) doubles apart. <code>ijk</code> fixes \((i, j)\) and runs the sum over \(k\): the dot product of row \(i\) of \(A\) with column \(j\) of \(B\), the formula read literally, with the column read at stride \(n\). <code>ikj</code> moves \(k\) out: for fixed \((i, k)\) it adds \(A_{ik}\) times row \(k\) of \(B\) to row \(i\) of \(C\). That is the column view of section 9.1 applied to rows: row \(i\) of \(C\) is a linear combination of the rows of \(B\) with weights \(A_{i1}, \dots, A_{in}\). Every inner access is now at stride 1, and \(C\) must start at zero because it is accumulated. <code>tiled</code> runs the same <code>ikj</code> loop, restricted to \(T \times T\) blocks: the outer three loops pick a tile of \(C\) (rows <code>ii</code>, columns <code>jj</code>) and a step <code>kk</code> along the sum, and the inner three do the \(T^3\) multiply-adds of that tile product while the three tiles stay in cache. The <code>MIN</code> handles \(n\) not a multiple of \(T\). <code>run</code> times one call and compares with the <code>ijk</code> result; \(2n^3\) flops over the time gives GFLOP/s.</p>
+<p>This ran on fbsd-srv, an Intel Core i5-9400 (Coffee Lake, 32 KB L1 data cache and 256 KB L2 per core, 9 MB shared L3), compiled as every program in this book (<code>cc -std=c99 -O2</code>, clang 19, so SSE2 vectors only). The machine was shared, and times varied between runs: over ten runs, at \(n = 1000\), <code>ijk</code> took 1.1 to 1.5 s, <code>ikj</code> 0.28 to 0.56 s, tiled 0.22 to 0.24 s. The order of the three never changed. The three variants add the same products in the same order (\(k\) ascending for each \(C_{ij}\)), so the results agree to the last bit: <code>max diff 0e+00</code>.</p>
+<p>\(n = 1024\) is the trap. A row is 8192 bytes, so walking down a column steps by a power of two, and every element of a column, and every row of a tile, maps to the same few sets of the 8-way L1 cache: only 8 of them fit at once, and the rest evict each other (<b>conflict misses</b> <a href="refs.html#r-drepper">[drepper]</a>). <code>ijk</code> at \(n = 1024\) took 1.8 to 5.6 s over ten runs, and tiling stopped helping. Padding each row to 1032 doubles (exercise 5) restores the \(n = 1000\) speeds. The variation probably comes from the larger caches, which are indexed by physical address, so how badly the lines collide there depends on which pages the allocator got.</p>
+<p>None of these is fast. With AVX2 and FMA a core of this chip can do 16 double-precision flops per cycle, about 60 GFLOP/s; tuned libraries add register blocking, packing of tiles into contiguous buffers and explicit vector code to get most of that. The point here is the factor between the first and last line, which comes from memory alone.</p>
+<h3>Decode is a matrix&ndash;vector product</h3>
+<p>When generating one token, attention for a head computes \(Kq\): an \(N \times d\) matrix times one vector. That is \(2Nd\) flops on \(Nd\) numbers, each used <em>once</em>. Nothing is reused, so tiling cannot help: the time is the time to stream \(K\) from memory. In <code>float</code>, 2 flops per 4 bytes, 0.5 flop per byte. That ratio, the <b>arithmetic intensity</b>, against the machine's flops per byte of bandwidth, decides whether a kernel is compute-bound or memory-bound <a href="refs.html#r-roofline">[roofline]</a>.</p>
+<!--prog matvec.c recorded-->
+<p>How it maps to the math. <code>K</code> holds the \(N\) keys as rows, \(k_i\) at <code>K[i*D]</code>, as a KV cache stores them; <code>kq</code> computes \(s_i = q^\top k_i\) for each \(i\), the matrix&ndash;vector product by rows. Each dot product is split into 8 partial sums, \(\sum_j = \sum_{u=0}^{7} \sum_{j \equiv u}\), so eight additions are independent and the loop is limited by throughput, not by the latency of one chain of adds (<a href="08-vectors.html#s3">section 8.3</a>); the order of the partial sums is fixed in the source, so the compiler may vectorize it without changing the result. <code>bench</code> times the product at two sizes: \(N = 1024\), where \(K\) (0.5 MB) stays in cache across repetitions, and \(N = 262\,144\), where \(K\) (134 MB) is far larger than the 9 MB L3 and must come from DRAM every time. Changing one coordinate of \(q\) per repetition keeps the compiler from treating the repetitions as one. The rates are \(2Nd\) flops and \(4Nd\) bytes over the time.</p>
+<p>Compiled for SSE2 the arithmetic is the bottleneck at both sizes. Compiled with <code>-march=native</code> (AVX2 and FMA) the same source prints:</p>
+<!--out matvec.c matvec-native.out recorded-->
+<p>Now the cache-resident \(K\) runs at about 28 GFLOP/s, and the 134 MB one at under 11: the cores could go faster, the memory cannot. That is <a href="17-kv-cache.html#s4">section 17.4</a> in one line, and it is why RefineKV's goal is to <em>read</em> fewer keys and values, not to do fewer flops.</p>
+
+<h2 id="s4">9.4 Transpose and inverse</h2>
+<p>The <b>transpose</b> \(A^\top\) swaps rows and columns: \((A^\top)_{ij} = A_{ji}\). A vector is a column (an \(n \times 1\) matrix), so \(a^\top\) is a row and \(a^\top b\) is a \(1 \times 1\) matrix, the dot product. Two rules:</p>
+\[ (AB)^\top = B^\top A^\top , \qquad (Ax) \cdot y = x \cdot (A^\top y). \]
+<p>The second moves a matrix from one side of a dot product to the other, transposed. Section 9.6 uses it.</p>
+<p>The <b>identity</b> \(I\) has 1 on the diagonal and 0 elsewhere; \(Ix = x\). A square matrix \(A\) is <b>invertible</b> if some \(A^{-1}\) has \(A^{-1}A = AA^{-1} = I\): the map can be undone. It can when no nonzero \(x\) has \(Ax = 0\), i.e. when the map flattens nothing. For 2&times;2,</p>
+\[ \begin{pmatrix} a &amp; b \\ c &amp; d \end{pmatrix}^{-1} = \frac{1}{ad - bc} \begin{pmatrix} d &amp; -b \\ -c &amp; a \end{pmatrix}, \qquad ad - bc \ne 0 . \]
+<p><b>Solving versus inverting.</b> To find \(x\) with \(Ax = b\), do not compute \(A^{-1}\) and multiply. Gaussian elimination solves the system directly, for about a third of the work of forming the inverse, and with smaller rounding error <a href="refs.html#r-strang-la">[strang-la]</a>, <a href="refs.html#r-higham">[higham]</a>. Same rule as in code: do not compute a reciprocal table when you only need one division.</p>
+<p>Elimination subtracts multiples of row \(c\) from the rows below it to zero column \(c\) under the diagonal, for \(c = 1, \dots, n\), applying the same operations to \(b\); this leaves a triangular system, solved from the last unknown up (back substitution). For \(\begin{pmatrix} 2 &amp; 1 &amp; 1 \\ 4 &amp; -6 &amp; 0 \\ -2 &amp; 7 &amp; 2 \end{pmatrix} x = (5, -2, 9)\) it gives \(x = (1, 1, 2)\) (<code>solve.c</code> in the sources). Choosing as divisor the largest entry in the column (partial pivoting) keeps the multipliers at most 1 in size and the rounding errors small.</p>
+<p>This book needs no more of it; the paper never inverts or solves.</p>
+
+<h2 id="s5">9.5 Diagonal matrices</h2>
+<p>A <b>diagonal matrix</b> \(W = \operatorname{diag}(w_1, \dots, w_d)\) has the \(w_j\) on its diagonal and zeros elsewhere. It scales each coordinate by its own factor:</p>
+\[ Wx = (w_1 x_1, \dots, w_d x_d). \]
+<p>In code it is a vector, not a matrix: \(d\) multiplies, not \(d^2\). \(WA\) scales row \(i\) of \(A\) by \(w_i\); \(AW\) scales column \(j\) by \(w_j\). If every \(w_j \ne 0\), \(W^{-1} = \operatorname{diag}(1/w_1, \dots, 1/w_d)\). Per-channel scales in quantized models, and the per-channel radii of the paper's key clusters, are diagonal matrices.</p>
+<p>Two identities matter for <a href="10-norms.html#s6">chapter 10</a>. Take \(w_j &gt; 0\). First, a scale factor can be moved across a dot product:</p>
+\[ q^\top r = \sum_{j} q_j r_j = \sum_j (q_j w_j)\,\frac{r_j}{w_j} = (Wq)^\top (W^{-1} r). \]
+<p>Second, the <b>weighted length</b> \(\big(\sum_j r_j^2 / w_j^2\big)^{1/2}\) is the ordinary length of \(W^{-1} r\): measure each coordinate in units of its own \(w_j\). The set where it is at most \(\rho\),</p>
+\[ \Big\{ r : \sum_{j=1}^{d} \frac{r_j^2}{w_j^2} \le \rho^2 \Big\} = \{ r : \|W^{-1} r\| \le \rho \} , \]
+<p>is an <b>ellipsoid</b> with semi-axes \(\rho w_j\) along the coordinate axes: the ball of radius \(\rho\) stretched by \(W\). RefineKV's diagonal-ellipsoid bound puts a cluster's centered keys \(r_i = k_i - \bar k_C\) in such a set and splits \(q^\top r_i\) exactly as above (<a href="refs.html#r-refinekv">[refinekv]</a>, Appendix A.7.2).</p>
+<figure>
+<svg viewBox="0 0 340 150" width="340" height="150" role="img" aria-label="A circle mapped by a diagonal matrix to an axis-aligned ellipse">
+<circle cx="60" cy="75" r="40" fill="#4a7fc1" fill-opacity="0.15" stroke="#4a7fc1" stroke-width="2"/>
+<ellipse cx="240" cy="75" rx="80" ry="30" fill="#c94a4a" fill-opacity="0.15" stroke="#c94a4a" stroke-width="2"/>
+<line x1="10" y1="75" x2="110" y2="75" stroke="currentColor" stroke-width="0.5"/>
+<line x1="60" y1="25" x2="60" y2="125" stroke="currentColor" stroke-width="0.5"/>
+<line x1="150" y1="75" x2="330" y2="75" stroke="currentColor" stroke-width="0.5"/>
+<line x1="240" y1="35" x2="240" y2="115" stroke="currentColor" stroke-width="0.5"/>
+<circle cx="88.3" cy="46.7" r="3.5" fill="currentColor"/>
+<circle cx="296.6" cy="53.8" r="3.5" fill="currentColor"/>
+<line x1="115" y1="60" x2="150" y2="60" stroke="currentColor" stroke-width="1.5"/>
+<polygon points="150,56 158,60 150,64" fill="currentColor"/>
+<text x="135" y="52" font-size="12" text-anchor="middle" fill="currentColor">W</text>
+<text x="60" y="142" font-size="12" text-anchor="middle" fill="currentColor">|r| &#8804; 1</text>
+<text x="240" y="142" font-size="12" text-anchor="middle" fill="currentColor">&#931; r&#11388;&#178;/w&#11388;&#178; &#8804; 1</text>
+</svg>
+<figcaption>Figure 9.3. \(W = \operatorname{diag}(2, 0.75)\) stretches the unit disk into an ellipse with semi-axes 2 and 0.75 along the axes. Each point moves to its scaled copy; the dots are one point and its image.</figcaption>
+</figure>
+<p>Both identities are exact algebra; <code>diag.c</code> in the sources checks them on 100&thinsp;000 random cases (largest discrepancy \(1.8 \times 10^{-15}\), rounding).</p>
+
+<h2 id="s6">9.6 Orthogonal matrices and rotations</h2>
+<p>A square matrix \(Q\) is <b>orthogonal</b> when \(Q^\top Q = I\): its columns are unit vectors, perpendicular to each other. Then \(Q^{-1} = Q^\top\), and, by the transpose rule of section 9.4,</p>
+\[ (Qx) \cdot (Qy) = x \cdot (Q^\top Q y) = x \cdot y , \qquad \|Qx\| = \|x\| . \]
+<p>Orthogonal maps preserve dot products, so lengths and angles: they are the rigid motions that fix the origin, rotations and reflections. In the plane, rotation by \(\theta\) is</p>
+\[ R(\theta) = \begin{pmatrix} \cos\theta &amp; -\sin\theta \\ \sin\theta &amp; \cos\theta \end{pmatrix}, \qquad R(\alpha) R(\beta) = R(\alpha + \beta), \qquad R(\theta)^\top = R(-\theta). \]
+<p>The columns are where \(e_1\) and \(e_2\) go: \((\cos\theta, \sin\theta)\) and \((-\sin\theta, \cos\theta)\), both on the unit circle and perpendicular. The product rule is the angle-addition formulas of trigonometry in matrix form.</p>
+<figure>
+<svg viewBox="0 0 200 155" width="200" height="155" role="img" aria-label="A vector x and its rotation R x by 0.7 radians">
+<defs>
+<marker id="ra" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#4a7fc1"/></marker>
+<marker id="rb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#c94a4a"/></marker>
+</defs>
+<line x1="30" y1="140" x2="190" y2="140" stroke="currentColor" stroke-width="0.5"/>
+<line x1="40" y1="150" x2="40" y2="20" stroke="currentColor" stroke-width="0.5"/>
+<circle cx="40" cy="140" r="89.4" fill="none" stroke="currentColor" stroke-width="0.5" stroke-dasharray="3 3"/>
+<line x1="40" y1="140" x2="120" y2="100" stroke="#4a7fc1" stroke-width="2" marker-end="url(#ra)"/>
+<line x1="40" y1="140" x2="75.4" y2="57.9" stroke="#c94a4a" stroke-width="2" marker-end="url(#rb)"/>
+<path d="M66.8,126.6 A30,30 0 0 0 51.9,112.4" fill="none" stroke="currentColor"/>
+<text x="126" y="100" font-size="12" fill="#4a7fc1">x</text>
+<text x="80" y="55" font-size="12" fill="#c94a4a">R(&#952;) x</text>
+<text x="72" y="118" font-size="12" fill="currentColor">&#952;</text>
+</svg>
+<figcaption>Figure 9.4. \(R(\theta)\) turns every vector by \(\theta\) (here 0.7 radians) and keeps its length: \(x\) and \(R(\theta)x\) are on the same circle.</figcaption>
+</figure>
+<p><b>A preview of RoPE.</b> Rotary position embedding <a href="refs.html#r-rope">[rope]</a> splits the query and key into pairs of coordinates and rotates each pair by an angle proportional to the token's position: \(q\) at position \(m\) becomes \(R(m\theta)q\), \(k\) at position \(n\) becomes \(R(n\theta)k\). Their dot product is</p>
+\[ (R(m\theta)q)^\top (R(n\theta)k) = q^\top R(m\theta)^\top R(n\theta) k = q^\top R((n - m)\theta)\, k , \]
+<p>which depends on the positions only through their difference \(n - m\). The logit sees how far apart two tokens are, not where they are. <a href="16-attention.html#s7">Section 16.7</a> does it properly, with a different \(\theta\) per pair.</p>
+<p>Numerically (<code>rot.c</code> in the sources), with \(\theta = 0.1\), \(q = (1, 0.5)\), \(k = (0.3, -1.2)\), the position pairs \((5, 2)\), \((13, 10)\) and \((103, 100)\) all give the logit \(-0.685553225730490\), the last one off by one unit in the 15th decimal: the sines and cosines of 10.3 and 10.0 carry different rounding errors from those of 0.5 and 0.2. One more consequence matters for chapter 10: rotating every query and key by the same \(Q\) leaves all logits, and so \(\delta_C\), unchanged. A bound that uses per-coordinate minima and maxima does change, because it depends on the axes. That is why the paper's two bounds are called axis-aligned and diagonal (<a href="10-norms.html#s6">section 10.6</a>).</p>
+
+<h2 id="exercises">Exercises</h2>
+<ol class="ex">
+<li>With \(A = \begin{pmatrix} 1 &amp; 2 \\ 3 &amp; 4 \end{pmatrix}\) and \(P = \begin{pmatrix} 0 &amp; 1 \\ 1 &amp; 0 \end{pmatrix}\), compute \(AP\) and \(PA\). What does \(P\) do on each side?
+<details><summary>Answer</summary><p>\(AP = \begin{pmatrix} 2 &amp; 1 \\ 4 &amp; 3 \end{pmatrix}\): the columns of \(A\) swapped. \(PA = \begin{pmatrix} 3 &amp; 4 \\ 1 &amp; 2 \end{pmatrix}\): the rows swapped. A permutation matrix on the right permutes columns, on the left rows.</p></details></li>
+<li>A head has \(d = 128\) and \(N = 100\,000\) cached keys in fp16. How many bytes does \(Kq\) read, how many flops does it do, and how long does it take at 20 GB/s and at 30 GFLOP/s?
+<details><summary>Answer</summary><p>\(Nd \cdot 2 = 25.6\) MB and \(2Nd = 25.6\) MFLOP. Reading takes 1.28 ms, computing 0.85 ms: memory is the limit, and in a real model the same data is read for every layer and KV head.</p></details></li>
+<li>Invert \(B = \begin{pmatrix} 2 &amp; 1 \\ 1 &amp; 1 \end{pmatrix}\) with the 2&times;2 formula and check \(BB^{-1} = I\).
+<details><summary>Answer</summary><p>\(ad - bc = 1\), so \(B^{-1} = \begin{pmatrix} 1 &amp; -1 \\ -1 &amp; 2 \end{pmatrix}\), and the product is \(I\) (<code>ex.c</code> prints it).</p></details></li>
+<li>Show \((AB)^\top = B^\top A^\top\) from the entry formula.
+<details><summary>Answer</summary><p>\(((AB)^\top)_{ij} = (AB)_{ji} = \sum_k A_{jk} B_{ki} = \sum_k (B^\top)_{ik} (A^\top)_{kj} = (B^\top A^\top)_{ij}\).</p></details></li>
+<li>Change <code>matmul.c</code> so that rows are 1032 doubles apart when \(n = 1024\) (allocate \(n \times 1032\), index <code>A[i*ld + k]</code>). What happens?
+<details><summary>Answer</summary><p>The program <code>pad.c</code> does it. One run printed:</p><!--out pad.c recorded--><p>\(n = 1024\) now runs like \(n = 1000\). The column stride is no longer a power of two, so a column's elements spread over all the cache sets.</p></details></li>
+<li>Show that \(R(\pi/2)^4 = I\). Is \(\operatorname{diag}(2, 1/2)\) orthogonal?
+<details><summary>Answer</summary><p>\(R(\pi/2)^4 = R(2\pi) = I\): four quarter turns. \(\operatorname{diag}(2, 1/2)\) is not orthogonal: it sends \(e_1\) to a vector of length 2. It preserves area (\(ad - bc = 1\)) but not lengths.</p></details></li>
+<li>RefineKV stores, per cluster, the coordinate-wise minimum and maximum of the keys. If all keys and queries were rotated by the same orthogonal \(Q\), which of these change: the logits, \(\delta_C\), the per-coordinate minima and maxima?
+<details><summary>Answer</summary><p>Logits do not: \((Qq)^\top(Qk_i) = q^\top k_i\). The mean key rotates with the keys, so \(\delta_C\) does not change either. The minima and maxima do: they are taken along the coordinate axes, which \(Q\) does not move. So the box bound of section 10.6 can be tighter or looser after a rotation, though the true \(\delta_C\) is the same.</p></details></li>
+</ol>
+
+<h2 id="references">References</h2>
+<ul>
+<li><a href="refs.html#r-strang-la">[strang-la]</a> Chapters 1 to 2 and 4: matrices, multiplication, elimination and inverses, transposes; orthogonal matrices.</li>
+<li><a href="refs.html#r-vmls">[vmls]</a> Chapters 6 to 11: matrices, matrix examples (including rotations), linear equations, matrix multiplication and inverses, with flop counts.</li>
+<li><a href="refs.html#r-axler">[axler]</a> Linear maps and their matrices, for the structural view.</li>
+<li><a href="refs.html#r-higham">[higham]</a> Gaussian elimination and why one solves rather than inverts.</li>
+<li><a href="refs.html#r-drepper">[drepper]</a> CPU caches, associativity and conflict misses; a worked matrix multiplication optimized for the cache.</li>
+<li><a href="refs.html#r-hp">[hp]</a> The memory hierarchy and cache optimizations, blocking among them.</li>
+<li><a href="refs.html#r-roofline">[roofline]</a> Arithmetic intensity and the compute-bound/memory-bound line.</li>
+<li><a href="refs.html#r-rope">[rope]</a> The rotary position embedding and its relative-position property.</li>
+</ul>

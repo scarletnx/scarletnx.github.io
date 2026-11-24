@@ -1,0 +1,12 @@
+i=0  q.k_i = -0.22301   q.kbar + q.r_i = -0.22301   q.r_i = -0.53782
+i=1  q.k_i =  0.63567   q.kbar + q.r_i =  0.63567   q.r_i =  0.32086
+i=2  q.k_i = -1.82099   q.kbar + q.r_i = -1.82099   q.r_i = -2.13580
+i=3  q.k_i = -1.10589   q.kbar + q.r_i = -1.10589   q.r_i = -1.42070
+i=4  q.k_i =  1.94811   q.kbar + q.r_i =  1.94811   q.r_i =  1.63330
+i=5  q.k_i =  2.45497   q.kbar + q.r_i =  2.45497   q.r_i =  2.14016
+q.kbar = 0.3148103794466296
+mean of q.k_i = 0.31481037944662954
+sum of r_i = (-5.6e-16, 1.1e-16, 0.0e+00, -2.2e-16)
+delta_C = max |q.r_i| / sqrt(d) = 1.07008
+|C| exp(q.kbar/sqrt d) = 7.02282  <=  sum exp(q.k_i/sqrt d) = 9.30751
+ratio 1.32532  <=  cosh(delta_C) = 1.62930

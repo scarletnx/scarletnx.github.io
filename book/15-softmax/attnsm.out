@@ -1,0 +1,2 @@
+N = 32768, max logit 39.998, sum l = 255.406147
+max |o_j - ref_j|:  two-pass 3.0e-07  one-pass 3.0e-07  merged chunks 6.1e-08

@@ -1,0 +1,4 @@
+max |o - reference| over 32 heads x 128: 2.9e-09
+per layer: 6.71e+07 flops, 1.68e+07 bytes of K/V, 4.0 flops per byte
+with 32 KV heads (no sharing): 1.0 flops per byte
+KV cache per token, 32 layers: 131072 bytes; at 131072 tokens: 16.0 GiB

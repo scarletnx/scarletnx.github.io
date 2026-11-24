@@ -1,0 +1,6 @@
+exact    4999328.3
+naive    4999149.0  rel err 3.6e-05
+pairwise 4999328.5  rel err 3.3e-08
+kahan    4999328.5  rel err 3.3e-08
+bounds: n*u = 6.0e-01, log2(n)*u = 1.4e-06, 2u = 1.2e-07
+1.0f added 20000000 times = 16777216

@@ -1,0 +1,2 @@
+N =    1024 (K is    0.5 MB):      9.4 us per K q  27.96 GFLOP/s   55.9 GB/s read  (s[0] -0.775)
+N =  262144 (K is  134.2 MB):   6250.0 us per K q  10.74 GFLOP/s   21.5 GB/s read  (s[0] -0.474)

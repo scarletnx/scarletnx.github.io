@@ -1,0 +1,18 @@
+20000 trials; identities Eq. 3 and Eq. 17: largest residual 3.4e-15
+inequality                                   violations  max l/r
+m_C >= 1                      (Eq. 38, 50)            0   1.0000
+m_C <= cosh(delta_C)          (Lemma A.2)             0   1.0000
+sum |w - 1/n| <= 2 tanh(d/2)  (Eq. 29)                0   1.0000
+|v_C - vbar_C| <= 2V_C tanh   (Eq. 30)                0   0.7706
+|o - otilde| <= Eq. 22                                0   0.5002
+|otilde - ohat| <= Eq. 32                             0   0.4150
+|o - ohat| <= 2 sum R_C exact (Eq. 35)                0   0.3430
+delta_C <= delta_box          (Eq. 83)                0   0.9890
+delta_C <= delta_ell          (Eq. 91)                0   0.8936
+|o - ohat| <= 2 sum R_C box   (Eq. 37)                0   0.3324
+|o - ohat| <= 2 sum R_C ell   (Eq. 37)                0   0.3329
+bound / |o - ohat|   min    10%    50%    90%
+exact delta        2.92  20.47  54.63  113.2
+box delta          3.01  31.43  138.9    412
+bound above the trivial 2 Vmax: exact 27.0%, box 82.6%
+delta_box / delta: median 3.06, 90% 4.04;  delta_ell / delta: median 2.40, 90% 3.35

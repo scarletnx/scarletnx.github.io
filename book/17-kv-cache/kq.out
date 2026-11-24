@@ -1,0 +1,7 @@
+read only:   24.2 ms   22.2 GB/s  (sum -335543)
+B =  1:       26.3 ms   20.4 GB/s of keys   10.2 GFLOP/s  ( 0.5 FLOP/byte)
+B =  2:       36.1 ms   14.9 GB/s of keys   14.9 GFLOP/s  ( 1.0 FLOP/byte)
+B =  4:       53.6 ms   10.0 GB/s of keys   20.0 GFLOP/s  ( 2.0 FLOP/byte)
+B = 16:      164.4 ms    3.3 GB/s of keys   26.1 GFLOP/s  ( 8.0 FLOP/byte)
+B = 64:      606.3 ms    0.9 GB/s of keys   28.3 GFLOP/s  (32.0 FLOP/byte)
+check 0.275429

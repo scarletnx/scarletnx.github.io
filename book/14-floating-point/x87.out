@@ -1,0 +1,5 @@
+LDBL_MANT_DIG = 64, x87 precision control = 3 (FP_PS 0, FP_PD 2, FP_PE 3)
+one rounding:  1 + 1 ulp
+two roundings: 1 + 0 ulp
+PC = 53 bits:  1 + 1 ulp
+PC = 53 bits:  DBL_MAX * 2 = 3.59539e+308 in a register, inf stored as double

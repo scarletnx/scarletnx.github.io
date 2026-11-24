@@ -1,0 +1,4 @@
+d =    2: rms a.b =  1.402  sqrt(d) =  1.414   mean |cos| = 0.6363  sqrt(2/(pi d)) = 0.5642
+d =   16: rms a.b =  4.017  sqrt(d) =  4.000   mean |cos| = 0.2027  sqrt(2/(pi d)) = 0.1995
+d =  128: rms a.b = 11.326  sqrt(d) = 11.314   mean |cos| = 0.0709  sqrt(2/(pi d)) = 0.0705
+d = 1024: rms a.b = 31.870  sqrt(d) = 32.000   mean |cos| = 0.0249  sqrt(2/(pi d)) = 0.0249

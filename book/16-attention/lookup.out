@@ -1,0 +1,4 @@
+scale  1: weights 0.289 0.449 0.200 0.063  output 20.36
+scale  4: weights 0.142 0.825 0.032 0.000  output 18.91
+scale 16: weights 0.001 0.999 0.000 0.000  output 19.99
+scale 64: weights 0.000 1.000 0.000 0.000  output 20.00

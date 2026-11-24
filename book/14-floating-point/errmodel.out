@@ -1,0 +1,4 @@
+a + b      max |eps| = 1.000000 u
+a * b      max |eps| = 0.999261 u
+a / b      max |eps| = 0.999706 u
+sqrt(|a|)  max |eps| = 0.999998 u

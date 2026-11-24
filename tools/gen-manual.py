@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Makes the ISA manuals (manual/) from ScarletNX's Sail: ARM's (A64 and AArch32), Maxwell's (SM53) and Ampere's (SM86).
 
-    tools/gen-manual.py SCARLETNX [OUT]     OUT is manual/ beside tools/ when not named
+    tools/gen-manual.py SCARLETNX [OUT]     OUT is _site/manual beside tools/ when not named
         --commit HASH       the ScarletNX commit the Sail is from, for the links to it (else asked of git, else main)
 
 SCARLETNX is a checkout of ScarletNX; it reads src/common/cpu/aarch64/sail, src/common/cpu/arm/sail and
@@ -1475,7 +1475,7 @@ def main(argv):
         print(__doc__.strip(), file=sys.stderr)
         return 2
     root = argv[0]
-    out = argv[1] if len(argv) == 2 else os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'manual')
+    out = argv[1] if len(argv) == 2 else os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '_site', 'manual')
     commit = commit or find_commit(root, [a['dir'] for a in ARCHES] + [GPU_DIR, NVN_DIR, VK_FORMATS])
     here = os.path.dirname(os.path.abspath(__file__))
 

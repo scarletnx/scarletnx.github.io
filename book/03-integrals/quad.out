@@ -1,0 +1,9 @@
+n =   2  trapezoid err 3.565e-02                Simpson err 5.793e-04
+n =   4  trapezoid err 8.940e-03 (ratio  3.99)  Simpson err 3.701e-05 (ratio 15.65)
+n =   8  trapezoid err 2.237e-03 (ratio  4.00)  Simpson err 2.326e-06 (ratio 15.91)
+n =  16  trapezoid err 5.593e-04 (ratio  4.00)  Simpson err 1.456e-07 (ratio 15.98)
+n =  32  trapezoid err 1.398e-04 (ratio  4.00)  Simpson err 9.103e-09 (ratio 15.99)
+n =  64  trapezoid err 3.496e-05 (ratio  4.00)  Simpson err 5.690e-10 (ratio 16.00)
+n = 128  trapezoid err 8.740e-06 (ratio  4.00)  Simpson err 3.556e-11 (ratio 16.00)
+n = 256  trapezoid err 2.185e-06 (ratio  4.00)  Simpson err 2.222e-12 (ratio 16.00)
+n = 512  trapezoid err 5.462e-07 (ratio  4.00)  Simpson err 1.403e-13 (ratio 15.83)

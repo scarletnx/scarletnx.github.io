@@ -1,0 +1,5 @@
+                         delta_C     box     ell  rho_C   l1/l2 box tighter fails
+dense keys, dense q        2.298  18.905  12.893   5.50    8.88        0.0%     0
+dense keys, spiky q        1.050   2.879   5.777   5.50    3.00      100.0%     0
+spiky keys, dense q        0.830   4.757   7.097   5.08    4.75       99.9%     0
+keys on a line, dense q    1.903  15.360  24.647  10.71    7.38      100.0%     0

@@ -2,7 +2,9 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Keeps the site loadable on low-memory devices and old browsers.
 
-    tools/check-site.py [FILE.html...]      every .html of the repository when none is named
+    tools/check-site.py SITE                every .html of a made site (tools/build-site.sh's _site)
+    tools/check-site.py [FILE.html...]      every .html of the repository when none is named (not book/, the
+                                            book's sources, nor tests/)
 
 A page fails on JavaScript (a <script>, an on... attribute, a javascript: link), on CSS (a <style>, a style
 attribute, a stylesheet <link>), on a size over 16 KB (a second to load at 128 kbit/s), and on an element an old
@@ -90,12 +92,18 @@ def check(path, root):
 
 def main(argv):
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    files = argv or sorted(f for f in glob.glob(os.path.join(root, '**', '*.html'), recursive=True)
-                           if '/tests/' not in f.replace(os.sep, '/'))
+    site = len(argv) == 1 and os.path.isdir(argv[0])
+    if site:
+        root = os.path.abspath(argv[0])
+        files = sorted(glob.glob(os.path.join(root, '**', '*.html'), recursive=True))
+    else:
+        skip = [os.path.join(root, d) + os.sep for d in ('tests', 'book', '_site')]
+        files = argv or sorted(f for f in glob.glob(os.path.join(root, '**', '*.html'), recursive=True)
+                               if not any(f.startswith(d) for d in skip))
     failures = [f for path in files for f in check(path, root)]
     for rel, cap in MANUAL_CAPS.items():
         path = os.path.join(root, rel)
-        if not argv and os.path.exists(path) and os.path.getsize(path) > cap:
+        if (site or not argv) and os.path.exists(path) and os.path.getsize(path) > cap:
             failures.append(f'{path}:1: {os.path.getsize(path)} bytes, over {cap}: the manual\'s {rel[len(MANUAL):]} stays small')
     print('\n'.join(failures) if failures else f'{len(files)} page(s): no JavaScript, no CSS (the manual: its own, from files), small, drawn by old browsers')
     return 1 if failures else 0

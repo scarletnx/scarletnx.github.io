@@ -1,0 +1,211 @@
+<h1>6. Ordinary differential equations</h1>
+<p>A differential equation states a rule for how a quantity changes, and asks for the quantity. The rule is often easy to write down (&ldquo;it shrinks at a rate proportional to its size&rdquo;) when the quantity itself is not. The exponential is the answer to the simplest such rule, \(y' = y\); cosh, sinh, cos and sin answer the next simplest. A differential equation can also be run as a loop: start from a state, step it forward by its rate, repeat. Doing that well is numerical integration, and this chapter ends with its two basic tools, Euler's method and Runge&ndash;Kutta, and with the condition on the step size that keeps them from blowing up.</p>
+<p>The paper solves no differential equations. What it needs from here is the exponential as the solution of \(y' = ky\) (used in <a href="04-exp-log.html">chapter 4</a>), and the step-size condition of <a href="#s8">section 6.8</a>, which reappears as the learning-rate limit of gradient descent in <a href="07-several-variables.html#s5">section 7.5</a>.</p>
+
+<h2 id="s1">6.1 What an ODE is</h2>
+<p>An <b>ordinary differential equation</b> (ODE) relates an unknown function \(y(t)\) of one variable to its derivatives. A first-order ODE gives the slope:</p>
+\[ y'(t) = f(t, y(t)). \]
+<p>Read it as a rate law: at time \(t\), in state \(y\), the state changes at rate \(f(t, y)\). Examples:</p>
+<ul>
+<li><b>Decay.</b> \(y' = -ky\): the amount of a radioactive isotope, or the charge on a capacitor, falls at a rate proportional to what is left.</li>
+<li><b>Cooling.</b> \(y' = -k (y - u)\): a body at temperature \(y\) in a room at \(u\) cools at a rate proportional to the difference (Newton's law).</li>
+<li><b>Logistic growth.</b> \(y' = y (1 - y)\): growth proportional to the size \(y\), slowed as it approaches a cap of 1.</li>
+</ul>
+<p>The equation alone has many solutions; fixing the <b>initial value</b> \(y(t_0) = y_0\) picks one. When \(f\) is smooth, there is exactly one solution through each starting point <a href="refs.html#r-boyce">[boyce]</a>. The <b>order</b> of an ODE is that of the highest derivative in it: \(y'' = -y\) is second order. &ldquo;Ordinary&rdquo; means one independent variable \(t\); with several, it would be a partial differential equation.</p>
+<p>A picture shows what the rule says before solving anything. At each point \((t, y)\), draw a short segment with slope \(f(t, y)\). This <b>slope field</b> (direction field) is a map of arrows; a solution is a curve that follows them everywhere.</p>
+<figure>
+<svg viewBox="0 0 420 250" width="420" height="250" role="img" aria-label="Slope field of y prime = y(1 - y) with solution curves">
+<line x1="35" y1="220.0" x2="410" y2="220.0" stroke="currentColor"/>
+<line x1="35" y1="225.0" x2="35" y2="10" stroke="currentColor"/>
+<text x="96.7" y="236.0" font-size="11" text-anchor="middle" fill="currentColor">1</text>
+<text x="158.3" y="236.0" font-size="11" text-anchor="middle" fill="currentColor">2</text>
+<text x="220.0" y="236.0" font-size="11" text-anchor="middle" fill="currentColor">3</text>
+<text x="281.7" y="236.0" font-size="11" text-anchor="middle" fill="currentColor">4</text>
+<text x="343.3" y="236.0" font-size="11" text-anchor="middle" fill="currentColor">5</text>
+<text x="405.0" y="236.0" font-size="11" text-anchor="middle" fill="currentColor">6</text>
+<text x="30" y="155.7" font-size="11" text-anchor="end" fill="currentColor">0.5</text>
+<text x="30" y="87.3" font-size="11" text-anchor="end" fill="currentColor">1</text>
+<text x="30" y="19.0" font-size="11" text-anchor="end" fill="currentColor">1.5</text>
+<text x="408" y="214.0" font-size="12" text-anchor="end" fill="currentColor">t</text>
+<text x="42" y="20" font-size="12" fill="currentColor">y</text>
+<path d="M42.6 204.8l15.5 -3.8M43.0 188.9l14.8 -6.1M43.3 172.4l14.2 -7.4M43.4 155.5l14.0 -7.8M43.3 138.3l14.2 -7.4M43.0 120.6l14.8 -6.1M42.6 102.3l15.5 -3.8M42.4 83.3l16.0 -0.0M42.8 63.9l15.3 4.8M43.8 44.6l13.2 9.1M45.1 26.1l10.5 12.0M71.6 204.8l15.5 -3.8M72.0 188.9l14.8 -6.1M72.3 172.4l14.2 -7.4M72.4 155.5l14.0 -7.8M72.3 138.3l14.2 -7.4M72.0 120.6l14.8 -6.1M71.6 102.3l15.5 -3.8M71.4 83.3l16.0 -0.0M71.8 63.9l15.3 4.8M72.8 44.6l13.2 9.1M74.1 26.1l10.5 12.0M100.6 204.8l15.5 -3.8M101.0 188.9l14.8 -6.1M101.3 172.4l14.2 -7.4M101.4 155.5l14.0 -7.8M101.3 138.3l14.2 -7.4M101.0 120.6l14.8 -6.1M100.6 102.3l15.5 -3.8M100.4 83.3l16.0 -0.0M100.7 63.9l15.3 4.8M101.8 44.6l13.2 9.1M103.1 26.1l10.5 12.0M129.6 204.8l15.5 -3.8M130.0 188.9l14.8 -6.1M130.3 172.4l14.2 -7.4M130.4 155.5l14.0 -7.8M130.3 138.3l14.2 -7.4M130.0 120.6l14.8 -6.1M129.6 102.3l15.5 -3.8M129.4 83.3l16.0 -0.0M129.7 63.9l15.3 4.8M130.8 44.6l13.2 9.1M132.1 26.1l10.5 12.0M158.6 204.8l15.5 -3.8M159.0 188.9l14.8 -6.1M159.3 172.4l14.2 -7.4M159.4 155.5l14.0 -7.8M159.3 138.3l14.2 -7.4M159.0 120.6l14.8 -6.1M158.6 102.3l15.5 -3.8M158.3 83.3l16.0 -0.0M158.7 63.9l15.3 4.8M159.8 44.6l13.2 9.1M161.1 26.1l10.5 12.0M187.6 204.8l15.5 -3.8M187.9 188.9l14.8 -6.1M188.2 172.4l14.2 -7.4M188.3 155.5l14.0 -7.8M188.2 138.3l14.2 -7.4M187.9 120.6l14.8 -6.1M187.6 102.3l15.5 -3.8M187.3 83.3l16.0 -0.0M187.7 63.9l15.3 4.8M188.8 44.6l13.2 9.1M190.1 26.1l10.5 12.0M216.5 204.8l15.5 -3.8M216.9 188.9l14.8 -6.1M217.2 172.4l14.2 -7.4M217.3 155.5l14.0 -7.8M217.2 138.3l14.2 -7.4M216.9 120.6l14.8 -6.1M216.5 102.3l15.5 -3.8M216.3 83.3l16.0 -0.0M216.7 63.9l15.3 4.8M217.7 44.6l13.2 9.1M219.0 26.1l10.5 12.0M245.5 204.8l15.5 -3.8M245.9 188.9l14.8 -6.1M246.2 172.4l14.2 -7.4M246.3 155.5l14.0 -7.8M246.2 138.3l14.2 -7.4M245.9 120.6l14.8 -6.1M245.5 102.3l15.5 -3.8M245.3 83.3l16.0 -0.0M245.7 63.9l15.3 4.8M246.7 44.6l13.2 9.1M248.0 26.1l10.5 12.0M274.5 204.8l15.5 -3.8M274.9 188.9l14.8 -6.1M275.2 172.4l14.2 -7.4M275.3 155.5l14.0 -7.8M275.2 138.3l14.2 -7.4M274.9 120.6l14.8 -6.1M274.5 102.3l15.5 -3.8M274.3 83.3l16.0 -0.0M274.6 63.9l15.3 4.8M275.7 44.6l13.2 9.1M277.0 26.1l10.5 12.0M303.5 204.8l15.5 -3.8M303.9 188.9l14.8 -6.1M304.2 172.4l14.2 -7.4M304.3 155.5l14.0 -7.8M304.2 138.3l14.2 -7.4M303.9 120.6l14.8 -6.1M303.5 102.3l15.5 -3.8M303.3 83.3l16.0 -0.0M303.6 63.9l15.3 4.8M304.7 44.6l13.2 9.1M306.0 26.1l10.5 12.0M332.5 204.8l15.5 -3.8M332.9 188.9l14.8 -6.1M333.2 172.4l14.2 -7.4M333.3 155.5l14.0 -7.8M333.2 138.3l14.2 -7.4M332.9 120.6l14.8 -6.1M332.5 102.3l15.5 -3.8M332.2 83.3l16.0 -0.0M332.6 63.9l15.3 4.8M333.7 44.6l13.2 9.1M335.0 26.1l10.5 12.0M361.5 204.8l15.5 -3.8M361.8 188.9l14.8 -6.1M362.1 172.4l14.2 -7.4M362.2 155.5l14.0 -7.8M362.1 138.3l14.2 -7.4M361.8 120.6l14.8 -6.1M361.5 102.3l15.5 -3.8M361.2 83.3l16.0 -0.0M361.6 63.9l15.3 4.8M362.7 44.6l13.2 9.1M364.0 26.1l10.5 12.0M390.4 204.8l15.5 -3.8M390.8 188.9l14.8 -6.1M391.1 172.4l14.2 -7.4M391.2 155.5l14.0 -7.8M391.1 138.3l14.2 -7.4M390.8 120.6l14.8 -6.1M390.4 102.3l15.5 -3.8M390.2 83.3l16.0 -0.0M390.6 63.9l15.3 4.8M391.6 44.6l13.2 9.1M392.9 26.1l10.5 12.0" stroke="currentColor" stroke-width="1" fill="none"/>
+<line x1="35" y1="83.3" x2="410" y2="83.3" stroke="#3f9a55" stroke-dasharray="4 3"/>
+<polyline fill="none" stroke="#4a7fc1" stroke-width="2" points="35.0,213.2 41.2,212.5 47.3,211.7 53.5,210.9 59.7,210.1 65.8,209.1 72.0,208.0 78.2,206.9 84.3,205.7 90.5,204.3 96.7,202.9 102.8,201.3 109.0,199.7 115.2,197.9 121.3,196.0 127.5,193.9 133.7,191.7 139.8,189.4 146.0,187.0 152.2,184.4 158.3,181.7 164.5,178.9 170.7,176.0 176.8,173.0 183.0,169.8 189.2,166.6 195.3,163.3 201.5,160.0 207.7,156.6 213.8,153.2 220.0,149.8 226.2,146.4 232.3,143.0 238.5,139.6 244.7,136.4 250.8,133.2 257.0,130.0 263.2,127.0 269.3,124.1 275.5,121.3 281.7,118.6 287.8,116.1 294.0,113.6 300.2,111.3 306.3,109.2 312.5,107.2 318.7,105.2 324.8,103.5 331.0,101.8 337.2,100.3 343.3,98.8 349.5,97.5 355.7,96.3 361.8,95.2 368.0,94.1 374.2,93.2 380.3,92.3 386.5,91.5 392.7,90.8 398.8,90.1 405.0,89.5"/>
+<polyline fill="none" stroke="#c94a4a" stroke-width="2" points="35.0,179.0 41.2,176.1 47.3,173.0 53.5,169.9 59.7,166.7 65.8,163.4 72.0,160.1 78.2,156.7 84.3,153.3 90.5,149.9 96.7,146.5 102.8,143.1 109.0,139.7 115.2,136.5 121.3,133.2 127.5,130.1 133.7,127.1 139.8,124.2 146.0,121.4 152.2,118.7 158.3,116.1 164.5,113.7 170.7,111.4 176.8,109.2 183.0,107.2 189.2,105.3 195.3,103.5 201.5,101.9 207.7,100.3 213.8,98.9 220.0,97.6 226.2,96.3 232.3,95.2 238.5,94.2 244.7,93.2 250.8,92.3 257.0,91.5 263.2,90.8 269.3,90.1 275.5,89.5 281.7,88.9 287.8,88.4 294.0,88.0 300.2,87.5 306.3,87.1 312.5,86.8 318.7,86.5 324.8,86.2 331.0,85.9 337.2,85.7 343.3,85.4 349.5,85.3 355.7,85.1 361.8,84.9 368.0,84.8 374.2,84.6 380.3,84.5 386.5,84.4 392.7,84.3 398.8,84.2 405.0,84.1"/>
+<polyline fill="none" stroke="#c98a2a" stroke-width="2" points="35.0,21.8 41.2,30.0 47.3,36.8 53.5,42.5 59.7,47.4 65.8,51.6 72.0,55.3 78.2,58.4 84.3,61.2 90.5,63.6 96.7,65.7 102.8,67.6 109.0,69.2 115.2,70.7 121.3,72.0 127.5,73.2 133.7,74.2 139.8,75.1 146.0,75.9 152.2,76.7 158.3,77.3 164.5,77.9 170.7,78.5 176.8,78.9 183.0,79.4 189.2,79.8 195.3,80.1 201.5,80.4 207.7,80.7 213.8,81.0 220.0,81.2 226.2,81.4 232.3,81.6 238.5,81.8 244.7,81.9 250.8,82.0 257.0,82.2 263.2,82.3 269.3,82.4 275.5,82.5 281.7,82.6 287.8,82.6 294.0,82.7 300.2,82.8 306.3,82.8 312.5,82.9 318.7,82.9 324.8,82.9 331.0,83.0 337.2,83.0 343.3,83.0 349.5,83.1 355.7,83.1 361.8,83.1 368.0,83.1 374.2,83.2 380.3,83.2 386.5,83.2 392.7,83.2 398.8,83.2 405.0,83.2"/>
+</svg>
+<figcaption>Figure 6.1. The slope field of \(y' = y(1-y)\) and three solutions, starting at 0.05, 0.3 and 1.45. Each runs along the segments. \(y = 1\) (dashed) is an equilibrium: there the slope is 0, and solutions above and below are drawn to it. \(y = 0\) is one too, but solutions move away from it.</figcaption>
+</figure>
+
+<h2 id="s2">6.2 Separable equations</h2>
+<p>An equation is <b>separable</b> when the rate is a function of \(t\) times a function of \(y\): \(y' = g(t)\, h(y)\). Then the \(y\)'s can be moved to one side and the \(t\)'s to the other, and each side integrated:</p>
+\[ \frac{dy}{h(y)} = g(t)\, dt \quad\Longrightarrow\quad \int \frac{dy}{h(y)} = \int g(t)\, dt + C. \]
+<p>Treating \(dy/dt\) as a fraction to split looks like a trick; it is the chain rule (<a href="02-derivatives.html#s3">section 2.3</a>) read backwards, applied to \(H(y(t))\) where \(H' = 1/h\) <a href="refs.html#r-openstax">[openstax]</a>.</p>
+<h3>Exponential growth and decay</h3>
+<p>\(y' = ky\). Separate: \(dy/y = k\, dt\). Integrate: \(\ln |y| = kt + C\). Exponentiate: \(|y| = e^C e^{kt}\). With \(y(0) = y_0\):</p>
+<div class="box thm"><p><b>Fact.</b> The solution of \(y' = ky\), \(y(0) = y_0\), is \(y(t) = y_0\, e^{kt}\). With \(k = 1\), \(y_0 = 1\): \(\exp\) is the function that is its own derivative and is 1 at 0.</p></div>
+<p>Check it directly: \(\frac{d}{dt} y_0 e^{kt} = k\, y_0 e^{kt} = k y\). It is the only solution, by the uniqueness of section 6.1. For \(k &gt; 0\) it grows, for \(k &lt; 0\) it decays, and the time for \(y\) to halve (for \(k &lt; 0\)) is \(\ln 2 / |k|\), whatever \(y_0\) is.</p>
+<p>The rate law can also be run as a loop: from \(y = 100\), repeatedly add \(h \cdot (-ky)\) and advance \(t\) by \(h\). With \(k = 0.5\) and \(h = 10^{-5}\) it reaches 60.652990 at \(t = 1\) and 13.533461 at \(t = 4\), against \(100 e^{-0.5} = 60.653066\) and \(100 e^{-2} = 13.533528\): five digits. The loop is Euler's method (<a href="#s6">section 6.6</a>) with a step small enough to hide its error. With \(k = 1\) and \(n\) steps of size \(1/n\), it computes \((1 + 1/n)^n\): the sequence of <a href="01-limits.html#s5">section 1.5</a> whose limit is \(e\).</p>
+<h3>The logistic equation</h3>
+<p>\(y' = y(1-y)\). Separate and split the fraction (partial fractions: \(\frac{1}{y(1-y)} = \frac{1}{y} + \frac{1}{1-y}\)):</p>
+\[ \int \left(\frac{1}{y} + \frac{1}{1-y}\right) dy = \ln\left|\frac{y}{1-y}\right| = t + C \quad\Longrightarrow\quad y(t) = \frac{1}{1 + \left(\frac{1}{y_0} - 1\right) e^{-t}}. \]
+<p>This is the logistic sigmoid \(\sigma(t) = 1/(1 + e^{-t})\), shifted. It is the softmax of two numbers (<a href="15-softmax.html">chapter 15</a>): \(\sigma(t) = e^t/(e^t + e^0)\). The curves of figure 6.1 are this formula.</p>
+
+<h2 id="s3">6.3 Linear first-order equations</h2>
+<p>A first-order equation is <b>linear</b> when \(y\) and \(y'\) appear only to the first power:</p>
+\[ y' + a(t)\, y = b(t). \]
+<p>Multiply both sides by \(\mu(t) = e^{A(t)}\), where \(A' = a\). Since \(\mu' = a \mu\), the left side becomes the derivative of a product (<a href="02-derivatives.html#s2">section 2.2</a>):</p>
+\[ \mu y' + a \mu y = (\mu y)' = \mu b \quad\Longrightarrow\quad y(t) = \frac{1}{\mu(t)} \left( \int \mu(t)\, b(t)\, dt + C \right). \]
+<p>\(\mu\) is the <b>integrating factor</b>: it makes the left side something we can integrate.</p>
+<p><b>Example.</b> \(y' + y = t\). Here \(a = 1\), \(\mu = e^t\), and \((e^t y)' = t e^t\). By parts (<a href="03-integrals.html#s5">section 3.5</a>), \(\int t e^t\, dt = (t - 1) e^t\), so \(y = t - 1 + C e^{-t}\). With \(y(0) = 2\), \(C = 3\). The solution forgets its start at rate \(e^{-t}\) and settles onto the line \(t - 1\).</p>
+<p><b>Example: smoothing.</b> \(y' = (u - y)/\tau\), a quantity \(y\) chasing an input \(u\) with time constant \(\tau\): an RC low-pass filter, or a thermometer. For constant \(u\) the integrating factor gives</p>
+\[ y(t) = u + (y_0 - u)\, e^{-t/\tau}. \]
+<p>You have written its discrete version: the exponential moving average <code>y += alpha * (u - y)</code>. That is one Euler step of this equation with \(\alpha = h/\tau\). After \(n\) steps the old value's weight is \((1-\alpha)^n \approx e^{-nh/\tau}\).</p>
+<p>Every closed-form solution of sections 6.2&ndash;6.4 was checked by putting it back into its equation, with derivatives by central differences: the residuals are \(10^{-8}\) or less.</p>
+
+<h2 id="s4">6.4 Second-order linear equations</h2>
+<p>A second-order equation involves \(y''\): acceleration. A mass on a spring obeys \(y'' = -y\) (force pulls back toward 0, in suitable units). The linear ones with constant coefficients,</p>
+\[ y'' + b\, y' + c\, y = 0, \]
+<p>are solved by a guess. Try \(y = e^{rt}\): then \(y' = r e^{rt}\), \(y'' = r^2 e^{rt}\), and the equation becomes \((r^2 + br + c)\, e^{rt} = 0\). So \(e^{rt}\) is a solution exactly when \(r\) is a root of the <b>characteristic equation</b> \(r^2 + br + c = 0\). Two roots give two solutions, and since the equation is linear, any combination \(A e^{r_1 t} + B e^{r_2 t}\) is a solution too. The two constants are fixed by \(y(0)\) and \(y'(0)\): a second-order equation needs a position and a velocity to start <a href="refs.html#r-boyce">[boyce]</a>.</p>
+<p><b>\(y'' = y\).</b> \(r^2 = 1\), \(r = \pm 1\): \(e^t\) and \(e^{-t}\). Their even and odd combinations are \(\cosh t\) and \(\sinh t\) (<a href="04-exp-log.html#s5">section 4.5</a>), which are the convenient basis because \(\cosh 0 = 1\), \(\cosh' 0 = 0\), \(\sinh 0 = 0\), \(\sinh' 0 = 1\):</p>
+\[ y'' = y,\ \ y(0) = a,\ y'(0) = b \quad\Longrightarrow\quad y = a \cosh t + b \sinh t. \]
+<p><b>\(y'' = -y\).</b> \(r^2 = -1\) has no real root. With complex numbers, \(r = \pm i\) and Euler's formula \(e^{it} = \cos t + i \sin t\) (put \(it\) in the exponential series of <a href="05-series.html#s4">section 5.4</a> and sort the real and imaginary terms) turns them into the real solutions \(\cos t\) and \(\sin t\). Directly: \(\cos'' = -\cos\) and \(\sin'' = -\sin\).</p>
+\[ y'' = -y,\ \ y(0) = a,\ y'(0) = b \quad\Longrightarrow\quad y = a \cos t + b \sin t. \]
+<p>The sign is everything: \(y'' = y\) pushes away from 0 and the solutions grow like \(e^t\); \(y'' = -y\) pulls back and they oscillate forever. This is why cosh and cos have the same series up to signs.</p>
+<p><b>Damping.</b> Add friction proportional to velocity: \(y'' + 2\zeta y' + y = 0\), with damping ratio \(\zeta \ge 0\). The roots are \(r = -\zeta \pm \sqrt{\zeta^2 - 1}\).</p>
+<ul>
+<li>\(\zeta &lt; 1\), <b>underdamped</b>: \(r = -\zeta \pm i\omega\) with \(\omega = \sqrt{1 - \zeta^2}\). The solution oscillates inside a decaying envelope: from \(y(0) = 1\), \(y'(0) = 0\), \(y = e^{-\zeta t}\left(\cos \omega t + \frac{\zeta}{\omega} \sin \omega t\right)\).</li>
+<li>\(\zeta = 1\), <b>critically damped</b>: a double root \(r = -1\); the solutions are \(e^{-t}\) and \(t e^{-t}\), and \((1 + t) e^{-t}\) starts at 1 at rest. It returns to 0 fastest without overshooting.</li>
+<li>\(\zeta &gt; 1\), <b>overdamped</b>: two negative real roots, two decaying exponentials, a slow crawl back.</li>
+</ul>
+<p>These are the three behaviours of any control loop, from a disk head's seek to a PLL.</p>
+
+<h2 id="s5">6.5 Systems</h2>
+<p>Several quantities that change together form a <b>system</b>: \(\mathbf{u}' = F(t, \mathbf{u})\), with \(\mathbf{u}\) an array. A higher-order equation becomes a system by naming its derivatives. For \(y'' = -y\), let \(\mathbf{u} = (y, y')\):</p>
+\[ \mathbf{u}' = \begin{pmatrix} y' \\ y'' \end{pmatrix} = \begin{pmatrix} u_2 \\ -u_1 \end{pmatrix} = \begin{pmatrix} 0 &amp; 1 \\ -1 &amp; 0 \end{pmatrix} \mathbf{u} = A \mathbf{u}. \]
+<p>A linear system with constant coefficients is \(\mathbf{u}' = A\mathbf{u}\), with \(A\) a matrix (<a href="09-matrices.html#s1">section 9.1</a>). It is solved like \(y' = ky\): \(\mathbf{u}(t) = e^{At} \mathbf{u}(0)\), where the <b>matrix exponential</b> is defined by the series of <a href="05-series.html#s3">section 5.3</a> with matrix powers, \(e^{At} = I + At + (At)^2/2! + \dots\) <a href="refs.html#r-boyce">[boyce]</a>. For the \(A\) above, \(A^2 = -I\), and the series sorts into the cosine and sine series:</p>
+\[ e^{At} = \begin{pmatrix} \cos t &amp; \sin t \\ -\sin t &amp; \cos t \end{pmatrix}, \]
+<p>a rotation matrix (<a href="09-matrices.html#s6">section 9.6</a>). The state \((y, y')\) goes round a circle; the oscillator conserves \(y^2 + y'^2\) (its energy). Summed numerically at \(t = 1.3\), the series gives the rotation matrix to all 15 printed digits.</p>
+<p>For computing, a system is no harder than one equation: every method of the next two sections applies with \(y\) read as an array and each update done entrywise. The oscillator shows what can go wrong. One Euler step (<a href="#s6">section 6.6</a>) multiplies \(\mathbf{u}\) by \(I + hA\), and</p>
+\[ \|(u_1 + h u_2,\; u_2 - h u_1)\|^2 = (1 + h^2)(u_1^2 + u_2^2), \]
+<p>so every step stretches the radius by \(\sqrt{1 + h^2}\): Euler spirals outward. With \(h = 0.01\), ten turns are 6283 steps, and the radius ends at \((1 + h^2)^{6283/2} = 1.369074\), 37% too big; the computed run gives exactly that. RK4 (<a href="#s7">section 6.7</a>) with the same step stays on the circle to within \(5 \times 10^{-11}\).</p>
+
+<h2 id="s6">6.6 Euler's method</h2>
+<p>Most ODEs have no formula for their solution. We compute it instead, at times \(t_n = t_0 + nh\) with a <b>step size</b> \(h\). The simplest idea: from the current point, follow the slope for one step.</p>
+\[ y_{n+1} = y_n + h\, f(t_n, y_n). \]
+<p>That is the linear approximation (<a href="02-derivatives.html#s4">section 2.4</a>), \(y(t + h) \approx y(t) + h\, y'(t)\), used over and over: <b>Euler's method</b>.</p>
+<figure>
+<svg viewBox="0 0 345 220" width="345" height="220" role="img" aria-label="Euler steps following tangent lines below the curve e to the t">
+<line x1="30" y1="200" x2="335" y2="200" stroke="currentColor"/>
+<line x1="40" y1="205" x2="40" y2="10" stroke="currentColor"/>
+<text x="165.0" y="214" font-size="11" text-anchor="middle" fill="currentColor">0.5</text>
+<text x="290.0" y="214" font-size="11" text-anchor="middle" fill="currentColor">1</text>
+<text x="35" y="166.5" font-size="11" text-anchor="end" fill="currentColor">1</text>
+<text x="35" y="91.5" font-size="11" text-anchor="end" fill="currentColor">2</text>
+<text x="35" y="37.7" font-size="11" text-anchor="end" fill="currentColor">e</text>
+<polyline fill="none" stroke="currentColor" stroke-width="2" points="40.0,162.5 45.0,161.0 50.0,159.4 55.0,157.9 60.0,156.3 65.0,154.6 70.0,152.9 75.0,151.2 80.0,149.5 85.0,147.7 90.0,145.9 95.0,144.0 100.0,142.2 105.0,140.2 110.0,138.3 115.0,136.3 120.0,134.2 125.0,132.1 130.0,130.0 135.0,127.8 140.0,125.6 145.0,123.4 150.0,121.0 155.0,118.7 160.0,116.3 165.0,113.8 170.0,111.3 175.0,108.8 180.0,106.2 185.0,103.5 190.0,100.8 195.0,98.1 200.0,95.3 205.0,92.4 210.0,89.5 215.0,86.5 220.0,83.4 225.0,80.3 230.0,77.1 235.0,73.9 240.0,70.6 245.0,67.2 250.0,63.8 255.0,60.3 260.0,56.7 265.0,53.0 270.0,49.3 275.0,45.5 280.0,41.6 285.0,37.7 290.0,33.6"/>
+<polyline fill="none" stroke="#c94a4a" stroke-width="2" points="40.0,162.5 102.5,143.8 165.0,120.3 227.5,91.0 290.0,54.4"/>
+<circle cx="40.0" cy="162.5" r="3" fill="#c94a4a"/>
+<circle cx="102.5" cy="143.8" r="3" fill="#c94a4a"/>
+<circle cx="165.0" cy="120.3" r="3" fill="#c94a4a"/>
+<circle cx="227.5" cy="91.0" r="3" fill="#c94a4a"/>
+<circle cx="290.0" cy="54.4" r="3" fill="#c94a4a"/>
+<line x1="290.0" y1="54.4" x2="290.0" y2="33.6" stroke="#4a7fc1" stroke-width="2"/>
+<text x="295.0" y="42.5" font-size="11" fill="#4a7fc1">error</text>
+<text x="177.5" y="91.2" font-size="12" text-anchor="end" fill="currentColor">e^t</text>
+<text x="195.0" y="121.2" font-size="12" fill="#c94a4a">Euler, h = 0.25</text>
+</svg>
+<figcaption>Figure 6.2. Euler's method on \(y' = y\), \(y(0) = 1\), with \(h = 0.25\). Each step follows the tangent at its start, which for this convex curve lies below it; the errors add up to \(e - 1.25^4 \approx 0.28\) at \(t = 1\).</figcaption>
+</figure>
+<p>How big is the error? By Taylor's theorem (<a href="05-series.html#s5">section 5.5</a>), \(y(t + h) = y(t) + h y'(t) + \tfrac12 h^2 y''(c)\): one step makes a <b>local error</b> of about \(\tfrac12 h^2 y''\). To reach a fixed time \(T\) takes \(T/h\) steps, and the local errors add up (and propagate, which changes the constant but not the power) to a <b>global error</b> of order \((T/h) \cdot h^2 = O(h)\) <a href="refs.html#r-burden">[burden]</a>. Euler's method is <b>first order</b>: halve the step, halve the error.</p>
+<p>On \(y' = y\), \(y(0) = 1\), integrated to \(t = 1\) (exact: \(e\)):</p>
+<table class="t">
+<tr><th>\(h\)</th><th>\(y_n \approx y(1)\)</th><th>error</th><th>error\(/h\)</th><th>ratio to previous</th></tr>
+<tr><td class="n">1/10</td><td class="n">2.593742460100</td><td class="n">\(1.245 \times 10^{-1}\)</td><td class="n">1.2454</td><td></td></tr>
+<tr><td class="n">1/20</td><td class="n">2.653297705144</td><td class="n">\(6.498 \times 10^{-2}\)</td><td class="n">1.2997</td><td class="n">1.916</td></tr>
+<tr><td class="n">1/40</td><td class="n">2.685063838390</td><td class="n">\(3.322 \times 10^{-2}\)</td><td class="n">1.3287</td><td class="n">1.956</td></tr>
+<tr><td class="n">1/640</td><td class="n">2.716161207948</td><td class="n">\(2.121 \times 10^{-3}\)</td><td class="n">1.3572</td><td class="n">1.997</td></tr>
+<tr><td class="n">1/10240</td><td class="n">2.718149111735</td><td class="n">\(1.327 \times 10^{-4}\)</td><td class="n">1.3590</td><td class="n">2.000</td></tr>
+</table>
+<p>The ratio goes to 2, and error\(/h\) goes to a constant, \(e/2 \approx 1.3591\) (exercise 6 derives it). Every correct digit costs ten times the work: about a million steps for six digits. That is too slow for anything serious, which is why the next section exists.</p>
+
+<h2 id="s7">6.7 Runge&ndash;Kutta</h2>
+<p>Euler uses the slope at the start of the step, where it is already out of date. Better: sample the slope at several points inside the step and average. The classical fourth-order <b>Runge&ndash;Kutta</b> method (RK4) takes four samples:</p>
+\[ \begin{aligned}
+k_1 &amp;= f(t_n,\; y_n) \\
+k_2 &amp;= f(t_n + \tfrac{h}{2},\; y_n + \tfrac{h}{2} k_1) \\
+k_3 &amp;= f(t_n + \tfrac{h}{2},\; y_n + \tfrac{h}{2} k_2) \\
+k_4 &amp;= f(t_n + h,\; y_n + h k_3) \\
+y_{n+1} &amp;= y_n + \tfrac{h}{6} (k_1 + 2k_2 + 2k_3 + k_4)
+\end{aligned} \]
+<p>\(k_1\) is Euler's slope. \(k_2\) is the slope at the midpoint reached with \(k_1\); \(k_3\) the slope at the midpoint reached with \(k_2\); \(k_4\) the slope at the end.</p>
+<p><b>Why four samples.</b> The true solution over one step is the Taylor series \(y(t + h) = y + h y' + \tfrac{h^2}{2} y'' + \tfrac{h^3}{6} y^{(3)} + \tfrac{h^4}{24} y^{(4)} + O(h^5)\), where every derivative of \(y\) can be written through \(f\) and its partial derivatives. A method that combines \(s\) slope samples has \(s\) weights and the positions of its samples to choose; requiring its step to agree with the series through \(h^p\) gives a set of equations, the <b>order conditions</b>. One sample can match through \(h\) (Euler), two through \(h^2\) (the midpoint method), and four through \(h^4\). Order 5 needs six samples, not five, which is why four is the sweet spot <a href="refs.html#r-hairer">[hairer]</a>.</p>
+<p><b>Why the weights 1, 2, 2, 1.</b> Look at the case where \(f\) depends on \(t\) only. Then \(y(t + h) - y(t) = \int_t^{t+h} f\), and the best three-point rule for that integral is Simpson's, weights \(\tfrac16, \tfrac46, \tfrac16\) at the start, middle and end (<a href="03-integrals.html#s7">section 3.7</a>). When \(f\) depends on \(t\) only, \(k_2 = k_3\) and RK4 <em>is</em> Simpson's rule. In general RK4 splits the middle weight \(\tfrac46\) between two estimates of the midpoint slope, \(k_2\) and \(k_3\). \(k_2\) is taken at a midpoint reached by an Euler half step, \(k_3\) at a better midpoint reached with \(k_2\); their errors in the \(h^2\) and \(h^3\) terms partly cancel when averaged, which is what lets the method reach \(h^4\) when \(f\) depends on \(y\) too. \(k_4\) is the end slope, reached with \(k_3\).</p>
+<p>So the local error is \(O(h^5)\) and the global error \(O(h^4)\) <a href="refs.html#r-hairer">[hairer]</a>, <a href="refs.html#r-burden">[burden]</a>. Halve the step and the error drops by 16. Both methods on the logistic equation, where the slope depends on \(y\), against the exact solution of <a href="#s2">section 6.2</a>:</p>
+<!--prog rk4.c-->
+<p>How the program maps to the formulas:</p>
+<ul>
+<li><code>f(t, y)</code> is the right side \(f(t, y) = y(1 - y)\). It takes \(t\) although it ignores it, so that both methods are written for the general \(y' = f(t, y)\).</li>
+<li>In <code>euler</code>, the loop body is \(y_{n+1} = y_n + h f(t_n, y_n)\), and <code>t += h</code> advances \(t_n\) to \(t_{n+1}\).</li>
+<li>In <code>rk4</code>, <code>k1</code> to <code>k4</code> are \(k_1\) to \(k_4\), in that order because each uses the one before: <code>y + h / 2 * k1</code> is the Euler estimate of \(y(t_n + h/2)\), <code>y + h / 2 * k2</code> the improved one, <code>y + h * k3</code> the estimate of \(y(t_n + h)\). The update <code>h / 6 * (k1 + 2 * k2 + 2 * k3 + k4)</code> is the weighted average slope times \(h\).</li>
+<li><code>main</code> runs both with \(n\) steps of \(h = 5/n\) to \(t = 5\) and doubles \(n\) each row, so each ratio column is error\((2h)\)/error\((h)\), which tends to \(2^p\) for a method of order \(p\). The last column counts evaluations of \(f\), four per RK4 step, the real cost.</li>
+</ul>
+<p>Euler's ratio goes to 2, RK4's to 16, as the orders say. Count the cost in evaluations of \(f\), the expensive part in real problems: RK4 with 160 evaluations (\(h = 0.125\)) is as accurate (\(1.8 \times 10^{-7}\)) as Euler with 400&thinsp;000 steps. Higher order wins whenever the solution is smooth, the same way Simpson beats the trapezoid rule.</p>
+<p>Production solvers go further: they take two estimates of different order from the same samples, use their difference as an error estimate, and adapt \(h\) step by step (embedded Runge&ndash;Kutta pairs, such as Dormand&ndash;Prince) <a href="refs.html#r-hairer">[hairer]</a>, <a href="refs.html#r-nr">[nr]</a>.</p>
+
+<h2 id="s8">6.8 Stability and step size</h2>
+<p>Error that shrinks with \(h\) is half the story. The other half is whether it stays bounded at all. Take the test equation</p>
+\[ y' = -\lambda y, \qquad \lambda &gt; 0, \]
+<p>whose solution \(e^{-\lambda t}\) decays to 0. Euler gives \(y_{n+1} = y_n - h\lambda y_n = (1 - h\lambda)\, y_n\), so \(y_n = (1 - h\lambda)^n\). That decays only if \(|1 - h\lambda| &lt; 1\):</p>
+<div class="box thm"><p><b>Fact.</b> Euler's method on \(y' = -\lambda y\) is stable exactly when \(h &lt; 2/\lambda\). For \(1/\lambda &lt; h &lt; 2/\lambda\) the iterates alternate in sign while they shrink; for \(h &gt; 2/\lambda\) they alternate and grow without bound.</p></div>
+<p>With \(\lambda = 50\), after about \(1/h\) steps (\(t \approx 1\)):</p>
+<table class="t">
+<tr><th>\(h\)</th><th>\(1 - h\lambda\)</th><th>Euler</th><th>backward Euler</th></tr>
+<tr><td class="n">0.010</td><td class="n">0.50</td><td class="n">\(7.9 \times 10^{-31}\)</td><td class="n">\(2.5 \times 10^{-18}\)</td></tr>
+<tr><td class="n">0.030</td><td class="n">&minus;0.50</td><td class="n">\(-1.2 \times 10^{-10}\)</td><td class="n">\(7.4 \times 10^{-14}\)</td></tr>
+<tr><td class="n">0.039</td><td class="n">&minus;0.95</td><td class="n">\(2.6 \times 10^{-1}\)</td><td class="n">\(6.1 \times 10^{-13}\)</td></tr>
+<tr><td class="n">0.041</td><td class="n">&minus;1.05</td><td class="n">\(3.2\)</td><td class="n">\(2.4 \times 10^{-12}\)</td></tr>
+<tr><td class="n">0.050</td><td class="n">&minus;1.50</td><td class="n">\(3.3 \times 10^{3}\)</td><td class="n">\(1.3 \times 10^{-11}\)</td></tr>
+</table>
+<p>The threshold is \(h = 0.04\). At \(h = 0.041\), slightly past it, the decaying solution is computed as one that grows: \(1.05^{24}\). The true answer, \(e^{-50} \approx 2 \times 10^{-22}\), is reached by none of them; but the stable ones at least decay, as the true solution does, while the unstable ones produce a number unrelated to it. RK4 multiplies by \(R(-h\lambda)\) per step, with \(R(z) = 1 + z + z^2/2 + z^3/6 + z^4/24\) (the Taylor polynomial of \(e^z\): on this equation RK4 is exact through \(h^4\)); \(|R(-x)| &lt; 1\) holds up to \(x = 2.785\), so RK4's threshold is \(h \lambda &lt; 2.785\), bigger but still finite: every explicit method, one that computes \(y_{n+1}\) from known values only, has one <a href="refs.html#r-hairer">[hairer]</a>.</p>
+<p>The cure is an <b>implicit</b> method. <b>Backward Euler</b> uses the slope at the end of the step: \(y_{n+1} = y_n + h f(t_{n+1}, y_{n+1})\). On the test equation, \(y_{n+1} = y_n / (1 + h\lambda)\), which decays for every \(h &gt; 0\). The price: \(y_{n+1}\) appears on both sides, so each step solves an equation (a linear system, for a linear ODE).</p>
+<h3>Stiffness</h3>
+<p>An equation is <b>stiff</b> when it has a fast-decaying component next to a slow one you care about. The step size of an explicit method is then set by stability for the fast part, long after that part has died out, not by accuracy for the slow part. Example: \(y' = -1000\,(y - \cos t)\). After a transient of length about \(1/1000\), \(y\) just follows \(\cos t\), a slow and smooth curve. Euler still needs \(h &lt; 2/1000\). Errors near \(t = 1\), from \(y(0) = 0\):</p>
+<table class="t">
+<tr><th>\(h\)</th><th>steps</th><th>Euler</th><th>backward Euler</th></tr>
+<tr><td class="n">0.001</td><td class="n">1000</td><td class="n">\(2.7 \times 10^{-7}\)</td><td class="n">\(-2.7 \times 10^{-7}\)</td></tr>
+<tr><td class="n">0.0019</td><td class="n">526</td><td class="n">\(5.1 \times 10^{-7}\)</td><td class="n">\(-5.2 \times 10^{-7}\)</td></tr>
+<tr><td class="n">0.0021</td><td class="n">476</td><td class="n">\(-5.0 \times 10^{19}\)</td><td class="n">\(-5.7 \times 10^{-7}\)</td></tr>
+<tr><td class="n">0.1</td><td class="n">10</td><td class="n">\(-9.0 \times 10^{19}\)</td><td class="n">\(-2.8 \times 10^{-5}\)</td></tr>
+</table>
+<p>Euler is fine at \(h = 0.0019\) and explodes at \(h = 0.0021\), on either side of \(2/1000\). Backward Euler takes ten steps of \(h = 0.1\) and is accurate to \(3 \times 10^{-5}\). Chemical kinetics and circuit simulation (SPICE) are stiff, and their solvers are implicit <a href="refs.html#r-burden">[burden]</a>.</p>
+<div class="box warn"><p><b>Watch out.</b> The same condition appears whenever a loop does <code>x -= h * (rate proportional to x)</code>. Gradient descent on a quadratic is Euler's method on \(x' = -\nabla f(x)\), and its learning rate must stay below \(2/\lambda_{\max}\), with \(\lambda_{\max}\) the steepest curvature (<a href="07-several-variables.html#s5">section 7.5</a>). An exponential moving average with \(\alpha &gt; 2\) diverges for the same reason.</p></div>
+
+<h2 id="exercises">Exercises</h2>
+<ol class="ex">
+<li>A KV cache entry's &ldquo;importance&rdquo; decays by half every 1000 tokens. Write the ODE, its solution, and the rate \(k\).
+<details><summary>Answer</summary><p>\(y' = -ky\), \(y = y_0 e^{-kt}\), and \(e^{-1000k} = 1/2\) gives \(k = \ln 2/1000 \approx 6.93 \times 10^{-4}\) per token.</p></details></li>
+<li>Solve \(y' = t\, y\), \(y(0) = 1\).
+<details><summary>Answer</summary><p>Separable: \(dy/y = t\, dt\), \(\ln y = t^2/2 + C\), \(y = e^{t^2/2}\). Check: \(y' = t e^{t^2/2} = t y\).</p></details></li>
+<li>Solve \(y' + 2y = 4\), \(y(0) = 0\), with an integrating factor. What does \(y\) approach?
+<details><summary>Answer</summary><p>\(\mu = e^{2t}\), \((e^{2t} y)' = 4 e^{2t}\), \(e^{2t} y = 2 e^{2t} + C\), \(y = 2 + C e^{-2t}\); \(y(0) = 0\) gives \(C = -2\): \(y = 2(1 - e^{-2t}) \to 2\).</p></details></li>
+<li>Solve \(y'' + 4y = 0\), \(y(0) = 1\), \(y'(0) = 0\). What is the period?
+<details><summary>Answer</summary><p>\(r^2 = -4\), \(r = \pm 2i\): \(y = \cos 2t\). Period \(\pi\).</p></details></li>
+<li>An exponential moving average <code>y += alpha * (u - y)</code> is Euler's method on \(y' = (u - y)/\tau\) with \(\alpha = h/\tau\). For which \(\alpha\) does it converge to \(u\), and for which does it oscillate on the way?
+<details><summary>Answer</summary><p>The error \(y - u\) is multiplied by \(1 - \alpha\) per step. It converges for \(0 &lt; \alpha &lt; 2\), monotonically for \(\alpha \le 1\), with alternating overshoot for \(1 &lt; \alpha &lt; 2\). Section 6.8 with \(h\lambda = \alpha\).</p></details></li>
+<li>Euler's method for \(y' = y\) to \(t = 1\) with \(n\) steps gives \((1 + 1/n)^n\). Use \(\ln(1 + x) = x - x^2/2 + \dots\) to show the error is about \(e/(2n)\).
+<details><summary>Answer</summary><p>\(n \ln(1 + 1/n) = n(1/n - 1/(2n^2) + \dots) = 1 - 1/(2n) + \dots\), so \((1 + 1/n)^n = e \cdot e^{-1/(2n) + \dots} \approx e (1 - 1/(2n))\). The error is \(e/(2n) = (e/2) h\): the constant 1.3591 of the table in section 6.6.</p></details></li>
+<li>Modify <code>rk4.c</code> to count only RK4 and find the largest \(h\) with error below \(10^{-6}\) at \(t = 5\). Then estimate it from the table without running anything.
+<details><summary>Answer</summary><p>From the table: \(2.9 \times 10^{-6}\) at \(h = 0.25\) and \(1.8 \times 10^{-7}\) at \(h = 0.125\). Error \(\approx C h^4\) with \(C \approx 2.9 \times 10^{-6}/0.25^4 \approx 7.5 \times 10^{-4}\), so \(h \approx (10^{-6}/C)^{1/4} \approx 0.19\), about 26 steps. A direct search finds 27 steps (\(h = 0.185\)).</p></details></li>
+<li>For the oscillator \(\mathbf{u}' = A\mathbf{u}\) of section 6.5, show that backward Euler shrinks the radius by \(1/\sqrt{1 + h^2}\) per step. Which is worse for a long simulation of a planet's orbit?
+<details><summary>Answer</summary><p>Backward Euler solves \((I - hA)\mathbf{u}_{n+1} = \mathbf{u}_n\). \(I - hA\) stretches every vector by \(\sqrt{1+h^2}\) (the same computation as for \(I + hA\)), so its inverse shrinks by that factor. Both are wrong: one spirals out, one spirals in. For orbits one uses methods that conserve energy (symplectic methods) <a href="refs.html#r-hairer">[hairer]</a>.</p></details></li>
+</ol>
+
+<h2 id="references">References</h2>
+<ul>
+<li><a href="refs.html#r-boyce">[boyce]</a> Chapter 2 (first-order equations: separable, linear, integrating factors, existence and uniqueness), chapter 3 (second-order linear equations, the characteristic equation, damping), chapter 7 (systems and the matrix exponential), chapter 8 (numerical methods).</li>
+<li><a href="refs.html#r-openstax">[openstax]</a> Volume 2, chapter 4: direction fields, Euler's method, separable equations, the logistic equation, linear first-order equations. Volume 3, chapter 7: second-order equations.</li>
+<li><a href="refs.html#r-burden">[burden]</a> Chapter 5: initial-value problems, Euler's method and its error bound, Runge&ndash;Kutta methods, stability and stiff equations.</li>
+<li><a href="refs.html#r-hairer">[hairer]</a> Runge&ndash;Kutta methods in depth: order conditions, embedded pairs and step-size control, stability of explicit methods.</li>
+<li><a href="refs.html#r-nr">[nr]</a> The chapter on integrating ODEs: adaptive Runge&ndash;Kutta in working code.</li>
+</ul>

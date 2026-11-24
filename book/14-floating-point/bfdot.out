@@ -1,0 +1,4 @@
+mean error / sum|q_j k_j|, d = 128:
+  rounding inputs to bf16   2.5e-04
+  fp32 accumulation         6.4e-09
+  bf16 accumulation         1.3e-03

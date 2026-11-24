@@ -1,0 +1,4 @@
+my_exp: max error 1.161 ulp (at x = -97.3840)
+libm  : max error 0.899 ulp
+my_exp(1) = 2.7182818284590455
+exp(1)    = 2.7182818284590455

@@ -3,6 +3,14 @@
 The site is plain HTML, so it loads on low-memory devices and old browsers: no JavaScript, no CSS, pages of 16 KB at
 most and no element an old browser does not draw. `tools/check-site.py` checks it on every push and pull request.
 
+The repository holds the site's sources; the pages are made from them. `tools/build-site.sh` makes the whole site
+into `_site/` (not committed) and checks it, and `.github/workflows/site.yml` runs it on every push and pull request
+and deploys it to GitHub Pages from `main`, and again every day for ScarletNX's changes:
+
+```sh
+sh tools/build-site.sh ~/ScarletNX        # _site/, as Pages serves it
+```
+
 `manual/` is the ISA manuals: the ARM instructions ScarletNX recompiles (A64 and AArch32, `manual/`) and the GPU
 instructions it translates (Maxwell's SM53, `manual/sm53/`, and Ampere's SM86, `manual/sm86/`), laid out as Arm's
 reference lays them out (each encoding's diagram, its decode, the operation, and the shared pseudocode they use),
@@ -11,9 +19,8 @@ and the NVN API (`manual/nvn/`): every function of ScarletNX's `nvn.hook` with i
 and enums of its `nvn.h`, each format's Vulkan equivalent (its `vk/format.c`), and what only Switch 2's drivers have
 marked, by `tools/manual/nvn-drivers.txt` (the drivers' procedure tables, which `tools/nvn_hash.py --json` reads). It
 is the one part with CSS (`manual.css`) and JavaScript (the search, `search.js`: a name, the nearest names, or the
-encodings an instruction word matches), from files and small, and its pages read without them. Do not edit it:
-`.github/workflows/manual.yml` makes it again every day from ScarletNX's `main` (or when run by hand) and commits it
-when it changed. To make it from a checkout:
+encodings an instruction word matches), from files and small, and its pages read without them. It is made, by the
+site's workflow from ScarletNX's `main`, or from a checkout (into `_site/manual/`):
 
 ```sh
 python3 tools/gen-manual.py ~/ScarletNX
@@ -23,7 +30,14 @@ python3 tools/gen-manual.py ~/ScarletNX
 
 `manual/cs-book/` is a book, *From Derivatives to Attention*: mathematics for programmers, from derivatives, ODEs
 and integrals to what the paper RefineKV (arXiv:2611.28171) needs (linear algebra, norms and inequalities, convexity,
-probability and statistics, floating point, softmax, attention and the KV cache), with a C program for each idea and
-the works it draws on in `refs.html`. It is written by hand, not generated. Its pages may be 64 KB, have inline svg
-figures, and load its stylesheet (`book.css`) and MathJax 3.2.2 from jsDelivr, which typesets their TeX formulas:
-`check-site.py` allows these for `manual/cs-book/` only, and `tests/check-site.sh` checks that it does.
+probability and statistics, floating point, softmax, attention and the KV cache), with C programs where they show something,
+and the works it draws on in `refs.html`. Its sources are `book/`: each page's body (`index.html`, `refs.html`, a chapter
+`NN-name.html`) and the programs a chapter shows (`NN-name/NAME.c`) beside what they printed (`NAME.out`).
+`tools/gen-book.py` makes the pages (into `_site/manual/cs-book/`): it writes each head and the chapters' links to
+one another, and puts each program where its chapter has `<!--prog NAME.c-->` (or only its output, `<!--out
+NAME.c-->`), after compiling it (C99, no warnings) and running it: what it prints must be its `.out`, which the text
+quotes, or the book is not made. A program whose output depends on the machine (a timing, `rand()`, a C library's
+last digits) is marked `recorded`: compiled, not run, its `.out` what it printed on the machine the page names.
+`tests/check-book.sh` checks the book is made and that a wrong `.out` stops it. Its pages may be 64 KB, have inline
+svg figures, and load its stylesheet (`book.css`) and MathJax 3.2.2 from jsDelivr, which typesets their TeX
+formulas: `check-site.py` allows these for `manual/cs-book/` only, and `tests/check-site.sh` checks that it does.
