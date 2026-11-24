@@ -20,3 +20,10 @@ python3 tools/gen-manual.py ~/ScarletNX
 ```
 
 `tests/check-manual.sh` makes it from `tests/sail`, a few instructions cut from that Sail.
+
+`manual/cs-book/` is a book, *From Derivatives to Attention*: mathematics for programmers, from derivatives, ODEs
+and integrals to what the paper RefineKV (arXiv:2611.28171) needs (linear algebra, norms and inequalities, convexity,
+probability and statistics, floating point, softmax, attention and the KV cache), with a C program for each idea and
+the works it draws on in `refs.html`. It is written by hand, not generated. Its pages may be 64 KB, have inline svg
+figures, and load its stylesheet (`book.css`) and MathJax 3.2.2 from jsDelivr, which typesets their TeX formulas:
+`check-site.py` allows these for `manual/cs-book/` only, and `tests/check-site.sh` checks that it does.
