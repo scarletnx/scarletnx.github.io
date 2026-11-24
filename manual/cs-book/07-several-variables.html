@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>7. Functions of several variables - From Derivatives to Attention</title>
+<link rel="stylesheet" href="book.css">
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-chtml.js" async></script>
+</head>
+<body>
+<p class="nav"><a href="../../">ScarletNX</a> / <a href="./">From Derivatives to Attention</a> / Chapter 7 &middot; <a rel="prev" href="06-odes.html">&larr; 6. Ordinary differential equations</a> &middot; <a rel="next" href="08-vectors.html">8. Vectors and the dot product &rarr;</a></p>
+<h1>7. Functions of several variables</h1>
+<p>A logit \(s_i = q^\top k_i / \sqrt{d}\) depends on \(d\) numbers of the query at once; a loss depends on billions of weights. Calculus of one variable asks how an output changes when its one input moves. Here an input is an array, and the question becomes: which way should the array move, and how fast does the output change that way? The answers are the <b>gradient</b> and its matrix generalization, the <b>Jacobian</b>. The chain rule for them is <b>backpropagation</b>, the algorithm that trains every neural network, and following the gradient downhill is <b>gradient descent</b>.</p>
+<p>The book needs two results from here in particular. The gradient of log-sum-exp is softmax (<a href="#s6">section 7.6</a>), which is why softmax is the natural &ldquo;soft argmax&rdquo; (<a href="15-softmax.html">chapter 15</a>) and why the attention weights \(\alpha_i\) of the paper behave as sensitivities. And the gradient of \(q \mapsto q^\top k\) is \(k\), which is the geometry behind every bound on a dot product in <a href="10-norms.html">chapter 10</a>. Vectors here are plain arrays; <a href="08-vectors.html">chapter 8</a> treats them properly.</p>
+
+<h2 id="s1">7.1 Partial derivatives</h2>
+<p>A function \(f : \mathbb{R}^d \to \mathbb{R}\) takes an array of \(d\) numbers and returns one: <code>double f(const double x[d])</code>. Examples: \(f(x, y) = x^2 + 3y^2\); the logit \(s(q) = q^\top k / \sqrt{d} = \frac{1}{\sqrt d} \sum_j q_j k_j\) as a function of the query; the log-sum-exp \(\log \sum_i e^{s_i}\) of <a href="15-softmax.html#s3">section 15.3</a>.</p>
+<p>For \(d = 2\) the graph \(z = f(x, y)\) is a surface over the plane, a landscape. A map draws it with <b>contour lines</b> (level sets): the curves where \(f\) equals 1, equals 2, and so on, as on a hiking map. For \(x^2 + 3y^2\) they are ellipses (figure 7.1).</p>
+<p>The simplest question about such a function: what happens if one input moves and the others stay put? Then it is a function of one variable, and it has an ordinary derivative.</p>
+<div class="box def"><p><b>Definition.</b> The <b>partial derivative</b> of \(f\) with respect to \(x_i\) is</p>
+\[ \frac{\partial f}{\partial x_i}(x) = \lim_{h \to 0} \frac{f(x_1, \dots, x_i + h, \dots, x_d) - f(x_1, \dots, x_d)}{h}. \]
+<p>It is the slope of \(f\) along the \(i\)-th axis. Other names: \(f_{x_i}\), \(\partial_i f\).</p></div>
+<p>To compute one by hand, treat every other variable as a constant and use the rules of <a href="02-derivatives.html#s2">chapter 2</a>. For \(f(x, y) = x^2 y + \sin y\): \(\partial f/\partial x = 2xy\) (\(y\) is a constant factor) and \(\partial f/\partial y = x^2 + \cos y\) (\(x^2\) is a constant factor). Numerically, a partial derivative is a finite difference (<a href="02-derivatives.html#s5">section 2.5</a>) in which one entry of the array moves: at \((1.5, 0.5)\), central differences give 1.5000000000 and 3.1275825619, which are \(2xy\) and \(x^2 + \cos y\) to all ten digits.</p>
+<p>Partial derivatives can be taken again. The second partials \(\partial^2 f / \partial x_i \partial x_j\) form a \(d \times d\) matrix, the <b>Hessian</b>; for smooth \(f\) the order does not matter (\(\partial_x \partial_y f = \partial_y \partial_x f\)), so it is symmetric <a href="refs.html#r-openstax">[openstax]</a>. It measures curvature, as \(f''\) does in one variable. For \(f(x, y) = (x^2 + 10 y^2)/2\) it is the diagonal matrix with entries 1 and 10: ten times more curved along \(y\) than along \(x\). <a href="#s5">Section 7.5</a> shows why that ratio matters.</p>
+
+<h2 id="s2">7.2 The gradient</h2>
+<p>Collect the partial derivatives into an array:</p>
+\[ \nabla f(x) = \left( \frac{\partial f}{\partial x_1}, \dots, \frac{\partial f}{\partial x_d} \right). \]
+<p>This is the <b>gradient</b> (\(\nabla\) is read &ldquo;nabla&rdquo; or &ldquo;del&rdquo;). It is the several-variable derivative, because it gives the linear approximation (<a href="02-derivatives.html#s4">section 2.4</a>) for a step \(v\) in any direction, not only along the axes:</p>
+\[ f(x + v) \approx f(x) + \nabla f(x)^\top v = f(x) + \sum_{i=1}^{d} \frac{\partial f}{\partial x_i} v_i. \]
+<p>Each coordinate of the step contributes its own slope times its own length, and the contributions add (this needs \(f\) to be smooth, which every function in this book is). The rate of change in the direction of a unit vector \(u\) (length 1) is the <b>directional derivative</b> \(D_u f = \nabla f^\top u\).</p>
+<h3>The direction of steepest ascent</h3>
+<p>Which direction \(u\) makes \(f\) increase fastest? \(\nabla f^\top u = \|\nabla f\| \, \|u\| \cos\theta = \|\nabla f\| \cos\theta\), where \(\theta\) is the angle between \(u\) and the gradient (<a href="08-vectors.html#s4">section 8.4</a>). It is largest at \(\theta = 0\):</p>
+<div class="box thm"><p><b>Fact.</b> The gradient points in the direction of steepest ascent, and its length \(\|\nabla f\|\) is the slope in that direction. \(-\nabla f\) is the direction of steepest descent. Along a contour line \(f\) does not change, so the gradient is perpendicular to the contour lines <a href="refs.html#r-openstax">[openstax]</a>.</p></div>
+<figure>
+<svg viewBox="0 0 400 250" width="400" height="250" role="img" aria-label="Elliptic contour lines of x squared plus 3 y squared with gradient arrows perpendicular to them">
+<line x1="10" y1="125.0" x2="390" y2="125.0" stroke="currentColor" stroke-opacity="0.4"/>
+<line x1="200.0" y1="8" x2="200.0" y2="242" stroke="currentColor" stroke-opacity="0.4"/>
+<ellipse cx="200.0" cy="125.0" rx="53.0" ry="30.6" fill="none" stroke="currentColor"/>
+<text x="256.0" y="122.0" font-size="10" fill="currentColor">0.5</text>
+<ellipse cx="200.0" cy="125.0" rx="91.9" ry="53.0" fill="none" stroke="currentColor"/>
+<text x="294.9" y="122.0" font-size="10" fill="currentColor">1.5</text>
+<ellipse cx="200.0" cy="125.0" rx="129.9" ry="75.0" fill="none" stroke="currentColor"/>
+<text x="332.9" y="122.0" font-size="10" fill="currentColor">3</text>
+<ellipse cx="200.0" cy="125.0" rx="159.1" ry="91.9" fill="none" stroke="currentColor"/>
+<text x="362.1" y="122.0" font-size="10" fill="currentColor">4.5</text>
+<line x1="325.5" y1="105.6" x2="348.1" y2="95.1" stroke="#c94a4a" stroke-width="1.8"/>
+<polygon points="348.1,95.1 340.2,94.9 343.2,101.2" fill="#c94a4a"/>
+<circle cx="325.5" cy="105.6" r="2" fill="#c94a4a"/>
+<line x1="291.9" y1="72.0" x2="308.4" y2="43.3" stroke="#c94a4a" stroke-width="1.8"/>
+<polygon points="308.4,43.3 301.9,47.6 307.9,51.1" fill="#c94a4a"/>
+<circle cx="291.9" cy="72.0" r="2" fill="#c94a4a"/>
+<line x1="233.6" y1="52.6" x2="239.7" y2="13.4" stroke="#c94a4a" stroke-width="1.8"/>
+<polygon points="239.7,13.4 235.1,19.8 242.1,20.9" fill="#c94a4a"/>
+<circle cx="233.6" cy="52.6" r="2" fill="#c94a4a"/>
+<line x1="166.4" y1="52.6" x2="160.3" y2="13.4" stroke="#c94a4a" stroke-width="1.8"/>
+<polygon points="160.3,13.4 157.9,20.9 164.9,19.8" fill="#c94a4a"/>
+<circle cx="166.4" cy="52.6" r="2" fill="#c94a4a"/>
+<line x1="108.1" y1="72.0" x2="91.6" y2="43.3" stroke="#c94a4a" stroke-width="1.8"/>
+<polygon points="91.6,43.3 92.1,51.1 98.1,47.6" fill="#c94a4a"/>
+<circle cx="108.1" cy="72.0" r="2" fill="#c94a4a"/>
+<line x1="74.5" y1="105.6" x2="51.9" y2="95.1" stroke="#c94a4a" stroke-width="1.8"/>
+<polygon points="51.9,95.1 56.8,101.2 59.8,94.9" fill="#c94a4a"/>
+<circle cx="74.5" cy="105.6" r="2" fill="#c94a4a"/>
+<line x1="74.5" y1="144.4" x2="51.9" y2="154.9" stroke="#c94a4a" stroke-width="1.8"/>
+<polygon points="51.9,154.9 59.8,155.1 56.8,148.8" fill="#c94a4a"/>
+<circle cx="74.5" cy="144.4" r="2" fill="#c94a4a"/>
+<line x1="108.1" y1="178.0" x2="91.6" y2="206.7" stroke="#c94a4a" stroke-width="1.8"/>
+<polygon points="91.6,206.7 98.1,202.4 92.1,198.9" fill="#c94a4a"/>
+<circle cx="108.1" cy="178.0" r="2" fill="#c94a4a"/>
+<line x1="166.4" y1="197.4" x2="160.3" y2="236.6" stroke="#c94a4a" stroke-width="1.8"/>
+<polygon points="160.3,236.6 164.9,230.2 157.9,229.1" fill="#c94a4a"/>
+<circle cx="166.4" cy="197.4" r="2" fill="#c94a4a"/>
+<line x1="233.6" y1="197.4" x2="239.7" y2="236.6" stroke="#c94a4a" stroke-width="1.8"/>
+<polygon points="239.7,236.6 242.1,229.1 235.1,230.2" fill="#c94a4a"/>
+<circle cx="233.6" cy="197.4" r="2" fill="#c94a4a"/>
+<line x1="291.9" y1="178.0" x2="308.4" y2="206.7" stroke="#c94a4a" stroke-width="1.8"/>
+<polygon points="308.4,206.7 307.9,198.9 301.9,202.4" fill="#c94a4a"/>
+<circle cx="291.9" cy="178.0" r="2" fill="#c94a4a"/>
+<line x1="325.5" y1="144.4" x2="348.1" y2="154.9" stroke="#c94a4a" stroke-width="1.8"/>
+<polygon points="348.1,154.9 343.2,148.8 340.2,155.1" fill="#c94a4a"/>
+<circle cx="325.5" cy="144.4" r="2" fill="#c94a4a"/>
+</svg>
+<figcaption>Figure 7.1. Contour lines of \(f(x, y) = x^2 + 3y^2\) at the levels 0.5, 1.5, 3 and 4.5, and the gradient \(\nabla f = (2x, 6y)\) at points of the level-3 ellipse. Each arrow crosses its contour at a right angle and points uphill. The arrows are longest at the top and bottom, where the contours are closest together: steep ground.</figcaption>
+</figure>
+<p>At \((1, 1)\) the gradient of \(x^2 + 3y^2\) is \((2, 6)\), at angle \(\arctan 3 = 71.57^\circ\), with length \(\sqrt{40} = 6.3246\). Measuring the slope numerically in 3600 directions finds the steepest at \(71.60^\circ\) (the nearest direction of the 0.1&deg; grid) with slope 6.3246, and slope 0 along the perpendicular.</p>
+<h3>The gradient of a dot product</h3>
+<p>For a fixed key \(k\), the function \(q \mapsto q^\top k = \sum_j q_j k_j\) is linear in \(q\). Its partial derivative with respect to \(q_j\) is the coefficient \(k_j\), so</p>
+\[ \nabla_q \,(q^\top k) = k. \]
+<p>The logit \(s_i = q^\top k_i / \sqrt{d}\) grows fastest when the query moves along \(k_i\), at rate \(\|k_i\|/\sqrt{d}\) per unit step. Linear functions are their own linear approximation: \(s(q + v) = s(q) + k^\top v / \sqrt{d}\) exactly. Bounding \(|k^\top v|\) over all small \(v\) is what Cauchy&ndash;Schwarz does (<a href="10-norms.html#s3">section 10.3</a>), and the paper's bounds on \(\delta_C\) bound exactly such a quantity (<a href="19-refinekv-bound.html#s8">section 19.8</a>). Two more gradients that recur: \(\nabla \|q\|^2 = 2q\), and for a matrix \(A\), \(\nabla_q (q^\top A q) = (A + A^\top) q\).</p>
+
+<h2 id="s3">7.3 The Jacobian</h2>
+<p>A function \(F : \mathbb{R}^n \to \mathbb{R}^m\) returns an array of \(m\) numbers. Each output \(F_i\) has a gradient; stack them as the rows of an \(m \times n\) matrix:</p>
+<div class="box def"><p><b>Definition.</b> The <b>Jacobian</b> of \(F\) at \(x\) is the \(m \times n\) matrix \(J\) with \(J_{ij} = \dfrac{\partial F_i}{\partial x_j}\). Row \(i\) is \(\nabla F_i\); column \(j\) is how all the outputs move when input \(j\) moves.</p></div>
+<p>It gives the linear approximation of a vector function: \(F(x + v) \approx F(x) + J v\), a matrix-vector product (<a href="09-matrices.html#s1">section 9.1</a>). The Jacobian is the best linear map imitating \(F\) near \(x\).</p>
+<p>For a function that is already linear, \(F(x) = Mx\), the Jacobian is \(M\) itself. The logits of all \(N\) keys at once are such a map: \(s = Kq/\sqrt{d}\), with the keys \(k_i^\top\) as the rows of the \(N \times d\) matrix \(K\). Its Jacobian is \(K/\sqrt{d}\): row \(i\) is \(\nabla_q s_i = k_i/\sqrt{d}\), as in section 7.2.</p>
+<p>A nonlinear example: polar to Cartesian coordinates, \(F(r, t) = (r\cos t, r \sin t)\).</p>
+\[ J = \begin{pmatrix} \cos t &amp; -r \sin t \\ \sin t &amp; r \cos t \end{pmatrix}, \qquad \det J = r \cos^2 t + r \sin^2 t = r. \]
+<p>A numeric Jacobian is built one column at a time: perturb input \(j\), see how every output moves. At \((r, t) = (2, 0.6)\) that gives the matrix above to six digits, with determinant 2.000000.</p>
+<p>The determinant is the factor by which \(F\) scales small areas (<a href="09-matrices.html">chapter 9</a>): a small \(dr \times dt\) rectangle maps to a patch of area \(r\, dr\, dt\), the factor in every polar-coordinate integral. A numeric Jacobian costs \(2n\) calls of \(F\) with central differences. Section 7.4 gets gradients for much less.</p>
+
+<h2 id="s4">7.4 The chain rule and backpropagation</h2>
+<p>In one variable, \((f \circ g)'(x) = f'(g(x))\, g'(x)\): rates multiply (<a href="02-derivatives.html#s3">section 2.3</a>). With arrays, rates are Jacobians and they multiply as matrices.</p>
+<div class="box thm"><p><b>Theorem (chain rule).</b> If \(g : \mathbb{R}^n \to \mathbb{R}^m\) and \(f : \mathbb{R}^m \to \mathbb{R}^p\) are differentiable, the Jacobian of \(f \circ g\) at \(x\) is the product \(J_f(g(x))\, J_g(x)\), a \(p \times n\) matrix <a href="refs.html#r-openstax">[openstax]</a>. Written out, for \(z = f(y)\), \(y = g(x)\):</p>
+\[ \frac{\partial z}{\partial x_j} = \sum_{i=1}^{m} \frac{\partial z}{\partial y_i} \frac{\partial y_i}{\partial x_j}. \]</div>
+<p>Read the sum: \(x_j\) influences \(z\) through every intermediate \(y_i\), and the influences along the different paths add. When \(z\) is a single number (\(p = 1\)), the formula in matrix form is \(\nabla_x z = J_g^\top \nabla_y z\).</p>
+<h3>Reverse mode</h3>
+<p>A program computing \(f(x_1, \dots, x_n)\) is a long chain of elementary steps: adds, multiplies, exp, log, sin. Its derivative is the product of all their Jacobians. A product of matrices can be evaluated from either end. Starting from the inputs (<b>forward mode</b>) carries the derivative with respect to one input through the program: \(n\) passes for a full gradient, no better than finite differences in count. Starting from the output (<b>reverse mode</b>) carries the derivative of the one output with respect to each intermediate value backwards: one pass for the whole gradient, however many inputs there are <a href="refs.html#r-goodfellow">[goodfellow]</a>.</p>
+<p>Reverse mode needs the intermediate values, so the forward pass records them on a <b>tape</b>: each node's operation, inputs and value. The backward pass walks the tape from the end. Each node \(v\) accumulates its <b>adjoint</b> \(\bar v = \partial(\text{output})/\partial v\); a node passes \(\bar v\) times its local derivative to each of its inputs, which add up what they receive (the sum over paths). For \(w = u \cdot v\): \(\bar u \mathrel{+}= \bar w\, v\) and \(\bar v \mathrel{+}= \bar w\, u\). For \(w = e^u\): \(\bar u \mathrel{+}= \bar w\, w\). This is <b>backpropagation</b>. On the expression \(f(x, y, z) = \ln(e^{xy} + e^z) \sin x\), where \(x\) is used twice:</p>
+<pre><code>#include &lt;math.h&gt;
+#include &lt;stdio.h&gt;
+
+/* Reverse-mode differentiation on a tape. Each node records its operation, its
+   inputs (earlier nodes) and its value; one backward pass gives every partial. */
+enum op { VAR, ADD, MUL, EXP, LOG, SIN };
+static struct { enum op op; int a, b; double val, adj; } t[32];
+static int n;
+
+static int node(enum op op, int a, int b, double val)
+{
+    t[n].op = op; t[n].a = a; t[n].b = b; t[n].val = val; t[n].adj = 0;
+    return n++;
+}
+static int var(double v)      { return node(VAR, -1, -1, v); }
+static int add(int a, int b)  { return node(ADD, a, b, t[a].val + t[b].val); }
+static int mul(int a, int b)  { return node(MUL, a, b, t[a].val * t[b].val); }
+static int exp_(int a)        { return node(EXP, a, -1, exp(t[a].val)); }
+static int log_(int a)        { return node(LOG, a, -1, log(t[a].val)); }
+static int sin_(int a)        { return node(SIN, a, -1, sin(t[a].val)); }
+
+static void backward(int out)
+{
+    t[out].adj = 1;                              /* d out / d out */
+    for (int i = out; i &gt;= 0; i--) {            /* reverse order of creation */
+        double g = t[i].adj;
+        int a = t[i].a, b = t[i].b;
+        switch (t[i].op) {
+        case VAR: break;
+        case ADD: t[a].adj += g; t[b].adj += g; break;
+        case MUL: t[a].adj += g * t[b].val; t[b].adj += g * t[a].val; break;
+        case EXP: t[a].adj += g * t[i].val; break;        /* (e^u)' = e^u */
+        case LOG: t[a].adj += g / t[a].val; break;        /* (ln u)' = 1/u */
+        case SIN: t[a].adj += g * cos(t[a].val); break;
+        }
+    }
+}
+
+/* f(x, y, z) = log(e^(xy) + e^z) * sin x */
+static double f(double x, double y, double z) { return log(exp(x * y) + exp(z)) * sin(x); }
+
+int main(void)
+{
+    double in[3] = { 0.7, 1.3, 0.4 }, h = 1e-6;
+    n = 0;
+    int x = var(in[0]), y = var(in[1]), z = var(in[2]);
+    int out = mul(log_(add(exp_(mul(x, y)), exp_(z))), sin_(x));
+    backward(out);
+
+    double a = exp(in[0] * in[1]) / (exp(in[0] * in[1]) + exp(in[2]));   /* by hand */
+    double L = log(exp(in[0] * in[1]) + exp(in[2])), s = sin(in[0]);
+    double hand[3] = { a * in[1] * s + L * cos(in[0]), a * in[0] * s, (1 - a) * s };
+    printf("f = %.12f (%d nodes)\n", t[out].val, n);
+    for (int i = 0; i &lt; 3; i++) {
+        double p[3] = { in[0], in[1], in[2] }, m[3] = { in[0], in[1], in[2] };
+        p[i] += h; m[i] -= h;
+        double fd = (f(p[0], p[1], p[2]) - f(m[0], m[1], m[2])) / (2 * h);
+        printf("d/d%c: reverse %.12f  central diff %.12f  by hand %.12f\n",
+               "xyz"[i], t[i].adj, fd, hand[i]);
+    }
+    return 0;
+}</code></pre>
+<pre class="out">f = 0.889222253414 (10 nodes)
+d/dx: reverse 1.578986653850  central diff 1.578986653872  by hand 1.578986653850
+d/dy: reverse 0.281757967367  central diff 0.281757967346  by hand 0.281757967367
+d/dz: reverse 0.241706305285  central diff 0.241706305304  by hand 0.241706305285</pre>
+<p>How the program carries out the method:</p>
+<ul>
+<li><b>The tape</b> is the array <code>t</code>; each entry is a node of the computation: its operation, the indices <code>a</code>, <code>b</code> of its inputs, its value <code>val</code> and its adjoint <code>adj</code>. The constructors <code>add</code>, <code>mul</code>, <code>exp_</code> and the rest compute the value and append the node, so evaluating the expression in <code>main</code> records it. The expression \(\ln(e^{xy} + e^z)\sin x\) becomes ten nodes: three inputs, then \(xy\), \(e^{xy}\), \(e^z\), the sum, its log, \(\sin x\), and the product.</li>
+<li><b>Order.</b> A node is appended only after its inputs, so the tape is in an order where every node comes after everything it depends on. Walking it backwards from the output therefore reaches each node only after every node that uses it has passed its share back: when node \(i\) is visited, <code>t[i].adj</code> is complete, \(\bar v_i = \partial f/\partial v_i\).</li>
+<li><b>The <code>switch</code></b> holds one local derivative per operation, the rules of <a href="02-derivatives.html#s2">section 2.2</a>: a sum passes \(\bar w\) unchanged to both inputs (\(\partial(u+v)/\partial u = 1\)); a product passes \(\bar w\) times the <em>other</em> input; \(e^u\) passes \(\bar w e^u\), reusing the stored value, so no exp is recomputed; \(\ln u\) passes \(\bar w/u\); \(\sin u\) passes \(\bar w \cos u\).</li>
+<li><b><code>+=</code>, not <code>=</code>.</b> \(x\) feeds both \(xy\) and \(\sin x\). Each use sends back its contribution and they add: the sum over paths of the chain rule. After the pass, the adjoints of the three input nodes are the gradient.</li>
+<li><b>The checks.</b> <code>hand</code> is the gradient derived on paper: with \(a = e^{xy}/(e^{xy} + e^z)\) and \(L = \ln(e^{xy} + e^z)\), \(\partial_x f = a\, y \sin x + L \cos x\), \(\partial_y f = a\, x \sin x\), \(\partial_z f = (1 - a)\sin x\). (\(a\) is a two-element softmax: <a href="#s6">section 7.6</a>.) The central differences are the independent check.</li>
+</ul>
+<p>Reverse mode agrees with the derivative worked out by hand to all 12 printed digits; central differences agree to about 10, the most they can do in doubles (<a href="02-derivatives.html#s5">section 2.5</a>). And for a function of \(n\) inputs, central differences need \(2n\) evaluations, while one backward pass costs a small constant times one forward pass: for a model with \(10^9\) weights, the difference between training and not training.</p>
+<div class="box warn"><p><b>In the machine.</b> The tape is a log of the forward pass, replayed in reverse, the way an undo log is. It is also the memory cost of training: every intermediate value (every activation of every layer) must be kept until the backward pass reaches it. Inference keeps nothing of the kind; it does keep its own cache, the KV cache of <a href="17-kv-cache.html#s3">section 17.3</a>, which is what the paper compresses.</p></div>
+
+<h2 id="s5">7.5 Gradient descent</h2>
+<p>To find a minimum of \(f : \mathbb{R}^d \to \mathbb{R}\), stand somewhere and step downhill, along \(-\nabla f\), the steepest descent:</p>
+\[ x_{n+1} = x_n - \eta \, \nabla f(x_n). \]
+<p>The step size \(\eta\) is the <b>learning rate</b>. Where \(\nabla f = 0\) the iteration stops: at a minimum, or at another flat point (a maximum or a saddle), the several-variable version of <a href="02-derivatives.html#s7">section 2.7</a>. For a convex \(f\) (<a href="11-convexity.html">chapter 11</a>) every such point is a global minimum <a href="refs.html#r-boyd-cvx">[boyd-cvx]</a>.</p>
+<p>Gradient descent is Euler's method (<a href="06-odes.html#s6">section 6.6</a>) applied to the <b>gradient flow</b> \(x' = -\nabla f(x)\), with step \(\eta\). So it inherits Euler's stability limit (<a href="06-odes.html#s8">section 6.8</a>). See it on</p>
+\[ f(x, y) = \tfrac12 (x^2 + 10 y^2), \qquad \nabla f = (x,\, 10y). \]
+<p>The two coordinates do not interact: a step multiplies \(x\) by \(1 - \eta\) and \(y\) by \(1 - 10\eta\). Both shrink only if \(|1 - \eta| &lt; 1\) and \(|1 - 10\eta| &lt; 1\), that is, \(0 &lt; \eta &lt; 0.2\). In general the limit is \(\eta &lt; 2/\lambda_{\max}\), where \(\lambda_{\max}\) is the largest curvature: the largest eigenvalue of the Hessian, here 10. Exactly the \(h &lt; 2/\lambda\) of <a href="06-odes.html#s8">section 6.8</a>.</p>
+<p>From \((1, 1)\), the value of \(f\) after 10 and 100 steps:</p>
+<table class="t">
+<tr><th>\(\eta\)</th><th>\(1 - \eta\)</th><th>\(1 - 10\eta\)</th><th>\(f\) after 10</th><th>\(f\) after 100</th></tr>
+<tr><td class="n">0.05</td><td class="n">0.95</td><td class="n">0.50</td><td class="n">\(1.8 \times 10^{-1}\)</td><td class="n">\(1.8 \times 10^{-5}\)</td></tr>
+<tr><td class="n">0.10</td><td class="n">0.90</td><td class="n">0.00</td><td class="n">\(6.1 \times 10^{-2}\)</td><td class="n">\(3.5 \times 10^{-10}\)</td></tr>
+<tr><td class="n">0.15</td><td class="n">0.85</td><td class="n">&minus;0.50</td><td class="n">\(1.9 \times 10^{-2}\)</td><td class="n">\(3.8 \times 10^{-15}\)</td></tr>
+<tr><td class="n">2/11</td><td class="n">0.82</td><td class="n">&minus;0.82</td><td class="n">\(9.9 \times 10^{-2}\)</td><td class="n">\(2.0 \times 10^{-17}\)</td></tr>
+<tr><td class="n">0.19</td><td class="n">0.81</td><td class="n">&minus;0.90</td><td class="n">\(6.2 \times 10^{-1}\)</td><td class="n">\(3.5 \times 10^{-9}\)</td></tr>
+<tr><td class="n">0.21</td><td class="n">0.79</td><td class="n">&minus;1.10</td><td class="n">\(3.4 \times 10^{1}\)</td><td class="n">\(9.5 \times 10^{8}\)</td></tr>
+</table>
+<p>At \(\eta = 0.21\) the steep coordinate grows by 1.1 per step and the run diverges. Small \(\eta\) is safe but slow, because the flat coordinate \(x\) shrinks only by \(1 - \eta\) per step. The best \(\eta\) balances the two factors, \(1 - \eta = 10\eta - 1\), so \(\eta = 2/11\), and both then shrink by \(9/11\) per step. With a curvature ratio (the <b>condition number</b>) \(\kappa = \lambda_{\max}/\lambda_{\min}\), the best rate is \((\kappa - 1)/(\kappa + 1)\): a long narrow valley is slow to descend however \(\eta\) is chosen <a href="refs.html#r-boyd-cvx">[boyd-cvx]</a>.</p>
+<figure>
+<svg viewBox="0 0 420 230" width="420" height="230" role="img" aria-label="Two gradient descent paths on an elongated bowl: one smooth, one zigzagging">
+<line x1="10" y1="115.0" x2="410" y2="115.0" stroke="currentColor" stroke-opacity="0.4"/>
+<line x1="200" y1="8" x2="200" y2="222" stroke="currentColor" stroke-opacity="0.4"/>
+<ellipse cx="200" cy="115.0" rx="19.0" ry="6.0" fill="none" stroke="currentColor" stroke-opacity="0.6"/>
+<ellipse cx="200" cy="115.0" rx="42.5" ry="13.4" fill="none" stroke="currentColor" stroke-opacity="0.6"/>
+<ellipse cx="200" cy="115.0" rx="73.6" ry="23.3" fill="none" stroke="currentColor" stroke-opacity="0.6"/>
+<ellipse cx="200" cy="115.0" rx="104.1" ry="32.9" fill="none" stroke="currentColor" stroke-opacity="0.6"/>
+<ellipse cx="200" cy="115.0" rx="134.4" ry="42.5" fill="none" stroke="currentColor" stroke-opacity="0.6"/>
+<ellipse cx="200" cy="115.0" rx="164.5" ry="52.0" fill="none" stroke="currentColor" stroke-opacity="0.6"/>
+<polyline fill="none" stroke="#4a7fc1" stroke-width="1.6" points="295.0,20.0 290.2,67.5 285.7,91.2 281.5,103.1 277.4,109.1 273.5,112.0 269.8,113.5 266.3,114.3 263.0,114.6 259.9,114.8 256.9,114.9 254.0,115.0 251.3,115.0 248.8,115.0 246.3,115.0 244.0,115.0 241.8,115.0 239.7,115.0 237.7,115.0 235.8,115.0 234.1,115.0 232.4,115.0 230.7,115.0 229.2,115.0 227.7,115.0 226.4,115.0 225.0,115.0 223.8,115.0 222.6,115.0 221.5,115.0 220.4,115.0"/>
+<polyline fill="none" stroke="#c94a4a" stroke-width="1.6" points="295.0,20.0 276.9,200.5 262.3,38.1 250.5,184.3 240.9,52.7 233.1,171.1 226.8,64.5 221.7,160.4 217.6,74.1 214.3,151.8 211.5,81.9 209.4,144.8 207.6,88.2 206.1,139.1 205.0,93.3 204.0,134.6 203.3,97.4 202.6,130.8 202.1,100.7 201.7,127.8 201.4,103.5 201.1,125.4 200.9,105.6 200.7,123.4 200.6,107.4 200.5,121.8 200.4,108.9 200.3,120.5 200.3,110.0 200.2,119.5 200.2,111.0"/>
+<circle cx="295.0" cy="20.0" r="3" fill="currentColor"/>
+<text x="301.0" y="24.0" font-size="11" fill="currentColor">start (1, 1)</text>
+<text x="408" y="40" font-size="11" text-anchor="end" fill="#4a7fc1">&#951; = 0.05</text>
+<text x="408" y="56" font-size="11" text-anchor="end" fill="#c94a4a">&#951; = 0.19</text>
+</svg>
+<figcaption>Figure 7.2. 30 steps of gradient descent on \(\tfrac12(x^2 + 10y^2)\) from \((1, 1)\). With \(\eta = 0.05\) (blue) the path drops into the valley floor and then creeps along it. With \(\eta = 0.19\) (red), near the limit 0.2, it zigzags across the valley, overshooting the steep direction at every step.</figcaption>
+</figure>
+<p>Training a network is gradient descent on a loss with billions of variables, with the gradient from backpropagation over a random batch of examples (stochastic gradient descent) and refinements such as momentum and Adam <a href="refs.html#r-goodfellow">[goodfellow]</a>. The learning-rate limit above is why training diverges when the rate is set too high.</p>
+
+<h2 id="s6">7.6 The gradient of log-sum-exp</h2>
+<p>The function the whole book converges on is</p>
+\[ \operatorname{LSE}(s_1, \dots, s_N) = \log \sum_{j=1}^{N} e^{s_j}. \]
+<p>Differentiate with respect to \(s_i\). The outer function is \(\log u\), with derivative \(1/u\); the inner \(u = \sum_j e^{s_j}\) has \(\partial u/\partial s_i = e^{s_i}\), since only one term contains \(s_i\). By the chain rule:</p>
+<div class="box thm"><p><b>Fact.</b> \[ \frac{\partial}{\partial s_i} \log \sum_{j=1}^{N} e^{s_j} = \frac{e^{s_i}}{\sum_{j=1}^{N} e^{s_j}} = \alpha_i. \] The gradient of log-sum-exp is softmax.</p></div>
+<p>What that says:</p>
+<ul>
+<li><b>The gradient is a probability distribution.</b> The \(\alpha_i\) are positive and sum to 1 (<a href="12-probability.html#s6">section 12.6</a>). So raising every logit by \(c\) raises LSE by exactly \(c\): \(\operatorname{LSE}(s + c) = \operatorname{LSE}(s) + c\). That identity is the max trick of <a href="15-softmax.html#s2">section 15.2</a>.</li>
+<li><b>LSE is a smooth maximum, and softmax a smooth argmax.</b> \(\max_i s_i \le \operatorname{LSE}(s) \le \max_i s_i + \log N\) (<a href="11-convexity.html#s5">section 11.5</a>). Where one logit dominates, LSE follows it with slope 1 and ignores the rest: the gradient is nearly the one-hot vector of the argmax.</li>
+<li><b>Masses are sensitivities.</b> Raise every logit in a cluster \(C\) by \(c\). The derivative of LSE with respect to \(c\) is \(\sum_{i \in C} \alpha_i = p_C\), the cluster's attention mass in the paper (<a href="18-clustering.html#s5">section 18.5</a>). A cluster with small \(p_C\) barely affects the normalizer, which is part of why the paper's risk score weighs a cluster's error by its mass (<a href="19-refinekv-bound.html#s7">section 19.7</a>).</li>
+</ul>
+<p>Now make the logits functions of the query, \(s_i = q^\top k_i / \sqrt{d}\). The Jacobian of \(q \mapsto s\) is \(K/\sqrt{d}\) (<a href="#s3">section 7.3</a>), so by the chain rule \(\nabla_q \operatorname{LSE} = (K/\sqrt d)^\top \alpha\):</p>
+\[ \nabla_q \log \sum_{i=1}^{N} e^{q^\top k_i/\sqrt{d}} = \frac{1}{\sqrt{d}} \sum_{i=1}^{N} \alpha_i k_i. \]
+<p>The gradient with respect to the query is the attention-weighted average of the keys, over \(\sqrt d\): the same weighted average that attention takes of the values (<a href="16-attention.html#s2">section 16.2</a>). A check with \(d = 4\), \(N = 5\) and arbitrary \(q\), \(k_i\) (logits from \(-1.675\) to \(1.775\)): central differences of LSE in each \(s_i\) equal the softmax weights (from 0.017 to 0.536) to ten digits; the differences of \(q \mapsto q^\top k_0\) give \(k_0\); and the differences of LSE in each \(q_j\) equal \(\sum_i \alpha_i k_{ij}/\sqrt d\) to ten digits.</p>
+<p>Going one level further, the Jacobian of softmax itself is \(\partial \alpha_i / \partial s_j = \alpha_i (\delta_{ij} - \alpha_j)\), with \(\delta_{ij} = 1\) if \(i = j\) and 0 otherwise (differentiate \(e^{s_i}/\sum_j e^{s_j}\) by the quotient rule). It and the cluster-mass derivative above were checked the same way. <a href="15-softmax.html">Chapter 15</a> computes all of this without overflow.</p>
+
+<h2 id="exercises">Exercises</h2>
+<ol class="ex">
+<li>Find the partial derivatives and the gradient of \(f(x, y) = e^{xy}\) at \((1, 2)\).
+<details><summary>Answer</summary><p>\(\partial_x f = y e^{xy}\), \(\partial_y f = x e^{xy}\). At \((1, 2)\): \(\nabla f = (2e^2, e^2) \approx (14.78, 7.39)\).</p></details></li>
+<li>For \(f(x, y) = x^2 + 3y^2\) at \((1, 1)\): in which unit direction does \(f\) decrease fastest, and how fast? In which directions does it not change at first?
+<details><summary>Answer</summary><p>Along \(-\nabla f/\|\nabla f\| = -(2, 6)/\sqrt{40} \approx (-0.316, -0.949)\), at slope \(-\sqrt{40} \approx -6.32\). It does not change along the two directions perpendicular to \((2, 6)\): \(\pm(6, -2)/\sqrt{40}\), tangent to the contour.</p></details></li>
+<li>Show \(\nabla \|q\|^2 = 2q\), and that \(\|q - k\|^2 = \|q\|^2 - 2 q^\top k + \|k\|^2\) has gradient \(2(q - k)\) in \(q\). Where is it smallest?
+<details><summary>Answer</summary><p>\(\|q\|^2 = \sum_j q_j^2\), whose partial in \(q_j\) is \(2q_j\). Term by term, \(\nabla_q = 2q - 2k + 0\). It is zero at \(q = k\), the minimum: the closest point to \(k\) is \(k\).</p></details></li>
+<li>Write the Jacobian of \(F(x, y) = (xy,\; x + y)\). Where is its determinant 0?
+<details><summary>Answer</summary><p>\(J = \begin{pmatrix} y &amp; x \\ 1 &amp; 1 \end{pmatrix}\), \(\det J = y - x\). It is 0 on the line \(x = y\): there \(F\) squashes a small area flat (\(x\) and \(y\) can be swapped without changing either output).</p></details></li>
+<li>Run backpropagation by hand on \(f = (x + y)\, x\) at \(x = 2\), \(y = 3\): draw the tape, then pass the adjoints back.
+<details><summary>Answer</summary><p>Tape: \(x = 2\), \(y = 3\), \(u = x + y = 5\), \(f = u \cdot x = 10\). Backward: \(\bar f = 1\); \(\bar u \mathrel{+}= \bar f \cdot x = 2\), \(\bar x \mathrel{+}= \bar f \cdot u = 5\); then from \(u = x + y\): \(\bar x \mathrel{+}= \bar u = 2\), \(\bar y \mathrel{+}= \bar u = 2\). So \(\partial f/\partial x = 7\), \(\partial f/\partial y = 2\). Check: \(f = x^2 + xy\), \(\partial_x f = 2x + y = 7\).</p></details></li>
+<li>Gradient descent on \(\tfrac12 (x^2 + 100 y^2)\): what is the largest stable \(\eta\), the best \(\eta\), and about how many steps reduce the error by \(10^6\) at the best \(\eta\)?
+<details><summary>Answer</summary><p>Stable for \(\eta &lt; 2/100 = 0.02\). Best \(\eta = 2/101\), rate \(99/101 \approx 0.980\) per step, so \(\ln 10^{-6} / \ln(99/101) \approx 691\) steps Condition number 100, against 10 in section 7.5 with 69 steps for the same: ten times the condition number, ten times the steps.</p></details></li>
+<li>In the paper, raise every logit of a cluster \(C\) by \(c\). Show that LSE changes at rate \(p_C\), and that \(p_C\) after the shift is \(p_C e^c / (1 - p_C + p_C e^c)\).
+<details><summary>Answer</summary><p>\(\frac{d}{dc} \log\big(\sum_{i \notin C} e^{s_i} + e^c \sum_{i \in C} e^{s_i}\big) = \frac{e^c \sum_{i \in C} e^{s_i}}{\sum_{\text{all}}} = p_C\) at \(c = 0\). After the shift, divide numerator and denominator by the old total: the mass in \(C\) becomes \(p_C e^c\), the rest stays \(1 - p_C\).</p></details></li>
+<li>A model has \(10^9\) weights and one forward pass takes 0.1 s. Estimate the time for one gradient by central differences and by reverse mode, if a backward pass costs about two forward passes.
+<details><summary>Answer</summary><p>Central differences: \(2 \times 10^9\) passes, \(2 \times 10^8\) s, over six years. Reverse mode: a forward and a backward pass, about 0.3 s.</p></details></li>
+</ol>
+
+<h2 id="references">References</h2>
+<ul>
+<li><a href="refs.html#r-openstax">[openstax]</a> Volume 3, chapter 4: functions of several variables, partial derivatives, the chain rule, directional derivatives and the gradient, maxima and minima.</li>
+<li><a href="refs.html#r-goodfellow">[goodfellow]</a> Section 4.3 (gradient-based optimization, the Jacobian and Hessian, the effect of curvature on the step size) and section 6.5 (back-propagation and other differentiation algorithms).</li>
+<li><a href="refs.html#r-boyd-cvx">[boyd-cvx]</a> Chapter 9: gradient descent, its convergence rate and the role of the condition number.</li>
+<li><a href="refs.html#r-strang-la">[strang-la]</a> Matrices as linear maps, for reading the Jacobian as one.</li>
+</ul>
+<hr>
+<p class="nav"><a rel="prev" href="06-odes.html">&larr; 6. Ordinary differential equations</a> &middot; <a href="./">Contents</a> &middot; <a rel="next" href="08-vectors.html">8. Vectors and the dot product &rarr;</a></p>
+</body>
+</html>
