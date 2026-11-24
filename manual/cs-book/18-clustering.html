@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>18. Clustering and approximate attention - From Derivatives to Attention</title>
+<link rel="stylesheet" href="book.css">
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-chtml.js" async></script>
+</head>
+<body>
+<p class="nav"><a href="../../">ScarletNX</a> / <a href="./">From Derivatives to Attention</a> / Chapter 18 &middot; <a rel="prev" href="17-kv-cache.html">&larr; 17. Decoding and the KV cache</a> &middot; <a rel="next" href="19-refinekv-bound.html">19. RefineKV's error bound, step by step &rarr;</a></p>
+<h1>18. Clustering and approximate attention</h1>
+<p><a href="17-kv-cache.html#s6">Section 17.6</a> ended with a plan: split the KV cache into groups, keep a small summary of each group, and let each query decide from the summaries alone which groups it must read in full. This chapter builds the groups and the summaries. It defines a partition of the tokens into clusters, the representative of a cluster (its mean key and mean value), two ways to form clusters (k-means and contiguous blocks), and attention in which a cluster stands in for its tokens. That is Eq. 2 of <a href="refs.html#r-refinekv">[refinekv]</a>. The last section measures what the stand-in costs: the error grows with how far the cluster's logits are spread. <a href="19-refinekv-bound.html">Chapter 19</a> turns that observation into the paper's bound.</p>
+
+<h2 id="s1">18.1 Partitions</h2>
+<p>Number the cached tokens \(1, \dots, N\). A <b>partition</b> of the set \(\{1, \dots, N\}\) is a collection of nonempty subsets, the <b>clusters</b>, such that every token is in exactly one of them. In the paper's notation \(\mathcal{C} = \{C_1, \dots, C_m\}\) (Section 3.2):</p>
+<div class="box def"><p><b>Definition.</b> \(\mathcal{C} = \{C_1, \dots, C_m\}\) is a partition of \(\{1, \dots, N\}\) if each \(C_r\) is nonempty, \(C_r \cap C_s = \emptyset\) for \(r \ne s\), and \(C_1 \cup \dots \cup C_m = \{1, \dots, N\}\). Then \(|C_1| + \dots + |C_m| = N\).</p></div>
+<p>In C a partition is an array <code>a[i]</code>, the cluster of token \(i\): each token gets exactly one label, so &ldquo;exactly one cluster&rdquo; holds by construction. The property matters for one reason: any sum over tokens can be regrouped as a sum over clusters of sums inside each cluster, with nothing counted twice or missed,</p>
+\[ \sum_{i=1}^{N} f(i) = \sum_{C \in \mathcal{C}} \sum_{i \in C} f(i). \]
+<p>Every formula of this chapter and the next starts with that regrouping, applied to the softmax denominator and to the output \(o\).</p>
+<figure>
+<svg viewBox="0 0 500 178" width="500" height="178" role="img" aria-label="Two partitions of 24 tokens into 3 clusters: three contiguous runs, and a scattered assignment by similarity">
+<text x="10" y="22" font-size="12" fill="currentColor">contiguous blocks</text>
+<rect x="10" y="30" width="18" height="18" fill="#4a7fc1" fill-opacity="0.75"/>
+<rect x="30" y="30" width="18" height="18" fill="#4a7fc1" fill-opacity="0.75"/>
+<rect x="50" y="30" width="18" height="18" fill="#4a7fc1" fill-opacity="0.75"/>
+<rect x="70" y="30" width="18" height="18" fill="#4a7fc1" fill-opacity="0.75"/>
+<rect x="90" y="30" width="18" height="18" fill="#4a7fc1" fill-opacity="0.75"/>
+<rect x="110" y="30" width="18" height="18" fill="#4a7fc1" fill-opacity="0.75"/>
+<rect x="130" y="30" width="18" height="18" fill="#4a7fc1" fill-opacity="0.75"/>
+<rect x="150" y="30" width="18" height="18" fill="#4a7fc1" fill-opacity="0.75"/>
+<rect x="170" y="30" width="18" height="18" fill="#c94a4a" fill-opacity="0.75"/>
+<rect x="190" y="30" width="18" height="18" fill="#c94a4a" fill-opacity="0.75"/>
+<rect x="210" y="30" width="18" height="18" fill="#c94a4a" fill-opacity="0.75"/>
+<rect x="230" y="30" width="18" height="18" fill="#c94a4a" fill-opacity="0.75"/>
+<rect x="250" y="30" width="18" height="18" fill="#c94a4a" fill-opacity="0.75"/>
+<rect x="270" y="30" width="18" height="18" fill="#c94a4a" fill-opacity="0.75"/>
+<rect x="290" y="30" width="18" height="18" fill="#c94a4a" fill-opacity="0.75"/>
+<rect x="310" y="30" width="18" height="18" fill="#c94a4a" fill-opacity="0.75"/>
+<rect x="330" y="30" width="18" height="18" fill="#3f9a55" fill-opacity="0.75"/>
+<rect x="350" y="30" width="18" height="18" fill="#3f9a55" fill-opacity="0.75"/>
+<rect x="370" y="30" width="18" height="18" fill="#3f9a55" fill-opacity="0.75"/>
+<rect x="390" y="30" width="18" height="18" fill="#3f9a55" fill-opacity="0.75"/>
+<rect x="410" y="30" width="18" height="18" fill="#3f9a55" fill-opacity="0.75"/>
+<rect x="430" y="30" width="18" height="18" fill="#3f9a55" fill-opacity="0.75"/>
+<rect x="450" y="30" width="18" height="18" fill="#3f9a55" fill-opacity="0.75"/>
+<rect x="470" y="30" width="18" height="18" fill="#3f9a55" fill-opacity="0.75"/>
+<text x="10" y="82" font-size="12" fill="currentColor">k-means</text>
+<rect x="10" y="90" width="18" height="18" fill="#4a7fc1" fill-opacity="0.75"/>
+<rect x="30" y="90" width="18" height="18" fill="#4a7fc1" fill-opacity="0.75"/>
+<rect x="50" y="90" width="18" height="18" fill="#c94a4a" fill-opacity="0.75"/>
+<rect x="70" y="90" width="18" height="18" fill="#4a7fc1" fill-opacity="0.75"/>
+<rect x="90" y="90" width="18" height="18" fill="#4a7fc1" fill-opacity="0.75"/>
+<rect x="110" y="90" width="18" height="18" fill="#3f9a55" fill-opacity="0.75"/>
+<rect x="130" y="90" width="18" height="18" fill="#3f9a55" fill-opacity="0.75"/>
+<rect x="150" y="90" width="18" height="18" fill="#c94a4a" fill-opacity="0.75"/>
+<rect x="170" y="90" width="18" height="18" fill="#c94a4a" fill-opacity="0.75"/>
+<rect x="190" y="90" width="18" height="18" fill="#4a7fc1" fill-opacity="0.75"/>
+<rect x="210" y="90" width="18" height="18" fill="#3f9a55" fill-opacity="0.75"/>
+<rect x="230" y="90" width="18" height="18" fill="#3f9a55" fill-opacity="0.75"/>
+<rect x="250" y="90" width="18" height="18" fill="#3f9a55" fill-opacity="0.75"/>
+<rect x="270" y="90" width="18" height="18" fill="#c94a4a" fill-opacity="0.75"/>
+<rect x="290" y="90" width="18" height="18" fill="#c94a4a" fill-opacity="0.75"/>
+<rect x="310" y="90" width="18" height="18" fill="#c94a4a" fill-opacity="0.75"/>
+<rect x="330" y="90" width="18" height="18" fill="#4a7fc1" fill-opacity="0.75"/>
+<rect x="350" y="90" width="18" height="18" fill="#4a7fc1" fill-opacity="0.75"/>
+<rect x="370" y="90" width="18" height="18" fill="#3f9a55" fill-opacity="0.75"/>
+<rect x="390" y="90" width="18" height="18" fill="#c94a4a" fill-opacity="0.75"/>
+<rect x="410" y="90" width="18" height="18" fill="#c94a4a" fill-opacity="0.75"/>
+<rect x="430" y="90" width="18" height="18" fill="#4a7fc1" fill-opacity="0.75"/>
+<rect x="450" y="90" width="18" height="18" fill="#3f9a55" fill-opacity="0.75"/>
+<rect x="470" y="90" width="18" height="18" fill="#3f9a55" fill-opacity="0.75"/>
+<text x="19" y="152" font-size="10" text-anchor="middle" fill="currentColor">0</text>
+<text x="99" y="152" font-size="10" text-anchor="middle" fill="currentColor">4</text>
+<text x="179" y="152" font-size="10" text-anchor="middle" fill="currentColor">8</text>
+<text x="259" y="152" font-size="10" text-anchor="middle" fill="currentColor">12</text>
+<text x="339" y="152" font-size="10" text-anchor="middle" fill="currentColor">16</text>
+<text x="419" y="152" font-size="10" text-anchor="middle" fill="currentColor">20</text>
+<text x="250" y="170" font-size="11" text-anchor="middle" fill="currentColor">token position &#8594;</text>
+</svg>
+<figcaption>Figure 18.1. Two partitions of 24 tokens into 3 clusters (colours). Top: contiguous blocks, \(C_r = \{8r, \dots, 8r+7\}\); the cluster of token \(i\) is \(\lfloor i/8 \rfloor\). Bottom: clusters chosen by similarity of the keys, as k-means makes them; members are scattered over the sequence.</figcaption>
+</figure>
+
+<h2 id="s2">18.2 Representatives</h2>
+<p>A cluster's summary is one key and one value that stand for all of its members. The paper takes the means (Section 3.2, <a href="08-vectors.html#s6">section 8.6</a>):</p>
+\[ \bar k_C = \frac{1}{|C|} \sum_{i \in C} k_i, \qquad \bar v_C = \frac{1}{|C|} \sum_{i \in C} v_i. \]
+<p>They cost one pass over the cluster to compute, once, after prefill, and then \(d + d_v\) numbers per cluster instead of \(|C|(d + d_v)\). With clusters of 32 that is 1/32 of the cache.</p>
+<p>Two facts make the mean key the right choice for attention.</p>
+<p><b>Its logit is the mean logit.</b> The dot product is linear, so for any query</p>
+\[ \frac{q^\top \bar k_C}{\sqrt d} = \frac{1}{|C|} \sum_{i \in C} \frac{q^\top k_i}{\sqrt d} = \frac{1}{|C|} \sum_{i \in C} s_i. \]
+<p>The representative does not need to know the query in advance: whatever \(q\) arrives, \(\bar k_C\) gives the average of the logits the members would have had. Write \(\bar s_C\) for it.</p>
+<p><b>It never overstates the cluster's weight.</b> In the softmax a token contributes \(e^{s_i}\). The cluster's true total is \(\sum_{i \in C} e^{s_i}\); the representative, counted \(|C|\) times, gives \(|C| e^{\bar s_C}\). Because \(\exp\) is convex, Jensen's inequality (<a href="11-convexity.html#s4">section 11.4</a>) says the mean of \(e^{s_i}\) is at least \(e\) to the mean of \(s_i\):</p>
+\[ |C|\, e^{\bar s_C} \;\le\; \sum_{i \in C} e^{s_i} \;\le\; |C|\, e^{\bar s_C + \delta}, \qquad \delta = \max_{i \in C} |s_i - \bar s_C|. \]
+<p>The right inequality holds because each \(s_i \le \bar s_C + \delta\). Equality on the left holds exactly when all \(s_i\) are equal. So the representative underestimates the cluster's weight, by a factor between 1 and \(e^\delta\) that depends only on how spread the logits are. A check program (kept with the book's sources) builds clusters of 32 keys with growing spread: the representative's logit equals the mean logit to all printed digits, and the ratio \(\sum e^{s_i} / (|C| e^{\bar s_C})\) is 1.0000, 1.0162, 1.1082, 1.2012, 1.3574 for \(\delta\) = 0, 0.37, 0.89, 2.12, 1.82: never below 1, never above \(e^\delta\). (The ratio depends on the whole spread of the logits, not only on the largest deviation, which is why it is not monotone in \(\delta\).)</p>
+
+<h2 id="s3">18.3 k-means</h2>
+<p>If clusters will be replaced by their means, the best clusters are those whose members are close to their mean. <b>k-means</b> makes this an objective: choose a partition into \(m\) clusters that minimizes the within-cluster sum of squares</p>
+\[ J(\mathcal{C}) = \sum_{C \in \mathcal{C}} \sum_{i \in C} \|x_i - \bar x_C\|^2. \]
+<p>Finding the exact minimum is hard (there are about \(m^N/m!\) partitions, and the problem is NP-hard in general). <b>Lloyd's algorithm</b> <a href="refs.html#r-lloyd">[lloyd]</a> finds a good local minimum by alternating two steps, with centers \(c_1, \dots, c_m\):</p>
+<ol>
+<li><b>Assign.</b> Put each point in the cluster of its nearest center.</li>
+<li><b>Update.</b> Move each center to the mean of its points.</li>
+</ol>
+<p>Repeat until no point changes cluster. Why it works: consider the cost \(J(\mathcal{C}, c) = \sum_C \sum_{i \in C} \|x_i - c_C\|^2\), where the centers are free. The assignment step fixes the centers and gives each point the center that makes its own term smallest, so \(J\) cannot increase. The update step fixes the clusters and replaces each center by the point that minimizes \(\sum_{i \in C} \|x_i - c\|^2\), which is the mean: expanding,</p>
+\[ \sum_{i \in C} \|x_i - c\|^2 = \sum_{i \in C} \|x_i - \bar x_C\|^2 + |C| \, \|\bar x_C - c\|^2, \]
+<p>because the cross term \(2 (\bar x_C - c)^\top \sum_{i \in C} (x_i - \bar x_C)\) is zero. So \(J\) cannot increase there either. A quantity that never increases and takes finitely many values (one per partition) must stop changing: the algorithm terminates. It stops at a partition where neither step helps, which need not be the best one; the result depends on the starting centers. Each iteration costs \(N m d\) multiply-adds for the distances.</p>
+<p>A program on 90 points in the plane, from three blobs, started badly on purpose (all three centers inside one blob):</p>
+<pre><code>/* Lloyd's algorithm on 90 points in the plane, 3 clusters.
+   Assign each point to the nearest center; move each center to the mean
+   of its points; repeat until nothing moves. */
+#include &lt;math.h&gt;
+#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+
+#define N 90
+#define K 3
+
+static double gauss(void)
+{
+    double u = (rand() + 1.0) / (RAND_MAX + 2.0), v = (rand() + 1.0) / (RAND_MAX + 2.0);
+    return sqrt(-2 * log(u)) * cos(6.283185307179586 * v);
+}
+
+int main(int argc, char **argv)
+{
+    double x[N][2], c[K][2], blob[K][2] = { { 1, 1 }, { 4, 1.5 }, { 2.5, 4 } };
+    int a[N];
+    srand(4);
+    for (int i = 0; i &lt; N; i++)
+        for (int j = 0; j &lt; 2; j++) x[i][j] = blob[i % K][j] + 0.6 * gauss();
+    for (int k = 0; k &lt; K; k++) {   /* a bad start: 3 points of the same blob */
+        c[k][0] = x[3 * k][0]; c[k][1] = x[3 * k][1];
+    }
+
+    for (int it = 1, moved = 1; moved; it++) {
+        double sse = 0, sum[K][2] = { { 0 } };
+        int n[K] = { 0 };
+        moved = 0;
+        for (int i = 0; i &lt; N; i++) {                  /* assignment step */
+            int best = 0;
+            double bd = INFINITY;
+            for (int k = 0; k &lt; K; k++) {
+                double d = pow(x[i][0] - c[k][0], 2) + pow(x[i][1] - c[k][1], 2);
+                if (d &lt; bd) { bd = d; best = k; }
+            }
+            if (it == 1 || a[i] != best) moved = 1;
+            a[i] = best;
+            sse += bd;
+            sum[best][0] += x[i][0]; sum[best][1] += x[i][1]; n[best]++;
+        }
+        printf("iteration %d: sum of squared distances %.4f, sizes %d %d %d\n",
+               it, sse, n[0], n[1], n[2]);
+        for (int k = 0; k &lt; K; k++)                    /* update step */
+            if (n[k]) { c[k][0] = sum[k][0] / n[k]; c[k][1] = sum[k][1] / n[k]; }
+    }
+    for (int k = 0; k &lt; K; k++) printf("center %d: (%.3f, %.3f)\n", k, c[k][0], c[k][1]);
+    if (argc &gt; 1) {                                    /* points for the figure */
+        FILE *f = fopen(argv[1], "w");
+        if (!f) return 1;
+        for (int i = 0; i &lt; N; i++) fprintf(f, "%.3f %.3f %d\n", x[i][0], x[i][1], a[i]);
+        for (int k = 0; k &lt; K; k++) fprintf(f, "%.3f %.3f c\n", c[k][0], c[k][1]);
+        fclose(f);
+    }
+    return 0;
+}</code></pre>
+<pre class="out">iteration 1: sum of squared distances 414.2960, sizes 44 27 19
+iteration 2: sum of squared distances 84.9208, sizes 33 29 28
+iteration 3: sum of squared distances 58.8710, sizes 31 30 29
+iteration 4: sum of squared distances 58.3726, sizes 31 30 29
+center 0: (4.331, 1.449)
+center 1: (2.234, 3.924)
+center 2: (0.915, 1.055)</pre>
+<p>The program in the language of the derivation. The two halves of the loop body are the two steps. The assignment loop computes \(\|x_i - c_k\|^2\) for each \(k\) and keeps the smallest; the squared distance is enough, as the square root does not change which is nearest. It also adds the point into <code>sum[best]</code> and <code>n[best]</code>, so that the update step is just \(c_k = \text{sum}_k / n_k\), the mean, without another pass. The printed sum of squared distances is \(J(\mathcal{C}, c)\) for the new clusters and the old centers: the quantity the proof says never increases. It falls from 414 to 58.4 and stays. The stopping test is &ldquo;no assignment changed&rdquo;: then the next update would reproduce the same centers, and the loop has reached its fixed point. An empty cluster keeps its old center (the <code>if (n[k])</code>), since a mean of nothing is undefined.</p>
+<figure>
+<svg viewBox="0 0 300 300" width="300" height="300" role="img" aria-label="Ninety points in three groups, colored by k-means cluster, with the three centers marked by crosses">
+<line x1="20" y1="290" x2="290" y2="290" stroke="currentColor"/>
+<line x1="20" y1="290" x2="20" y2="20" stroke="currentColor"/>
+<circle cx="135.1" cy="206.3" r="3.5" fill="#3f9a55"/>
+<circle cx="259.4" cy="224.3" r="3.5" fill="#4a7fc1"/>
+<circle cx="165.3" cy="97.0" r="3.5" fill="#c94a4a"/>
+<circle cx="104.1" cy="193.3" r="3.5" fill="#3f9a55"/>
+<circle cx="231.9" cy="168.8" r="3.5" fill="#4a7fc1"/>
+<circle cx="137.5" cy="73.1" r="3.5" fill="#c94a4a"/>
+<circle cx="88.5" cy="206.2" r="3.5" fill="#3f9a55"/>
+<circle cx="203.6" cy="222.6" r="3.5" fill="#4a7fc1"/>
+<circle cx="162.7" cy="87.0" r="3.5" fill="#c94a4a"/>
+<circle cx="64.4" cy="245.7" r="3.5" fill="#3f9a55"/>
+<circle cx="229.3" cy="201.0" r="3.5" fill="#4a7fc1"/>
+<circle cx="181.0" cy="128.3" r="3.5" fill="#c94a4a"/>
+<circle cx="95.8" cy="233.6" r="3.5" fill="#3f9a55"/>
+<circle cx="258.0" cy="171.0" r="3.5" fill="#4a7fc1"/>
+<circle cx="144.6" cy="116.9" r="3.5" fill="#c94a4a"/>
+<circle cx="63.5" cy="210.9" r="3.5" fill="#3f9a55"/>
+<circle cx="184.0" cy="204.8" r="3.5" fill="#4a7fc1"/>
+<circle cx="162.1" cy="135.7" r="3.5" fill="#c94a4a"/>
+<circle cx="104.1" cy="207.7" r="3.5" fill="#3f9a55"/>
+<circle cx="201.0" cy="214.4" r="3.5" fill="#4a7fc1"/>
+<circle cx="127.6" cy="91.2" r="3.5" fill="#c94a4a"/>
+<circle cx="60.0" cy="199.6" r="3.5" fill="#3f9a55"/>
+<circle cx="218.8" cy="189.9" r="3.5" fill="#4a7fc1"/>
+<circle cx="127.4" cy="74.7" r="3.5" fill="#c94a4a"/>
+<circle cx="150.9" cy="197.0" r="3.5" fill="#3f9a55"/>
+<circle cx="220.7" cy="186.5" r="3.5" fill="#4a7fc1"/>
+<circle cx="108.1" cy="100.7" r="3.5" fill="#c94a4a"/>
+<circle cx="87.3" cy="215.5" r="3.5" fill="#3f9a55"/>
+<circle cx="208.7" cy="193.9" r="3.5" fill="#4a7fc1"/>
+<circle cx="186.6" cy="66.4" r="3.5" fill="#c94a4a"/>
+<circle cx="36.9" cy="235.5" r="3.5" fill="#3f9a55"/>
+<circle cx="239.5" cy="171.7" r="3.5" fill="#4a7fc1"/>
+<circle cx="154.8" cy="78.6" r="3.5" fill="#c94a4a"/>
+<circle cx="91.4" cy="215.4" r="3.5" fill="#3f9a55"/>
+<circle cx="253.7" cy="181.2" r="3.5" fill="#4a7fc1"/>
+<circle cx="142.6" cy="115.4" r="3.5" fill="#c94a4a"/>
+<circle cx="92.4" cy="203.6" r="3.5" fill="#3f9a55"/>
+<circle cx="239.6" cy="198.7" r="3.5" fill="#4a7fc1"/>
+<circle cx="123.6" cy="112.3" r="3.5" fill="#c94a4a"/>
+<circle cx="80.1" cy="188.1" r="3.5" fill="#3f9a55"/>
+<circle cx="198.6" cy="163.9" r="3.5" fill="#4a7fc1"/>
+<circle cx="174.0" cy="141.5" r="3.5" fill="#c94a4a"/>
+<circle cx="96.5" cy="215.7" r="3.5" fill="#3f9a55"/>
+<circle cx="260.0" cy="165.9" r="3.5" fill="#4a7fc1"/>
+<circle cx="152.4" cy="123.6" r="3.5" fill="#c94a4a"/>
+<circle cx="136.5" cy="218.6" r="3.5" fill="#3f9a55"/>
+<circle cx="221.4" cy="217.8" r="3.5" fill="#4a7fc1"/>
+<circle cx="116.1" cy="72.6" r="3.5" fill="#c94a4a"/>
+<circle cx="58.0" cy="227.9" r="3.5" fill="#3f9a55"/>
+<circle cx="232.1" cy="215.8" r="3.5" fill="#4a7fc1"/>
+<circle cx="133.4" cy="96.2" r="3.5" fill="#c94a4a"/>
+<circle cx="103.7" cy="204.7" r="3.5" fill="#3f9a55"/>
+<circle cx="265.7" cy="187.5" r="3.5" fill="#4a7fc1"/>
+<circle cx="96.0" cy="109.7" r="3.5" fill="#c94a4a"/>
+<circle cx="104.8" cy="219.6" r="3.5" fill="#3f9a55"/>
+<circle cx="209.6" cy="222.0" r="3.5" fill="#4a7fc1"/>
+<circle cx="155.1" cy="105.5" r="3.5" fill="#c94a4a"/>
+<circle cx="90.3" cy="209.2" r="3.5" fill="#3f9a55"/>
+<circle cx="199.9" cy="198.8" r="3.5" fill="#4a7fc1"/>
+<circle cx="110.3" cy="87.5" r="3.5" fill="#c94a4a"/>
+<circle cx="83.3" cy="244.4" r="3.5" fill="#3f9a55"/>
+<circle cx="229.3" cy="239.9" r="3.5" fill="#4a7fc1"/>
+<circle cx="157.9" cy="116.2" r="3.5" fill="#c94a4a"/>
+<circle cx="66.8" cy="201.4" r="3.5" fill="#3f9a55"/>
+<circle cx="224.7" cy="160.6" r="3.5" fill="#4a7fc1"/>
+<circle cx="151.2" cy="86.9" r="3.5" fill="#c94a4a"/>
+<circle cx="74.3" cy="208.6" r="3.5" fill="#3f9a55"/>
+<circle cx="201.0" cy="198.0" r="3.5" fill="#4a7fc1"/>
+<circle cx="119.3" cy="106.7" r="3.5" fill="#c94a4a"/>
+<circle cx="120.4" cy="226.2" r="3.5" fill="#3f9a55"/>
+<circle cx="260.0" cy="207.6" r="3.5" fill="#4a7fc1"/>
+<circle cx="142.3" cy="117.6" r="3.5" fill="#c94a4a"/>
+<circle cx="101.0" cy="184.4" r="3.5" fill="#3f9a55"/>
+<circle cx="236.1" cy="197.9" r="3.5" fill="#4a7fc1"/>
+<circle cx="147.1" cy="127.3" r="3.5" fill="#c94a4a"/>
+<circle cx="81.4" cy="206.1" r="3.5" fill="#3f9a55"/>
+<circle cx="211.9" cy="220.7" r="3.5" fill="#4a7fc1"/>
+<circle cx="166.0" cy="94.3" r="3.5" fill="#c94a4a"/>
+<circle cx="88.8" cy="238.8" r="3.5" fill="#3f9a55"/>
+<circle cx="209.4" cy="192.5" r="3.5" fill="#4a7fc1"/>
+<circle cx="140.6" cy="102.1" r="3.5" fill="#c94a4a"/>
+<circle cx="122.0" cy="189.5" r="3.5" fill="#3f9a55"/>
+<circle cx="195.6" cy="175.8" r="3.5" fill="#4a7fc1"/>
+<circle cx="117.4" cy="92.9" r="3.5" fill="#c94a4a"/>
+<circle cx="108.2" cy="191.7" r="3.5" fill="#3f9a55"/>
+<circle cx="225.3" cy="198.1" r="3.5" fill="#4a7fc1"/>
+<circle cx="152.7" cy="125.3" r="3.5" fill="#c94a4a"/>
+<circle cx="184.8" cy="244.7" r="3.5" fill="#4a7fc1"/>
+<circle cx="185.6" cy="169.0" r="3.5" fill="#4a7fc1"/>
+<circle cx="131.0" cy="103.6" r="3.5" fill="#c94a4a"/>
+<path d="M215.6,189.9L229.6,203.9M215.6,203.9L229.6,189.9" stroke="currentColor" stroke-width="3"/>
+<path d="M135.9,95.9L149.9,109.9M135.9,109.9L149.9,95.9" stroke="currentColor" stroke-width="3"/>
+<path d="M85.8,204.9L99.8,218.9M85.8,218.9L99.8,204.9" stroke="currentColor" stroke-width="3"/>
+<circle cx="135.1" cy="206.3" r="8" fill="none" stroke="#c98a2a" stroke-width="2"/>
+<circle cx="104.1" cy="193.3" r="8" fill="none" stroke="#c98a2a" stroke-width="2"/>
+<circle cx="88.5" cy="206.2" r="8" fill="none" stroke="#c98a2a" stroke-width="2"/>
+</svg>
+<figcaption>Figure 18.2. The result of the program: points coloured by cluster, the final centers as crosses. The orange rings mark the three starting centers, all in the lower-left blob. Four iterations carried two of them out to the other blobs.</figcaption>
+</figure>
+<p>For keys, the points are \(k_i \in \mathbb{R}^d\) and the result is \(m\) clusters of unequal size, scattered over the sequence (figure 18.1, bottom). Double-P <a href="refs.html#r-doublep">[doublep]</a>, one of the paper's baselines, clusters each KV head's prompt keys this way: four k-means iterations, clusters of 32 prompt tokens on average (<a href="refs.html#r-refinekv">[refinekv]</a>, Appendix C.2).</p>
+
+<h2 id="s4">18.4 Contiguous blocks</h2>
+<p>RefineKV does not run k-means. It &ldquo;partition[s] the KV sequence into contiguous clusters of 32 tokens&rdquo; (Section 5.1; the kernel in Appendix B.2 uses &ldquo;blocks of 32 tokens&rdquo;): \(C_r = \{32r, \dots, 32r + 31\}\), the last block possibly shorter. The cluster of token \(i\) is \(\lfloor i/32 \rfloor\), a shift.</p>
+<p>The paper does not argue the choice at length, but the trade is plain:</p>
+<ul>
+<li><b>Cost.</b> Blocks need one pass, \(Nd\) additions, to form the means. k-means needs \(Nmd\) per iteration; with \(m = N/32\) that is quadratic in \(N\), at 128K tokens about \(2^{17} \cdot 2^{12} \cdot 128 \approx 7 \times 10^{10}\) multiply-adds per iteration per head and layer.</li>
+<li><b>No index lists.</b> A block's members are consecutive in memory. Expanding a block is a contiguous read of \(32 \cdot 2d\) numbers, the access pattern the hardware is best at (and the cache is already stored in token blocks, <a href="17-kv-cache.html#s3">section 17.3</a>). A k-means cluster needs the list of its members and a gather, or a one-time reordering of the cache. The paper notes this option for images, where nearby tokens in raster order need not be nearby in the picture: &ldquo;since decode attention does not depend on the order in which keys are stored, this only requires reordering tokens once at prefill&rdquo; (Section 7).</li>
+<li><b>Quality depends on locality.</b> Blocks are good clusters only if neighbouring tokens have similar keys. Whether they do is a property of the model, not of the method.</li>
+</ul>
+<p>The size 32 is the paper's default throughout (Sections 5.1, 5.3, Appendix B.2), and its ablation (Table 3, Llama-3.1-8B, RULER-128K) shows that &ldquo;\(|C|\) barely affects accuracy&rdquo;:</p>
+<table class="t">
+<tr><th>\(|C|\)</th><th>accuracy</th><th>decode time per token</th></tr>
+<tr><td class="n">16</td><td class="n">70.36</td><td class="n">15.86 ms</td></tr>
+<tr><td class="n">32 (default)</td><td class="n">70.19</td><td class="n">15.68 ms</td></tr>
+<tr><td class="n">64</td><td class="n">70.34</td><td class="n">16.20 ms</td></tr>
+</table>
+<p>32 is the fastest of the three at the same accuracy. Smaller blocks mean more summaries to score each step; larger ones mean each expanded block reads more tokens the query does not need.</p>
+<p>A synthetic comparison, kept with the book's sources rather than shown: 4096 keys in \(d = 64\) cut into 128 clusters, by blocks of 32, by a random partition, and by 4 Lloyd iterations started from the blocks. The keys follow \(k_i = \rho\, k_{i-1} + \sqrt{1-\rho^2}\, u_i\) with normal noise \(u_i\), so \(\rho\) sets how alike neighbours are. Measured: the share of the keys' total variance left inside clusters (\(J\) divided by \(\sum_i \|k_i - \bar k\|^2\)), and the mean logit spread \(\delta_C\) (section 18.6) for random queries.</p>
+<table class="t">
+<tr><th>keys</th><th>partition</th><th>variance left</th><th>mean \(\delta_C\)</th><th>multiply-adds</th></tr>
+<tr><td>\(\rho = 0.95\)</td><td>blocks</td><td class="n">37.6%</td><td class="n">1.19</td><td class="n">262144</td></tr>
+<tr><td></td><td>random</td><td class="n">96.9%</td><td class="n">2.36</td><td class="n">262144</td></tr>
+<tr><td></td><td>k-means</td><td class="n">36.5%</td><td class="n">1.18</td><td class="n">134479872</td></tr>
+<tr><td>\(\rho = 0\)</td><td>blocks</td><td class="n">96.9%</td><td class="n">2.31</td><td class="n">262144</td></tr>
+<tr><td></td><td>random</td><td class="n">96.9%</td><td class="n">2.28</td><td class="n">262144</td></tr>
+<tr><td></td><td>k-means</td><td class="n">84.3%</td><td class="n">2.12</td><td class="n">134479872</td></tr>
+</table>
+<p>When neighbours are alike, blocks are as good as k-means for about 1/500 of the work. When they are not, blocks are no better than a random partition, and k-means is only somewhat better (with \(d = 64\) and independent keys there is little structure to find). Contiguous blocks are a bet on locality; the paper's results say the bet pays for text.</p>
+
+<h2 id="s5">18.5 Attention over representatives</h2>
+<p>Suppose first that all keys of a cluster are equal, \(k_i = \bar k_C\) for \(i \in C\). Then the cluster's part of the softmax denominator is \(\sum_{i \in C} e^{q^\top k_i/\sqrt d} = |C|\, e^{q^\top \bar k_C/\sqrt d}\), and all its members get the same weight. The cluster behaves exactly like one token with key \(\bar k_C\), counted \(|C|\) times. Since \(|C| e^{x} = e^{x + \ln |C|}\), that is one token with logit</p>
+\[ \frac{q^\top \bar k_C}{\sqrt d} + \ln |C|. \]
+<p>The approximation applies this formula to every cluster, equal keys or not. Following the paper (Eq. 2), write the exact quantities with regrouped sums and the approximate ones with representatives:</p>
+\[ p_C = \frac{\sum_{i \in C} e^{q^\top k_i/\sqrt d}}{\sum_{j=1}^{N} e^{q^\top k_j/\sqrt d}}, \qquad v_C = \frac{\sum_{i \in C} e^{q^\top k_i/\sqrt d}\, v_i}{\sum_{j \in C} e^{q^\top k_j/\sqrt d}}, \qquad \hat p_C = \frac{|C|\, e^{q^\top \bar k_C/\sqrt d}}{\sum_{C' \in \mathcal{C}} |C'|\, e^{q^\top \bar k_{C'}/\sqrt d}}. \]
+<p>\(p_C\) is the total attention the cluster really gets, \(v_C\) the attention-weighted mean of its values, and \(\hat p_C\) the share the cluster gets when every cluster is represented, a softmax over \(m\) &ldquo;tokens&rdquo;. The exact output regroups (section 18.1) as \(o = \sum_C p_C v_C\): inside the cluster, \(p_C v_C = \sum_{i \in C} \alpha_i v_i\). The approximate output uses the mean value:</p>
+\[ \hat o = \sum_{C \in \mathcal{C}} \hat p_C\, \bar v_C. \]
+<p>Reading the representatives costs \(m(d + d_v)\) numbers instead of \(N(d + d_v)\): 32 times less for blocks of 32. The approximation replaces two things, \(p_C\) by \(\hat p_C\) (the mass) and \(v_C\) by \(\bar v_C\) (the value), and the paper splits the error that way (Eq. 3; <a href="19-refinekv-bound.html#s2">section 19.2</a>).</p>
+<p><b>When the \(\ln|C|\) matters.</b> If all clusters have the same size and all are represented, \(\ln|C|\) adds the same constant to every logit and cancels in the softmax (<a href="15-softmax.html#s2">section 15.2</a>). It matters as soon as sizes differ (k-means) or, as in RefineKV, when some clusters are <em>expanded</em>: their tokens enter the softmax one by one, next to the representatives of the others. Without the \(|C|\), a representative would weigh like one token while it stands for 32. In that mixed form a cluster \(C\) left as a representative still has weight \(|C| e^{q^\top \bar k_C/\sqrt d}\), and an expanded one contributes its exact terms; the normalizer is the sum of both kinds.</p>
+<p>A program compares exact attention with both forms on synthetic data: 4096 keys and values with neighbours alike (\(\rho = 0.98\); values shifted to mean 1 so that \(\|o\|\) is not near zero), blocks of 32, 50 random queries, relative error \(\|o - \hat o\|_2 / \|o\|_2\).</p>
+<pre><code>/* Exact attention against attention over cluster representatives.
+   4096 AR(1) keys and values (rho = 0.98; values shifted to mean 1), d = 64,
+   blocks of 32. A cluster counts as one
+   token with logit q.kbar_C/sqrt(d) + ln|C| and value vbar_C. Also a mixed
+   version: the 8 clusters with the largest phat_C keep their exact tokens. */
+#include &lt;math.h&gt;
+#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+
+#define N 4096
+#define D 64
+#define B 32
+#define M (N / B)
+#define EXPAND 8
+
+static double K[N][D], V[N][D], kb[M][D], vb[M][D];
+
+static double gauss(void)
+{
+    double u = (rand() + 1.0) / (RAND_MAX + 2.0), v = (rand() + 1.0) / (RAND_MAX + 2.0);
+    return sqrt(-2 * log(u)) * cos(6.283185307179586 * v);
+}
+static double dot(const double *a, const double *b)
+{
+    double s = 0;
+    for (int j = 0; j &lt; D; j++) s += a[j] * b[j];
+    return s / sqrt(D);
+}
+/* softmax over n logits l[] with values from rows[]; output into o */
+static void attend(int n, const double *l, const double **rows, double *o)
+{
+    double m = -INFINITY, z = 0;
+    for (int i = 0; i &lt; n; i++) if (l[i] &gt; m) m = l[i];
+    for (int j = 0; j &lt; D; j++) o[j] = 0;
+    for (int i = 0; i &lt; n; i++) {
+        double w = exp(l[i] - m);
+        z += w;
+        for (int j = 0; j &lt; D; j++) o[j] += w * rows[i][j];
+    }
+    for (int j = 0; j &lt; D; j++) o[j] /= z;
+}
+static double relerr(const double *o, const double *oh)
+{
+    double e = 0, n = 0;
+    for (int j = 0; j &lt; D; j++) { e += pow(oh[j] - o[j], 2); n += o[j] * o[j]; }
+    return sqrt(e / n);
+}
+
+int main(void)
+{
+    static double l[N], lr[N];
+    static const double *rows[N];
+    double err[4] = { 0 };
+    srand(6);
+    for (int i = 0; i &lt; N; i++)
+        for (int j = 0; j &lt; D; j++) {
+            K[i][j] = (i ? 0.98 * K[i - 1][j] : 0) + sqrt(1 - 0.98 * 0.98) * gauss();
+            V[i][j] = (i ? 0.98 * (V[i - 1][j] - 1) : 0) + sqrt(1 - 0.98 * 0.98) * gauss() + 1;
+            kb[i / B][j] += K[i][j] / B;
+            vb[i / B][j] += V[i][j] / B;
+        }
+    for (int t = 0; t &lt; 50; t++) {
+        double q[D], o[D], oh[D], phat[M];
+        for (int j = 0; j &lt; D; j++) q[j] = 2 * gauss();
+        for (int i = 0; i &lt; N; i++) { l[i] = dot(q, K[i]); rows[i] = V[i]; }
+        attend(N, l, rows, o);                                  /* exact */
+        for (int w = 0; w &lt; 2; w++) {                           /* w = 1: with ln|C| */
+            for (int m = 0; m &lt; M; m++) { lr[m] = dot(q, kb[m]) + w * log(B); rows[m] = vb[m]; }
+            attend(M, lr, rows, oh);
+            err[w] += relerr(o, oh) / 50;
+        }
+        for (int m = 0; m &lt; M; m++) phat[m] = dot(q, kb[m]);    /* equal sizes: rank by logit */
+        for (int w = 0; w &lt; 2; w++) {                           /* mixed */
+            int n = 0;
+            for (int m = 0; m &lt; M; m++) {
+                int rank = 0;
+                for (int m2 = 0; m2 &lt; M; m2++) rank += phat[m2] &gt; phat[m];
+                if (rank &lt; EXPAND)
+                    for (int i = m * B; i &lt; (m + 1) * B; i++) { lr[n] = l[i]; rows[n++] = V[i]; }
+                else { lr[n] = phat[m] + w * log(B); rows[n++] = vb[m]; }
+            }
+            attend(n, lr, rows, oh);
+            err[2 + w] += relerr(o, oh) / 50;
+        }
+    }
+    printf("all clusters as representatives: error %.2f%% with ln|C|, %.2f%% without\n",
+           100 * err[1], 100 * err[0]);
+    printf("top %d clusters exact, rest reps:  error %.2f%% with ln|C|, %.2f%% without\n",
+           EXPAND, 100 * err[3], 100 * err[2]);
+    printf("entries read in the mixed case: %d of %d\n", EXPAND * B + (M - EXPAND), N);
+    return 0;
+}</code></pre>
+<pre class="out">all clusters as representatives: error 7.32% with ln|C|, 7.32% without
+top 8 clusters exact, rest reps:  error 4.43% with ln|C|, 19.74% without
+entries read in the mixed case: 376 of 4096</pre>
+<p>The program in the chapter's symbols. <code>kb[m]</code> and <code>vb[m]</code> are \(\bar k_C\) and \(\bar v_C\), accumulated while the data is generated, which is exactly when RefineKV computes them: once, after prefill. <code>attend</code> is a softmax over any list of (logit, value row) pairs, so the three outputs differ only in the list they are given: \(N\) token pairs for \(o\); \(m\) pairs \((q^\top \bar k_C/\sqrt d + \ln|C|,\ \bar v_C)\) for \(\hat o\); and, for the mixed form, the 32 token pairs of each expanded cluster plus one representative pair for each other cluster. That is RefineKV's &ldquo;mixed KV sequence&rdquo; (Section 4) in miniature. The flag <code>w</code> switches the \(\ln|C|\) on and off. The expanded clusters are the 8 with the largest \(\bar s_C\); with equal sizes that is the same as the largest \(\hat p_C\), a stand-in for the paper's risk score, which <a href="19-refinekv-bound.html#s7">section 19.7</a> derives.</p>
+<p>The output confirms the reasoning. With all clusters represented, the \(\ln|C|\) changes nothing (7.32% both ways), as it is a common shift. In the mixed form it is essential: with it, expanding 8 of 128 clusters cuts the error from 7.32% to 4.43% while reading 376 of 4096 entries; without it, the 120 representatives are weighted 32 times too little and the error rises to 19.74%, worse than not expanding at all.</p>
+
+<h2 id="s6">18.6 How spread makes error</h2>
+<p>When are representatives accurate? Section 18.5 already has the extreme case: if all keys of every cluster are equal, then \(p_C = \hat p_C\) (the regrouped sums are identical) and \(v_C = \bar v_C\) (equal logits give equal weights inside the cluster, so the weighted mean is the plain mean). The approximation is then <em>exact</em>, however different the values are. What breaks it is the spread of the logits inside a cluster, which the paper measures by the <b>maximum logit deviation</b> (Section 3.2):</p>
+\[ \delta_C = \max_{i \in C} \left| \frac{q^\top (k_i - \bar k_C)}{\sqrt d} \right| = \max_{i \in C} |s_i - \bar s_C|. \]
+<p>It depends on the query: a cluster spread widely in key space can still have \(\delta_C\) small for a \(q\) nearly orthogonal to the spread (the paper's Section 3.3 stresses this).</p>
+<p>A first-order expansion shows how each part of the error depends on it. Write \(s_i = \bar s_C + \varepsilon_i\), with \(|\varepsilon_i| \le \delta_C\) and \(\sum_{i \in C} \varepsilon_i = 0\) (because \(\bar s_C\) is the mean logit, section 18.2). Using \(e^{\varepsilon} = 1 + \varepsilon + \varepsilon^2/2 + \dots\) (<a href="05-series.html#s4">section 5.4</a>):</p>
+<ul>
+<li><b>Mass.</b> \(\sum_{i \in C} e^{s_i} = |C| e^{\bar s_C} \bigl(1 + \tfrac{1}{|C|}\sum_i \varepsilon_i + \tfrac{1}{2|C|}\sum_i \varepsilon_i^2 + \dots\bigr)\). The first-order term is zero, so the relative error of the cluster's weight is second order, about \(\tfrac{1}{2}\,\text{mean}(\varepsilon_i^2) \le \delta_C^2/2\).</li>
+<li><b>Value.</b> \(v_C - \bar v_C = \dfrac{\sum_i e^{\varepsilon_i}(v_i - \bar v_C)}{\sum_i e^{\varepsilon_i}} \approx \dfrac{1}{|C|} \sum_{i \in C} \varepsilon_i (v_i - \bar v_C)\), using \(\sum_i (v_i - \bar v_C) = 0\). This is first order: at most about \(\delta_C \max_i \|v_i - \bar v_C\|\). It vanishes when the values are equal <em>or</em> the logits are.</li>
+</ul>
+<p>So with equal values the error should grow like \(\delta^2\), and with spread values like \(\delta\) times the value spread. A program tests this: 64 clusters of 32 tokens, keys \(k_i = c_C + \sigma u_i\) and values \(v_i = c'_C + \tau w_i\) with fixed random centers and normal \(u_i, w_i\). Sweeping \(\sigma\) sweeps \(\delta\); \(\tau\) is the value spread.</p>
+<pre><code>/* How spread makes error. 64 clusters of 32 tokens, d = 64. Keys are
+   k_i = center_C + sigma u_i, values v_i = vcenter_C + tau w_i (u, w normal).
+   For each sigma, tau: mean over 20 queries of the mean delta_C and of the
+   relative error |o - ohat| / |o| of attention over representatives. */
+#include &lt;math.h&gt;
+#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+
+#define M 64
+#define B 32
+#define N (M * B)
+#define D 64
+
+static double ck[M][D], cv[M][D], U[N][D], W[N][D];
+
+static double gauss(void)
+{
+    double u = (rand() + 1.0) / (RAND_MAX + 2.0), v = (rand() + 1.0) / (RAND_MAX + 2.0);
+    return sqrt(-2 * log(u)) * cos(6.283185307179586 * v);
+}
+
+int main(void)
+{
+    double sig[] = { 0, 0.05, 0.1, 0.2, 0.4, 0.8 }, tau[] = { 0, 1, 4 };
+    srand(7);
+    for (int m = 0; m &lt; M; m++)
+        for (int j = 0; j &lt; D; j++) { ck[m][j] = gauss(); cv[m][j] = 1 + gauss(); }
+    for (int i = 0; i &lt; N; i++)
+        for (int j = 0; j &lt; D; j++) { U[i][j] = gauss(); W[i][j] = gauss(); }
+    for (int a = 0; a &lt; 6; a++) {
+        printf("sigma %.2f:", sig[a]);
+        for (int b = 0; b &lt; 3; b++) {
+            double err = 0, delta = 0;
+            srand(8);                                   /* same queries each time */
+            for (int t = 0; t &lt; 20; t++) {
+                double q[D], o[D] = { 0 }, oh[D] = { 0 }, z = 0, zh = 0, e = 0, n = 0;
+                for (int j = 0; j &lt; D; j++) q[j] = gauss();
+                for (int m = 0; m &lt; M; m++) {
+                    double kb[D] = { 0 }, vb[D] = { 0 }, s[B], sb = 0, dC = 0;
+                    for (int i = 0; i &lt; B; i++)
+                        for (int j = 0; j &lt; D; j++) {
+                            kb[j] += (ck[m][j] + sig[a] * U[m * B + i][j]) / B;
+                            vb[j] += (cv[m][j] + tau[b] * W[m * B + i][j]) / B;
+                        }
+                    for (int j = 0; j &lt; D; j++) sb += q[j] * kb[j] / sqrt(D);
+                    for (int i = 0; i &lt; B; i++) {
+                        s[i] = 0;
+                        for (int j = 0; j &lt; D; j++) s[i] += q[j] * (ck[m][j] + sig[a] * U[m * B + i][j]);
+                        s[i] /= sqrt(D);
+                        if (fabs(s[i] - sb) &gt; dC) dC = fabs(s[i] - sb);
+                        z += exp(s[i]);
+                        for (int j = 0; j &lt; D; j++) o[j] += exp(s[i]) * (cv[m][j] + tau[b] * W[m * B + i][j]);
+                    }
+                    zh += B * exp(sb);                          /* |C| e^{q.kbar/sqrt d} */
+                    for (int j = 0; j &lt; D; j++) oh[j] += B * exp(sb) * vb[j];
+                    delta += dC / (20.0 * M);
+                }
+                for (int j = 0; j &lt; D; j++) { e += pow(o[j] / z - oh[j] / zh, 2); n += pow(o[j] / z, 2); }
+                err += sqrt(e / n) / 20;
+            }
+            if (b == 0) printf(" mean delta %.3f |", delta);
+            printf("  tau %g: %.2e", tau[b], err);
+        }
+        printf("\n");
+    }
+    return 0;
+}</code></pre>
+<pre class="out">sigma 0.00: mean delta 0.000 |  tau 0: 8.81e-15  tau 1: 5.09e-15  tau 4: 5.06e-15
+sigma 0.05: mean delta 0.114 |  tau 0: 5.23e-05  tau 1: 1.59e-03  tau 4: 6.26e-03
+sigma 0.10: mean delta 0.229 |  tau 0: 2.09e-04  tau 1: 3.17e-03  tau 4: 1.25e-02
+sigma 0.20: mean delta 0.458 |  tau 0: 8.31e-04  tau 1: 6.40e-03  tau 4: 2.50e-02
+sigma 0.40: mean delta 0.915 |  tau 0: 3.32e-03  tau 1: 1.33e-02  tau 4: 5.08e-02
+sigma 0.80: mean delta 1.831 |  tau 0: 1.39e-02  tau 1: 3.18e-02  tau 4: 1.12e-01</pre>
+<p>The structure of the program follows the experiment's logic. The noise <code>U</code>, <code>W</code> and the centers are drawn once, and every \((\sigma, \tau)\) uses the same queries (<code>srand(8)</code> before the query loop), so a row differs from the next only through \(\sigma\): the sweep scales one fixed configuration instead of drawing new ones, and the changes in the error are caused by the spread, not by luck. Per cluster the inner loops compute the three things of the formulas: \(\bar k_C\) and \(\bar v_C\), the members' logits \(s_i\) with \(\delta_C\) as their largest distance from \(\bar s_C\), and the two outputs, unnormalized (<code>o</code>, <code>z</code> for \(\sum e^{s_i} v_i\) and \(\sum e^{s_i}\); <code>oh</code>, <code>zh</code> for \(\sum |C| e^{\bar s_C} \bar v_C\) and \(\sum |C| e^{\bar s_C}\)). Dividing at the end gives \(o\) and \(\hat o\). There is no max subtraction: the logits here are of size 1, far from overflow, and leaving it out keeps the code close to Eq. 2.</p>
+<p>The numbers match the expansion. At \(\sigma = 0\) the error is \(10^{-14}\), rounding only, for every value spread: equal keys make the approximation exact. With \(\tau = 0\) the error goes \(5.2 \times 10^{-5}, 2.1 \times 10^{-4}, 8.3 \times 10^{-4}, 3.3 \times 10^{-3}\): four times per doubling of \(\delta\), the \(\delta^2\) law. With \(\tau = 1\) or 4 it doubles per doubling of \(\delta\) and is proportional to \(\tau\): the first-order value term, which dominates for small \(\delta\).</p>
+<figure>
+<svg viewBox="0 0 390 250" width="390" height="250" role="img" aria-label="Relative error of attention over representatives against the mean logit spread, for three value spreads; log scales">
+<line x1="60" y1="210" x2="340" y2="210" stroke="currentColor"/>
+<line x1="60" y1="210" x2="60" y2="20" stroke="currentColor"/>
+<line x1="60.0" y1="210" x2="60.0" y2="214" stroke="currentColor"/><text x="60.0" y="226" font-size="11" text-anchor="middle" fill="currentColor">0.1</text>
+<line x1="124.8" y1="210" x2="124.8" y2="214" stroke="currentColor"/><text x="124.8" y="226" font-size="11" text-anchor="middle" fill="currentColor">0.2</text>
+<line x1="210.4" y1="210" x2="210.4" y2="214" stroke="currentColor"/><text x="210.4" y="226" font-size="11" text-anchor="middle" fill="currentColor">0.5</text>
+<line x1="275.2" y1="210" x2="275.2" y2="214" stroke="currentColor"/><text x="275.2" y="226" font-size="11" text-anchor="middle" fill="currentColor">1</text>
+<line x1="340.0" y1="210" x2="340.0" y2="214" stroke="currentColor"/><text x="340.0" y="226" font-size="11" text-anchor="middle" fill="currentColor">2</text>
+<line x1="56" y1="210.0" x2="60" y2="210.0" stroke="currentColor"/><text x="53" y="214.0" font-size="11" text-anchor="end" fill="currentColor">1e-5</text>
+<line x1="56" y1="172.0" x2="60" y2="172.0" stroke="currentColor"/><text x="53" y="176.0" font-size="11" text-anchor="end" fill="currentColor">1e-4</text>
+<line x1="56" y1="134.0" x2="60" y2="134.0" stroke="currentColor"/><text x="53" y="138.0" font-size="11" text-anchor="end" fill="currentColor">1e-3</text>
+<line x1="56" y1="96.0" x2="60" y2="96.0" stroke="currentColor"/><text x="53" y="100.0" font-size="11" text-anchor="end" fill="currentColor">1e-2</text>
+<line x1="56" y1="58.0" x2="60" y2="58.0" stroke="currentColor"/><text x="53" y="62.0" font-size="11" text-anchor="end" fill="currentColor">1e-1</text>
+<line x1="56" y1="20.0" x2="60" y2="20.0" stroke="currentColor"/><text x="53" y="24.0" font-size="11" text-anchor="end" fill="currentColor">1e0</text>
+<polyline fill="none" stroke="#4a7fc1" stroke-width="2" points="72.2,182.7 137.4,159.8 202.2,137.1 266.9,114.2 331.7,90.6"/>
+<circle cx="72.2" cy="182.7" r="3" fill="#4a7fc1"/>
+<circle cx="137.4" cy="159.8" r="3" fill="#4a7fc1"/>
+<circle cx="202.2" cy="137.1" r="3" fill="#4a7fc1"/>
+<circle cx="266.9" cy="114.2" r="3" fill="#4a7fc1"/>
+<circle cx="331.7" cy="90.6" r="3" fill="#4a7fc1"/>
+<text x="344" y="94.6" font-size="11" fill="#4a7fc1">&#964; = 0</text>
+<polyline fill="none" stroke="#3f9a55" stroke-width="2" points="72.2,126.3 137.4,115.0 202.2,103.4 266.9,91.3 331.7,76.9"/>
+<circle cx="72.2" cy="126.3" r="3" fill="#3f9a55"/>
+<circle cx="137.4" cy="115.0" r="3" fill="#3f9a55"/>
+<circle cx="202.2" cy="103.4" r="3" fill="#3f9a55"/>
+<circle cx="266.9" cy="91.3" r="3" fill="#3f9a55"/>
+<circle cx="331.7" cy="76.9" r="3" fill="#3f9a55"/>
+<text x="344" y="80.9" font-size="11" fill="#3f9a55">&#964; = 1</text>
+<polyline fill="none" stroke="#c94a4a" stroke-width="2" points="72.2,103.7 137.4,92.3 202.2,80.9 266.9,69.2 331.7,56.1"/>
+<circle cx="72.2" cy="103.7" r="3" fill="#c94a4a"/>
+<circle cx="137.4" cy="92.3" r="3" fill="#c94a4a"/>
+<circle cx="202.2" cy="80.9" r="3" fill="#c94a4a"/>
+<circle cx="266.9" cy="69.2" r="3" fill="#c94a4a"/>
+<circle cx="331.7" cy="56.1" r="3" fill="#c94a4a"/>
+<text x="344" y="60.1" font-size="11" fill="#c94a4a">&#964; = 4</text>
+<text x="200.0" y="242" font-size="12" text-anchor="middle" fill="currentColor">mean logit spread &#948;</text>
+<text x="14" y="115.0" font-size="12" text-anchor="middle" fill="currentColor" transform="rotate(-90 14 115.0)">relative error</text>
+</svg>
+<figcaption>Figure 18.3. Relative error of attention over representatives against the mean \(\delta_C\), log scales. Blue (\(\tau = 0\)): slope 2, the mass error \(\approx \delta^2/2\). Green and red (\(\tau = 1, 4\)): slope 1, the value error \(\approx \delta \cdot\) value spread.</figcaption>
+</figure>
+<p>These two terms are what the paper's bound (Eq. 4) makes rigorous. It reads \(\|o - \hat o\|_2 \le 2 \sum_C R_C\), with the risk score of cluster \(C\)</p>
+\[ R_C = \hat p_C \left( V_{\max} \frac{\cosh(\delta_C) - 1}{\sum_{C'} \hat p_{C'} \cosh(\delta_{C'})} + V_C \tanh\frac{\delta_C}{2} \right), \]
+<p>written here with \(\delta_C\) where the paper uses its computable upper bound \(\delta_C^{\text{bound}}\), and with \(V_C = \max_{i \in C} \|v_i\|_2\), \(V_{\max} = \max_C V_C\). The mass part has \(\cosh(\delta_C) - 1 = \delta_C^2/2 + O(\delta_C^4)\) (<a href="04-exp-log.html#s6">section 4.6</a>), the \(\delta^2\) law; a cluster of two tokens with logits \(\bar s_C \pm \delta\) shows where the cosh comes from, as its weight ratio \(\sum e^{s_i}/(|C| e^{\bar s_C})\) is exactly \(\cosh \delta\) (exercise 6). The value part has \(\tanh(\delta_C/2) \approx \delta_C/2\), the first-order law. Both are multiplied by \(\hat p_C\): a spread cluster with little attention does little harm. <a href="19-refinekv-bound.html">Chapter 19</a> derives the bound step by step, and <a href="19-refinekv-bound.html#s8">section 19.8</a> shows how to bound \(\delta_C\) itself from a few stored numbers, since computing it exactly would read every key of the cluster.</p>
+
+<h2 id="exercises">Exercises</h2>
+<ol class="ex">
+<li>A cluster has three tokens with logits 1, 2, 3. Compute \(\sum e^{s_i}\), \(|C| e^{\bar s_C}\), their ratio, and \(\delta_C\). Check the bounds of section 18.2.
+<details><summary>Answer</summary><p>\(\bar s_C = 2\), \(\delta_C = 1\). \(e + e^2 + e^3 \approx 30.193\); \(3e^2 \approx 22.167\); ratio \(\approx 1.362\), between 1 and \(e^1 \approx 2.718\).</p></details></li>
+<li>Show that \(c = \bar x_C\) minimizes \(\sum_{i \in C} \|x_i - c\|^2\) by differentiating (<a href="07-several-variables.html#s2">section 7.2</a>), and compare with the expansion of section 18.3.
+<details><summary>Answer</summary><p>The gradient in \(c\) is \(-2\sum_{i \in C}(x_i - c) = -2|C|(\bar x_C - c)\), zero only at \(c = \bar x_C\); the function is a convex quadratic, so that is the minimum. The expansion gives more: the excess cost of any other \(c\) is exactly \(|C|\,\|\bar x_C - c\|^2\).</p></details></li>
+<li>Lloyd's algorithm never increases \(J\) and stops. Does it find the minimum of \(J\)? Give a one-dimensional example.
+<details><summary>Answer</summary><p>Not always. Take the points 0, 2, 3, 5 and \(m = 2\). From centers 0 and 3.5, the clusters are \(\{0\}\) and \(\{2, 3, 5\}\), the centers move to 0 and \(10/3\), and nothing changes again (2 is at distance 4/3 from \(10/3\) and 2 from 0): a fixed point with \(J = 14/3 \approx 4.67\). From centers 1 and 4 it reaches \(\{0, 2\}, \{3, 5\}\) with \(J = 4\), which is better. Lloyd's fixed points are local minima only, and the start decides which one; in practice it is run from several starts.</p></details></li>
+<li>For Llama-3.1-8B at 128K tokens with blocks of 32, how many clusters per head and layer, and how much memory do all the representatives \((\bar k_C, \bar v_C)\) take in bf16?
+<details><summary>Answer</summary><p>\(131072 / 32 = 4096\) clusters. Each needs \(2 \cdot 128\) numbers of 2 bytes, 512 bytes; times 8 KV heads and 32 layers and 4096 clusters: 512 MiB, 1/32 of the 16 GiB cache. Reading them all each step is 32 times cheaper than reading the cache (RefineKV also stores the bound statistics of section 19.8).</p></details></li>
+<li>Prove that if every cluster has all its keys equal, then \(\hat o = o\) whatever the values.
+<details><summary>Answer</summary><p>Then \(e^{q^\top k_i/\sqrt d} = e^{q^\top \bar k_C/\sqrt d}\) for \(i \in C\), so \(\sum_{i \in C} e^{s_i} = |C| e^{\bar s_C}\), the denominators of \(p_C\) and \(\hat p_C\) agree, and \(p_C = \hat p_C\). Inside \(C\) all weights are equal, so \(v_C = \frac{1}{|C|}\sum_{i \in C} v_i = \bar v_C\). Hence \(o = \sum p_C v_C = \sum \hat p_C \bar v_C = \hat o\).</p></details></li>
+<li>A cluster of two tokens has logits \(\bar s - \delta\) and \(\bar s + \delta\). Show that \(\sum e^{s_i} / (|C| e^{\bar s}) = \cosh \delta\), and evaluate it for \(\delta = 0.5, 1, 2\).
+<details><summary>Answer</summary><p>\((e^{\bar s - \delta} + e^{\bar s + \delta}) / (2 e^{\bar s}) = (e^{-\delta} + e^{\delta})/2 = \cosh \delta\): 1.1276, 1.5431, 3.7622. For a two-token cluster the mass ratio is exactly \(\cosh \delta\). For any cluster, \(e^{\varepsilon}\) lies below its chord on \([-\delta, \delta]\), \(e^\varepsilon \le \cosh\delta + \varepsilon \sinh\delta / \delta\), and the \(\varepsilon_i\) average to zero, so the ratio is at most \(\cosh \delta\): the two-point cluster is the worst case. This is the cosh lemma of <a href="19-refinekv-bound.html#s4">section 19.4</a>.</p></details></li>
+<li>Run the program of section 18.5 with blocks of 16 and of 64 (change <code>B</code>). How do the errors and the entries read change, and why?
+<details><summary>Answer</summary><p>It prints, all represented / mixed with \(\ln|C|\): 3.37% / 2.59% for \(B = 16\) (376 entries read: 8 blocks of 16 plus 248 representatives), 7.32% / 4.43% for 32, and 12.81% / 7.18% for 64 (568 entries: 8 blocks of 64 plus 56 representatives). Smaller blocks have smaller \(\delta_C\), so the representatives are better, but there are more of them to read; larger blocks cost more per expansion. On these synthetic keys small blocks win; on the real model the paper found the accuracy nearly flat between 16 and 64 (section 18.4).</p></details></li>
+</ol>
+
+<h2 id="references">References</h2>
+<ul>
+<li><a href="refs.html#r-refinekv">[refinekv]</a> Section 3.1 (cluster-based access), Section 3.2 and Eq. 2 (\(p_C\), \(v_C\), \(\hat p_C\), \(\delta_C\)), Section 3.3 (query-dependent distortion), Section 4 (the mixed KV sequence), Sections 5.1 and 5.3 with Table 3 (blocks of 32 and the cluster-size ablation), Section 7 (hierarchical clustering, reordering), Appendix B.2 (the kernel's blocks), C.2 (Double-P baseline settings).</li>
+<li><a href="refs.html#r-lloyd">[lloyd]</a> The original paper of Lloyd's algorithm, written for quantization: the assign/update alternation.</li>
+<li><a href="refs.html#r-vmls">[vmls]</a> The k-means algorithm and its objective, with examples.</li>
+<li><a href="refs.html#r-doublep">[doublep]</a> k-means clusters of the KV cache with representatives; <a href="refs.html#r-multipole">[multipole]</a> clustered keys with centroids for long-context attention; <a href="refs.html#r-quest">[quest]</a> contiguous pages.</li>
+<li><a href="refs.html#r-boyd-cvx">[boyd-cvx]</a> Convexity of exp and Jensen's inequality, used in section 18.2.</li>
+</ul>
+<hr>
+<p class="nav"><a rel="prev" href="17-kv-cache.html">&larr; 17. Decoding and the KV cache</a> &middot; <a href="./">Contents</a> &middot; <a rel="next" href="19-refinekv-bound.html">19. RefineKV's error bound, step by step &rarr;</a></p>
+</body>
+</html>
