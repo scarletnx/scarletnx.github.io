@@ -15,25 +15,14 @@
 
 <h2 id="s1">1.1 Reals and floats</h2>
 <p>The <b>real numbers</b> \(\mathbb{R}\) are the points of a line with no gaps. They contain the integers, the fractions (the <b>rationals</b> \(\mathbb{Q}\)), and numbers like \(\sqrt{2}\) and \(\pi\) that are not fractions. Between any two reals there is another one, and another between those, forever.</p>
-<p>A <code>double</code> is not a real. It is one of about \(2^{64}\) values, spaced unevenly: dense near zero, sparse far out. The gap between a double and the next grows with its size, because the format stores a fixed number of significant bits (53) and an exponent.</p>
-<pre><code>#include &lt;math.h&gt;
-#include &lt;stdio.h&gt;
-
-int main(void)
-{
-    double xs[] = { 1.0, 1e6, 1e16 };
-    for (int i = 0; i &lt; 3; i++)
-        printf("next double after %g is %.17g (gap %g)\n",
-               xs[i], nextafter(xs[i], INFINITY), nextafter(xs[i], INFINITY) - xs[i]);
-    printf("0.1 + 0.2 = %.17g\n", 0.1 + 0.2);
-    printf("2^53 + 1 = %.17g\n", 9007199254740992.0 + 1.0);
-    return 0;
-}</code></pre>
-<pre class="out">next double after 1 is 1.0000000000000002 (gap 2.22045e-16)
-next double after 1e+06 is 1000000.0000000001 (gap 1.16415e-10)
-next double after 1e+16 is 10000000000000002 (gap 2)
-0.1 + 0.2 = 0.30000000000000004
-2^53 + 1 = 9007199254740992</pre>
+<p>A <code>double</code> is not a real. It is one of about \(2^{64}\) values, spaced unevenly: dense near zero, sparse far out. The format stores 53 significant bits and an exponent, so a double \(x\) with \(2^e \le x &lt; 2^{e+1}\) is followed by \(x + 2^{e-52}\): the gap is proportional to the size.</p>
+<table class="t">
+<tr><th>\(x\)</th><th>next double after \(x\)</th><th>gap</th></tr>
+<tr><td class="n">1</td><td class="n">1.0000000000000002</td><td class="n">\(2^{-52} \approx 2.2 \times 10^{-16}\)</td></tr>
+<tr><td class="n">\(10^6\)</td><td class="n">1000000.0000000001</td><td class="n">\(2^{-33} \approx 1.2 \times 10^{-10}\)</td></tr>
+<tr><td class="n">\(10^{16}\)</td><td class="n">10000000000000002</td><td class="n">2</td></tr>
+</table>
+<p>Two consequences. Past \(2^{53}\) the gap exceeds 1, so \(2^{53} + 1\) rounds back to \(2^{53}\). And most decimal fractions are not doubles: 0.1, 0.2 and 0.3 are each replaced by the nearest double, so <code>0.1 + 0.2</code> gives 0.30000000000000004, the double just above the one nearest 0.3.</p>
 <p>Mathematics in this book is done in \(\mathbb{R}\), where \(0.1 + 0.2 = 0.3\) exactly and \(x + 1 \ne x\) always. Programs run on floats, where neither holds. Most of the time the difference is a relative error near \(2^{-53} \approx 1.1 \times 10^{-16}\) per operation and can be ignored. The places where it cannot are pointed out in boxes like this one, and <a href="14-floating-point.html">chapter 14</a> treats floats properly.</p>
 <div class="box warn"><p><b>In the machine.</b> The gap after 1, \(2^{-52} \approx 2.2 \times 10^{-16}\), is called machine epsilon (<code>DBL_EPSILON</code> in <code>&lt;float.h&gt;</code>). For <code>float</code> it is \(2^{-23} \approx 1.2 \times 10^{-7}\). The x87 unit computes with 64 significant bits internally, which is why the same C code could print different digits on a Pentium Pro and on SSE2 <a href="refs.html#r-goldberg">[goldberg]</a>.</p></div>
 
@@ -90,7 +79,7 @@ next double after 1e+16 is 10000000000000002 (gap 2)
 <p>For \(f(x) = x + 1\) near 1, the answer is \(\delta = \varepsilon\): if \(|x - 1| &lt; \varepsilon\) then \(|f(x) - 2| = |x - 1| &lt; \varepsilon\). For curvier functions \(\delta\) is smaller than \(\varepsilon\) and depends on how steep \(f\) is. You will rarely write such arguments; the paper never does. What matters is the idea: a limit is a promise about every tolerance at once, not about any one computed value.</p>
 <p>Limits obey the rules you would hope for <a href="refs.html#r-openstax">[openstax]</a>: if \(f \to L\) and \(g \to M\), then \(f + g \to L + M\), \(f g \to L M\), and \(f / g \to L / M\) when \(M \ne 0\). A <b>one-sided limit</b> \(\lim_{x \to a^+}\) only looks at \(x &gt; a\). A <b>limit at infinity</b> \(\lim_{x \to \infty} f(x) = L\) means \(f(x)\) is within \(\varepsilon\) of \(L\) for all \(x\) beyond some point; \(\lim_{x \to \infty} 1/x = 0\).</p>
 <h3>A limit that floats get wrong</h3>
-<p>\(\lim_{x \to 0} \dfrac{1 - \cos x}{x^2} = \dfrac{1}{2}\) (<a href="05-series.html">chapter 5</a> shows why). Compute it directly and it goes wrong as \(x\) shrinks, then gives 0. The identity \(1 - \cos x = 2 \sin^2(x/2)\) gives a form with no subtraction, which stays right:</p>
+<p>\(\lim_{x \to 0} \dfrac{1 - \cos x}{x^2} = \dfrac{1}{2}\) (<a href="05-series.html">chapter 5</a> shows why). The limit is a statement about reals. Evaluated in doubles at smaller and smaller \(x\), the same expression first drifts, then gives 0. The identity \(1 - \cos x = 2 \sin^2(x/2)\) gives an equal expression with no subtraction, and that one stays right. Here both are evaluated at \(x = 10^{-1}, \dots, 10^{-9}\):</p>
 <pre><code>#include &lt;math.h&gt;
 #include &lt;stdio.h&gt;
 
@@ -114,42 +103,23 @@ x = 1e-6   naive 0.5000444503   stable 0.5000000000
 x = 1e-7   naive 0.4996003611   stable 0.5000000000
 x = 1e-8   naive 0.0000000000   stable 0.5000000000
 x = 1e-9   naive 0.0000000000   stable 0.5000000000</pre>
+<p>The program walks \(x = 10^{-k}\) toward 0, the way the limit does, and evaluates two expressions that are equal as functions of a real \(x\): <code>naive</code> is \(\dfrac{1 - \cos x}{x^2}\), and <code>stable</code> is \(\dfrac{2 \sin^2(x/2)}{x^2}\), with \(s = \sin(x/2)\) computed once and squared. Equal in \(\mathbb{R}\), they differ in doubles because of where the rounding happens. In <code>naive</code>, \(\cos x\) is rounded to the nearest double near 1, where the gap is \(1.1 \times 10^{-16}\), and then the subtraction from 1 throws away everything but that rounding error. In <code>stable</code>, every operation works on numbers of size about \(x\), each rounded with relative error \(10^{-16}\), and the error stays relative. The division by \(x^2\) is the same in both: it magnifies whatever error the numerator has, by \(10^{18}\) at the end.</p>
 <div class="box warn"><p><b>In the machine.</b> \(\cos(10^{-8})\) is \(1 - 5 \times 10^{-17}\), closer to 1 than the gap below 1 (\(1.1 \times 10^{-16}\)), so it rounds to exactly 1 and the numerator is 0. Subtracting two nearly equal numbers keeps their error and loses their digits: <b>cancellation</b> (<a href="14-floating-point.html#s4">section 14.4</a>). The cure is algebra, done before the code runs.</p></div>
 
 <h2 id="s4">1.4 Continuity</h2>
 <p>\(f\) is <b>continuous at \(a\)</b> when \(\lim_{x \to a} f(x) = f(a)\): the limit exists, the value exists, and they agree. No hole, no jump. A function continuous at every point of an interval can be drawn there without lifting the pen. Polynomials, \(\exp\), \(\sin\), \(\cos\) are continuous everywhere; sums, products and compositions of continuous functions are continuous; a quotient is continuous wherever its denominator is not zero.</p>
 <p>What fails: the step function (0 for \(x &lt; 0\), 1 for \(x \ge 0\)) jumps at 0; \(1/x\) is not defined at 0 and runs off to \(\pm\infty\) beside it.</p>
 <div class="box thm"><p><b>Theorem (intermediate value).</b> If \(f\) is continuous on \([a, b]\) and \(f(a)\) and \(f(b)\) have opposite signs, then \(f(c) = 0\) for some \(c\) between \(a\) and \(b\) <a href="refs.html#r-spivak">[spivak]</a>.</p></div>
-<p>A continuous curve that starts below the axis and ends above it must cross it. This is the correctness proof of <b>bisection</b>: halve the interval, keep the half whose ends still differ in sign, repeat. Each step gains one bit. Here it solves \(\cos x = x\):</p>
-<pre><code>#include &lt;math.h&gt;
-#include &lt;stdio.h&gt;
-
-static double f(double x) { return cos(x) - x; }
-
-int main(void)
-{
-    double lo = 0, hi = 1;              /* f(0) = 1 &gt; 0, f(1) = cos 1 - 1 &lt; 0 */
-    for (int i = 0; i &lt; 60; i++) {
-        double mid = lo + (hi - lo) / 2;
-        if (mid == lo || mid == hi)      /* no double left between them */
-            break;
-        if (f(mid) &gt; 0) lo = mid; else hi = mid;
-        if (i &lt; 4 || i % 10 == 9)
-            printf("step %2d: [%.17f, %.17f]\n", i + 1, lo, hi);
-    }
-    printf("root %.17f, f(root) = %g\n", lo, f(lo));
-    return 0;
-}</code></pre>
-<pre class="out">step  1: [0.50000000000000000, 1.00000000000000000]
-step  2: [0.50000000000000000, 0.75000000000000000]
-step  3: [0.62500000000000000, 0.75000000000000000]
-step  4: [0.68750000000000000, 0.75000000000000000]
-step 10: [0.73828125000000000, 0.73925781250000000]
-step 20: [0.73908424377441406, 0.73908519744873047]
-step 30: [0.73908513318747282, 0.73908513411879539]
-step 40: [0.73908513321475766, 0.73908513321566716]
-step 50: [0.73908513321516001, 0.73908513321516089]
-root 0.73908513321516056, f(root) = 1.11022e-16</pre>
+<p>A continuous curve that starts below the axis and ends above it must cross it. This is the correctness proof of <b>bisection</b>. Start from \([a, b]\) with \(f(a)\) and \(f(b)\) of opposite signs. Evaluate \(f\) at the midpoint \(m = (a + b)/2\) and keep whichever half, \([a, m]\) or \([m, b]\), still has ends of opposite signs. The theorem applies again to that half, so a root stays inside at every step, and the width after \(n\) steps is \((b - a)/2^n\): one bit of the answer per evaluation, whatever \(f\) is. For \(f(x) = \cos x - x\) on \([0, 1]\) (\(f(0) = 1\), \(f(1) \approx -0.46\)):</p>
+<table class="t">
+<tr><th>steps</th><th>interval</th></tr>
+<tr><td class="n">1</td><td class="n">[0.5, 1]</td></tr>
+<tr><td class="n">10</td><td class="n">[0.73828125, 0.7392578125]</td></tr>
+<tr><td class="n">20</td><td class="n">[0.73908424377441406, 0.73908519744873047]</td></tr>
+<tr><td class="n">50</td><td class="n">[0.73908513321516001, 0.73908513321516089]</td></tr>
+</table>
+<p>The root is 0.739085133215160&hellip;</p>
+<div class="box warn"><p><b>In the machine.</b> Bisection in doubles stops by itself: once \(a\) and \(b\) are adjacent doubles, \((a + b)/2\) rounds to one of them and the interval cannot shrink. Near 0.74 that happens around step 53, at width \(2^{-53}\). So stop when the midpoint equals an end, rather than at a width you guessed: a guessed width below the gap never comes.</p></div>
 <p>Ten steps gain about three decimal digits (\(2^{10} \approx 10^3\)), so 53 steps exhaust a double. Newton's method (<a href="02-derivatives.html#s6">section 2.6</a>) does the same job in five or six steps by using the slope.</p>
 
 <h2 id="s5">1.5 Sequences</h2>
@@ -157,39 +127,15 @@ root 0.73908513321516056, f(root) = 1.11022e-16</pre>
 <p>Two sequences recur in this book. The first defines the number \(e\):</p>
 \[ e = \lim_{n \to \infty} \left(1 + \frac{1}{n}\right)^n \approx 2.718281828. \]
 <p>Read it as compound interest: 100% interest a year, paid in \(n\) installments, each reinvested. More installments earn more, but the total levels off at \(e\). <a href="04-exp-log.html">Chapter 4</a> builds \(\exp\) from it.</p>
-<p>The second is an iteration \(a_{n+1} = g(a_n)\): a loop that refines a guess. Heron's rule \(a_{n+1} = \tfrac{1}{2}(a_n + 2/a_n)\) converges to \(\sqrt{2}\), because if \(a\) is too big then \(2/a\) is too small, and their mean is closer:</p>
-<pre><code>#include &lt;math.h&gt;
-#include &lt;stdio.h&gt;
-
-int main(void)
-{
-    for (int k = 1; k &lt;= 7; k++) {
-        double n = pow(10, k);
-        printf("n = 1e%d   (1 + 1/n)^n = %.10f\n", k, pow(1 + 1 / n, n));
-    }
-    printf("e           = %.10f\n\n", exp(1));
-
-    double a = 1;                        /* a_{n+1} = (a_n + 2/a_n) / 2 -&gt; sqrt 2 */
-    for (int n = 1; n &lt;= 5; n++) {
-        a = (a + 2 / a) / 2;
-        printf("a_%d = %.17f   error %.1e\n", n, a, a - sqrt(2));
-    }
-    return 0;
-}</code></pre>
-<pre class="out">n = 1e1   (1 + 1/n)^n = 2.5937424601
-n = 1e2   (1 + 1/n)^n = 2.7048138294
-n = 1e3   (1 + 1/n)^n = 2.7169239322
-n = 1e4   (1 + 1/n)^n = 2.7181459268
-n = 1e5   (1 + 1/n)^n = 2.7182682372
-n = 1e6   (1 + 1/n)^n = 2.7182804691
-n = 1e7   (1 + 1/n)^n = 2.7182816941
-e           = 2.7182818285
-
-a_1 = 1.50000000000000000   error 8.6e-02
-a_2 = 1.41666666666666652   error 2.5e-03
-a_3 = 1.41421568627450966   error 2.1e-06
-a_4 = 1.41421356237468987   error 1.6e-12
-a_5 = 1.41421356237309492   error -2.2e-16</pre>
+<p>The second is an iteration \(a_{n+1} = g(a_n)\): a loop that refines a guess. Heron's rule \(a_{n+1} = \tfrac{1}{2}(a_n + 2/a_n)\) converges to \(\sqrt{2}\), because if \(a\) is too big then \(2/a\) is too small, and their mean is closer. Both sequences, computed in doubles:</p>
+<table class="t">
+<tr><th>\(n\)</th><th>\((1 + 1/n)^n\)</th><th></th><th>\(n\)</th><th>\(a_n\) (from \(a_0 = 1\))</th><th>\(a_n - \sqrt{2}\)</th></tr>
+<tr><td class="n">10</td><td class="n">2.5937424601</td><td></td><td class="n">1</td><td class="n">1.5</td><td class="n">\(8.6 \times 10^{-2}\)</td></tr>
+<tr><td class="n">\(10^3\)</td><td class="n">2.7169239322</td><td></td><td class="n">2</td><td class="n">1.4166666666666665</td><td class="n">\(2.5 \times 10^{-3}\)</td></tr>
+<tr><td class="n">\(10^5\)</td><td class="n">2.7182682372</td><td></td><td class="n">3</td><td class="n">1.4142156862745097</td><td class="n">\(2.1 \times 10^{-6}\)</td></tr>
+<tr><td class="n">\(10^7\)</td><td class="n">2.7182816941</td><td></td><td class="n">4</td><td class="n">1.4142135623746899</td><td class="n">\(1.6 \times 10^{-12}\)</td></tr>
+<tr><td class="n">\(e\)</td><td class="n">2.7182818285</td><td></td><td class="n">5</td><td class="n">1.4142135623730949</td><td class="n">\(\approx 10^{-16}\)</td></tr>
+</table>
 <p>The two converge at very different speeds. The error of \((1 + 1/n)^n\) shrinks like \(1/n\): ten times the work, one more digit. Heron's error is squared each step (\(10^{-3}, 10^{-6}, 10^{-12}\)): the digits double. That is <b>quadratic convergence</b>, and it is Newton's method in disguise (<a href="02-derivatives.html#s6">section 2.6</a>).</p>
 <div class="box thm"><p><b>Fact (monotone convergence).</b> A sequence that only increases and never exceeds some bound converges <a href="refs.html#r-spivak">[spivak]</a>. This is the property that \(\mathbb{R}\) has &ldquo;no gaps&rdquo;: in \(\mathbb{Q}\), Heron's sequence decreases toward \(\sqrt{2}\) with nothing to land on.</p></div>
 
@@ -213,7 +159,7 @@ a_5 = 1.41421356237309492   error -2.2e-16</pre>
 <li>Is \(f(x) = x \sin(1/x)\) for \(x \ne 0\), \(f(0) = 0\) continuous at 0?
 <details><summary>Answer</summary><p>Yes. \(|\sin| \le 1\), so \(|f(x)| \le |x| \to 0 = f(0)\). Take \(\delta = \varepsilon\).</p></details></li>
 <li>Bisection on \([0, 1]\): how many steps to reach an interval of width \(10^{-6}\)? Why can it never reach width \(10^{-20}\) in doubles near 0.74?
-<details><summary>Answer</summary><p>The width after \(n\) steps is \(2^{-n}\); \(2^{-20} \approx 9.5 \times 10^{-7}\), so 20 steps. Near 0.74 adjacent doubles are \(2^{-53} \approx 1.1 \times 10^{-16}\) apart, so the interval cannot get narrower than that: the program's <code>mid == lo</code> test catches it.</p></details></li>
+<details><summary>Answer</summary><p>The width after \(n\) steps is \(2^{-n}\); \(2^{-20} \approx 9.5 \times 10^{-7}\), so 20 steps. Near 0.74 adjacent doubles are \(2^{-53} \approx 1.1 \times 10^{-16}\) apart, so the interval cannot get narrower than that: the midpoint rounds to an end (section 1.4's box).</p></details></li>
 <li>Show that \(x^2 + x^3 = O(x^2)\) as \(x \to 0\) but not as \(x \to \infty\).
 <details><summary>Answer</summary><p>For \(|x| \le 1\), \(|x^2 + x^3| \le x^2 + |x|^3 \le 2x^2\), so \(M = 2\). As \(x \to \infty\), \((x^2 + x^3)/x^2 = 1 + x\) is unbounded: no \(M\) works.</p></details></li>
 <li>Heron's rule for \(\sqrt{c}\) is \(a_{n+1} = \tfrac{1}{2}(a_n + c/a_n)\). Write the error \(e_{n+1} = a_{n+1} - \sqrt{c}\) in terms of \(e_n\), and say why the digits double.
