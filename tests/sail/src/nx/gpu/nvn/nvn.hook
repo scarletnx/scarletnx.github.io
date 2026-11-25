@@ -6,7 +6,13 @@ include "nx/gpu/nvn/nvn.h"
 route nvnBootstrapLoader
 
 family device
+## @brief End a device: its object is not valid any more, and nothing is freed
+## @param d Pointer to the device, NULL is invalid. If it is the current device (the last nvnDeviceInitialize made),
+##   ScarletNX has no current device after it
 hook nvnDeviceFinalize(NVNdevice* d)
+## @brief Get the depth mode of a device
+## @param d Pointer to the device, NULL is invalid
+## @return The mode nvnDeviceSetDepthMode gave, NVN_DEPTH_MODE_NEAR_IS_MINUS_W after nvnDeviceFinalize
 hook nvnDeviceGetDepthMode(const NVNdevice* d) -> NVNdepthMode
 
 family command_buffer

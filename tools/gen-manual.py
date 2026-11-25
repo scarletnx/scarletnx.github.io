@@ -17,6 +17,7 @@ reference lays one out:
   PICA200 and USSE (manual/pica, manual/usse): the encodings' file (pica.decode, usse.decode) names every bit of the
     word, so each pattern's diagram is the file's, its format's and fields'; the fields' table says which of the
     Sail's functions read each, and the operation is the Sail's, as for Maxwell's.
+  NVN (manual/nvn): each function's signature, its doc comment (nvn.hook's ## @brief, @param, @return) and handler.
 Every name the Sail defines is a page of the shared pseudocode, which the instructions link to. Pages stay under the
 site's 16 KB: the indexes and a long definition split over pages, an instruction's links shrink to first uses.
 The output is the same for the same Sail: no date, nothing random.
@@ -1398,7 +1399,10 @@ HOOK_TYPES = 'i32, u32, i64, u64: integers of that many bits; f32: float; bool: 
 
 def friendly(comment):
     """A comment of ScarletNX's as the manual shows it: Switch 2 by its name, not its code name"""
-    return re.sub(r"\bthe Ounce's\b", "Switch 2's", comment).replace('Ounce', 'Switch 2') if comment else comment
+    if not comment:
+        return comment
+    comment = re.sub(r"\bthe Ounce's\b", "Switch 2's", comment)
+    return re.sub(r'\b([Aa])n Ounce\b', r'\1 Switch 2', comment).replace('Ounce', 'Switch 2')
 
 
 def nvn_badge(where):
@@ -1410,12 +1414,43 @@ def nvn_badge(where):
     return ''
 
 
+def parse_doc(lines):
+    """A function's doc comment (nvn.hook's ## lines, doxygen's commands): its brief, its parameters' (name, text),
+    what it returns, and any other command's (name, text); a line not starting with a command goes on with the last"""
+    items = []
+    for line in lines:
+        m = re.match(r'[@\\](\w+)\s*(.*)', line)
+        if m:
+            items.append([m.group(1), m.group(2).strip()])
+        elif line:
+            if not items:
+                items.append(['brief', ''])
+            items[-1][1] = (items[-1][1] + ' ' + line).strip()
+    doc = {'brief': None, 'params': [], 'return': None, 'other': []}
+    for tag, text in items:
+        if tag == 'brief':
+            doc['brief'] = text if doc['brief'] is None else doc['brief'] + ' ' + text
+        elif tag == 'param':
+            m = re.match(r'(?:\[\w,]+\]\s*)?(\w+)\s*(.*)', text)
+            doc['params'].append((m.group(1), m.group(2)) if m else (text, ''))
+        elif tag in ('return', 'returns'):
+            doc['return'] = text
+        else:
+            doc['other'].append((tag, text))
+    return doc
+
+
 def parse_hook(path):
-    """nvn.hook's families and functions: name, return, arguments, handler, the comment over it, its line"""
-    families, fam, block, run = [], None, None, []
+    """nvn.hook's families and functions: name, return, arguments, handler, the comment over it (a # comment may be
+    over several), its doc comment (## lines right over it), its line"""
+    families, fam, block, run, doc = [], None, None, [], None
     lines = open(path, encoding='utf-8').read().split('\n')
     for i, line in enumerate(lines, 1):
         s = line.strip()
+        if s.startswith('##'):
+            if fam is not None:
+                doc = (doc or []) + [s[2:].strip()]
+            continue
         if s.startswith('#'):
             if fam is not None:
                 if run:  # a comment after functions starts anew
@@ -1423,18 +1458,18 @@ def parse_hook(path):
                 block = (block + ' ' if block else '') + s[1:].strip()
             continue
         if not s:
-            block, run = None, []
+            block, run, doc = None, [], None
             continue
         w = s.split()
         if w[0] == 'family':
             fam = {'name': w[1], 'funcs': []}
             families.append(fam)
-            block, run = None, []
+            block, run, doc = None, [], None
         elif w[0] == 'route':
             if not families or families[0]['name'] != 'loader':
                 families.insert(0, {'name': 'loader', 'funcs': []})
             families[0]['funcs'].append({'name': w[1], 'ret': 'PFNNVNGENERICFUNCPTRPROC', 'args': [],
-                                         'handler': None, 'comment': None, 'line': i, 'route': True})
+                                         'handler': None, 'comment': None, 'doc': None, 'line': i, 'route': True})
         elif w[0] == 'hook':
             m = re.match(r'hook (\w+)\((.*)\)\s*(?:->\s*([^=]+?))?\s*(?:=\s*(\w+))?$', s)
             name, args, ret, handler = m.group(1), m.group(2), (m.group(3) or 'void').strip(), m.group(4)
@@ -1443,9 +1478,10 @@ def parse_hook(path):
                 am = re.match(r'(.*?)(\w+)$', a)
                 arglist.append((am.group(1).strip(), am.group(2)))
             f = {'name': name, 'ret': ret, 'args': arglist, 'handler': handler or 'nvn_' + name[3:],
-                 'comment': block, 'line': i}
+                 'comment': block, 'doc': parse_doc(doc) if doc else None, 'line': i}
             fam['funcs'].append(f)
             run.append(f)
+            doc = None
     return families
 
 
@@ -1644,6 +1680,38 @@ def build_nvn(site, root, rows, here):
         args = ', '.join(f'{linked(t, up)} {n}' for t, n in f['args'])
         return f'<pre class="sig">{linked(f["ret"], up)} {f["name"]}({args})</pre>'
 
+    # a doc comment's text: the functions, types and enums' values it names linked
+    func_names = {f['name'] for fam in families for f in fam['funcs']}
+    value_of = {v['name']: name for name, t in types.items() if t['kind'] == 'enum' for v in t['values']}
+
+    def doc_text(text, up):
+        def link(m):
+            w = m.group(0)
+            if w in func_names:
+                return f'<a href="{up}f/{w}.html">{w}</a>'
+            if type_href(w, up):
+                return f'<a href="{type_href(w, up)}">{w}</a>'
+            if w in value_of:
+                return f'<a href="{up}e/{value_of[w]}.html#{w}">{w}</a>'
+            return w
+        return re.sub(r'\b(?:nvn|NVN|PFNNVN)\w*', link, html.escape(friendly(text)))
+
+    def doc_html(f, up):
+        doc, parts = f['doc'], []
+        if not doc:
+            return parts
+        documented = dict(doc['params'])
+        names = [n for _, n in f['args']] + [n for n, _ in doc['params'] if n not in {a for _, a in f['args']}]
+        if any(documented.get(n) for n in names):
+            parts.append('<h2>Parameters</h2><table class="fields"><tr><th>Parameter</th><th>Type</th><th>Description</th></tr>'
+                         + ''.join(f'<tr><td><code>{n}</code></td><td>{linked(dict((a, t) for t, a in f["args"]).get(n, ""), up)}'
+                                   f'</td><td>{doc_text(documented.get(n, ""), up)}</td></tr>' for n in names) + '</table>')
+        if doc['return']:
+            parts.append(f'<h2>Returns</h2><p>{doc_text(doc["return"], up)}</p>')
+        for tag, text in doc['other']:
+            parts.append(f'<h2>{html.escape(tag.capitalize())}</h2><p>{doc_text(text, up)}</p>')
+        return parts
+
     def page(rel, title, body, depth, search=False):
         site.write(f'nvn/{rel}', site.page(title, title, body, depth, search=['nvn'] if search else None,
                                           manual=NVN_MANUAL))
@@ -1660,8 +1728,11 @@ def build_nvn(site, root, rows, here):
             parts = [f'<h1>{f["name"]}{nvn_badge(f["where"])}</h1>',
                      f'<p class="groups"><a href="../{fam["name"]}.html">{html.escape(ftitle(fam))}</a></p>',
                      signature(f, '../')]
+            if f['doc'] and f['doc']['brief']:
+                parts.append(f'<p>{doc_text(f["doc"]["brief"], "../")}</p>')
             if f['comment']:
                 parts.append(f'<p>{html.escape(friendly(f["comment"]))}</p>')
+            parts += doc_html(f, '../')
             plat = ('Switch and Switch 2' if f['where'] == {'s1', 's2'} else 'Switch 2 (NVN2)' if f['where'] == {'s2'}
                     else 'Switch (dropped in NVN2)' if f['where'] == {'s1'} else 'in no driver\'s procedure table: '
                     'the SDK exports it itself')
@@ -1682,15 +1753,19 @@ def build_nvn(site, root, rows, here):
 
     # a page per family, split when it must be
     for fam in families:
+        briefs = any(f['doc'] and f['doc']['brief'] for f in fam['funcs'])
         trs = [f'<tr{" class=\"s2row\"" if f["where"] == {"s2"} else ""}><td><a href="f/{f["name"]}.html">{f["name"]}</a>'
-               f'{nvn_badge(f["where"])}</td><td>{linked(f["ret"], "")}</td></tr>' for f in sorted(fam['funcs'], key=lambda f: f['name'])]
+               f'{nvn_badge(f["where"])}</td><td>{linked(f["ret"], "")}</td>'
+               + (f'<td>{html.escape(friendly(f["doc"]["brief"])) if f["doc"] and f["doc"]["brief"] else ""}</td>' if briefs else '')
+               + '</tr>' for f in sorted(fam['funcs'], key=lambda f: f['name'])]
 
-        def render(chunk, k, n, fam=fam):
+        def render(chunk, k, n, fam=fam, briefs=briefs):
             nav = '' if n == 1 else '<p>Page ' + ' '.join(
                 (f'<a href="{fam["name"]}{"" if j == 1 else f"-{j}"}.html">{j}</a>' if j != k else f'<b>{j}</b>')
                 for j in range(1, n + 1)) + '</p>'
             return site.page(ftitle(fam), ftitle(fam), f'<h1>{html.escape(ftitle(fam))}</h1>{legend}{nav}'
-                             f'<table class="fields"><tr><th>Function</th><th>Returns</th></tr>{"".join(chunk)}</table>{nav}',
+                             f'<table class="fields"><tr><th>Function</th><th>Returns</th>'
+                             f'{"<th>Description</th>" if briefs else ""}</tr>{"".join(chunk)}</table>{nav}',
                              1, manual=NVN_MANUAL)
 
         split = split_pages(trs, render, f'nvn/{fam["name"]}.html')
@@ -1784,7 +1859,8 @@ def build_nvn(site, root, rows, here):
                       if any(f['where'] == {'s2'} for f in fam['funcs']) else '') + ')</li>' for fam in families)
     page('index.html', 'NVN API', f'<h1>NVN API</h1><p>NVN, the graphics API of the Switch and, as NVN2, of the Switch 2, '
          f'as ScarletNX implements it on Vulkan: every function a game resolves (<code>nvn.hook</code>), with its '
-         f'signature and the handler that runs it, and the types and enums of <code>nvn.h</code>. NVN2 keeps the '
+         f'signature, what it does (its doc comment there) and the handler that runs it, and the types and enums of '
+         f'<code>nvn.h</code>. NVN2 keeps the '
          f'Switch\'s API and adds to it: what only Switch 2\'s drivers have is marked.</p>{legend}'
          '<div id="search" data-root="../" data-placeholder="Search: a function, type, enum or value"></div><p>The search takes a function, type, enum or value\'s name '
          '(the nearest when none is the same).</p>'

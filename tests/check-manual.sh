@@ -95,6 +95,13 @@ for f in nvn/index.html nvn/device.html nvn/command_buffer.html nvn/enums.html n
 done
 has nvn/f/nvnDeviceFinalize.html '<pre class="sig">void nvnDeviceFinalize(<a href="../t/NVNdevice.html">NVNdevice</a>* d)</pre>'
 has nvn/f/nvnDeviceFinalize.html '/src/nx/gpu/nvn/nvn_object.c#L5"><code>nvn_DeviceFinalize</code>'
+# nvn.hook's doc comments (## @brief, @param, @return; a line going on with the one before), names linked
+has nvn/f/nvnDeviceFinalize.html '<p>End a device: its object is not valid any more, and nothing is freed</p>'
+has nvn/f/nvnDeviceFinalize.html '<td><code>d</code></td><td><a href="../t/NVNdevice.html">NVNdevice</a>*</td><td>Pointer to the device, NULL is invalid. If it is the current device (the last nvnDeviceInitialize made), ScarletNX has no current device after it</td>'
+has nvn/f/nvnDeviceGetDepthMode.html '<h2>Returns</h2><p>The mode nvnDeviceSetDepthMode gave, <a href="../e/NVNdepthMode.html#NVN_DEPTH_MODE_NEAR_IS_MINUS_W">NVN_DEPTH_MODE_NEAR_IS_MINUS_W</a> after <a href="../f/nvnDeviceFinalize.html">nvnDeviceFinalize</a></p>'
+has nvn/device.html '<td>Get the depth mode of a device</td>'
+grep -q '<h2>Parameters' "$tmp/manual/nvn/f/nvnCommandBufferSetConservativeRasterEnable.html" &&
+    fail "a function with no doc comment has a parameters' table"
 has nvn/f/nvnCommandBufferSetComputeWorkloadPriority.html '<span class="s2">Switch 2</span>'
 has nvn/f/nvnCommandBufferSetComputeWorkloadPriority.html "<p>Switch 2&#x27;s (API 231): a priority"
 has nvn/f/nvnCommandBufferPopDebugGroupId.html '<span class="s1">Switch 1</span>'               # NVN2 dropped it

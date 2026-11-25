@@ -16,7 +16,7 @@ instructions it translates (Maxwell's SM53, `manual/sm53/`, Ampere's SM86, `manu
 `manual/pica/`, and the Vita's USSE, `manual/usse/`), laid out as Arm's reference lays them out (each encoding's
 diagram, its decode, the operation, and the shared pseudocode they use), made from ScarletNX's Sail by
 `tools/gen-manual.py` (the GPUs' encodings from its `sm53.decode`, `sm86.decode`, `pica.decode` and `usse.decode`),
-and the NVN API (`manual/nvn/`): every function of ScarletNX's `nvn.hook` with its signature and handler, the types
+and the NVN API (`manual/nvn/`): every function of ScarletNX's `nvn.hook` with its signature, doc comment and handler, the types
 and enums of its `nvn.h`, each format's Vulkan equivalent (its `vk/format.c`), and what only Switch 2's drivers have
 marked, by `tools/manual/nvn-drivers.txt` (the drivers' procedure tables, which `tools/nvn_hash.py --json` reads). It
 is the one part with CSS (`manual.css`) and JavaScript (the search, `search.js`: a name, the nearest names, or the
