@@ -4,6 +4,10 @@
 the PICA200's (the 3DS's GPU) and the USSE's (the Vita's GPU); and the NVN API (manual/nvn) from nvn.hook and nvn.h.
 
     tools/gen-manual.py SCARLETNX [OUT]     OUT is _site/manual beside tools/ when not named
+
+The exit status is 0, or 3 when the site is made in part: each manual is made alone, and a page or a source file
+that fails is left out of its manual, so ScarletNX's sources changing breaks only what reads them. A page in the
+place of what failed says why, and stderr lists each (a warning of the run in GitHub's Actions).
         --commit HASH       the ScarletNX commit the Sail is from, for the links to it (else asked of git, else main)
 
 SCARLETNX is a checkout of ScarletNX; it reads src/common/cpu/aarch64/sail, src/common/cpu/arm/sail,
@@ -32,8 +36,20 @@ import re
 import shutil
 import subprocess
 import sys
+import traceback
 
 MAX_BYTES = 16 * 1024
+
+
+class GenError(Exception):
+    """A page or a manual this can't make: a page over the size, sources it doesn't read"""
+
+
+def report(what):
+    """A failure, on stderr; in GitHub's Actions an annotation of the run too"""
+    print(f'gen-manual: {what}', file=sys.stderr)
+    if os.environ.get('GITHUB_ACTIONS') == 'true':
+        print(f'::warning title=gen-manual::{what}', file=sys.stderr)
 GITHUB = 'https://github.com/scarletnx/ScarletNX/blob'
 
 ARCHES = [
@@ -258,14 +274,28 @@ def body(d):
 
 class Site:
     def __init__(self, out, commit):
-        self.out, self.commit, self.written = out, commit, []
+        self.out, self.commit, self.written, self.failures, self.root = out, commit, [], [], '\0'
+
+    def failed(self, what, e):
+        """A page or a source file that failed: the rest goes on"""
+        reason = f'{type(e).__name__}: {e}'.replace(self.root, '')  # the checkout's paths, not the machine's
+        report(f'{what}: {reason}')
+        self.failures.append((what, reason))
+        return reason
+
+    def failed_page(self, rel, title, depth, manual, e):
+        """A page that failed: one in its place says why, so the links to it still lead somewhere"""
+        reason = self.failed(rel, e)
+        self.write(rel, self.page(title, title, f'<h1>{html.escape(title)}</h1><p>This page could not be made from '
+                                                f'ScarletNX at {self.commit[:12]}: <code>{html.escape(reason)}</code>.</p>',
+                                  depth, manual=manual))
 
     def write(self, rel, content):
         path = os.path.join(self.out, rel)
         os.makedirs(os.path.dirname(path), exist_ok=True)
         data = content.encode('utf-8')
         if rel.endswith('.html') and len(data) > MAX_BYTES:
-            raise SystemExit(f'{rel}: {len(data)} bytes, over {MAX_BYTES}')
+            raise GenError(f'{rel}: {len(data)} bytes, over {MAX_BYTES}')
         with open(path, 'wb') as f:
             f.write(data)
         self.written.append(rel)
@@ -451,82 +481,88 @@ def build_arch(site, root, arch, out_rows):
     top_links = links(0)
     fallbacks = []
     for key, page in sorted(pages.items()):
-        rel = f'{aid}/{key}.html'
-        for with_links, linked in ((True, None), (True, set()), (False, None)):
-            parts = [f'<h1>{html.escape(page["title"])}</h1>',
-                     '<p class="groups">' + ' / '.join(
-                         f'<a href="{g[len("__Decode"):]}.html">{html.escape(arch["groups"][g])}</a>'
-                         for g in sorted(page['groups'])) + '</p>', LEGEND]
-            executes = []
+        try:
+            rel = f'{aid}/{key}.html'
+            for with_links, linked in ((True, None), (True, set()), (False, None)):
+                parts = [f'<h1>{html.escape(page["title"])}</h1>',
+                         '<p class="groups">' + ' / '.join(
+                             f'<a href="{g[len("__Decode"):]}.html">{html.escape(arch["groups"][g])}</a>'
+                             for g in sorted(page['groups'])) + '</p>', LEGEND]
+                executes = []
+                for heading, c in page['classes']:
+                    anchor = re.sub(r'\W+', '_', heading)
+                    parts.append(f'<h2 class="classheading" id="{anchor}">{html.escape(heading)}</h2>')
+                    parts.append(diagram(c))
+                    extra = guard_text(c)
+                    parts.append(f'<p class="bits">{c.pattern}'
+                                 + (''.join(f'<br>{html.escape(g)}' for g in extra)) + '</p>')
+                    if c.decode not in defs:
+                        parts.append(f'<h3>Decode</h3><p>The Sail has no <code>{c.decode}</code>: ScarletNX\'s extract of '
+                                     f'sail-arm keeps what its roots reach, and none reaches it.</p>')
+                        continue
+                    dec = (defs[c.decode]['snx'] or defs[c.decode]['arm'])[0]
+                    parts.append(f'<h3>Decode <a class="src" href="{site.source_link(dec)}">Sail</a></h3>')
+                    if dec.source[0] == 'snx':
+                        parts.append(f'<p>ScarletNX\'s fixup{" (it takes the place of sail-arm&#39;s)" if defs[c.decode]["arm"] else ""}'
+                                     f'{": " + html.escape(dec.comment) if dec.comment else ""}</p>')
+                    parts.append(code(body(dec), top_links, f'{key}.html', with_links, linked))
+                    for e in re.findall(r'\b(execute_\w+)\(', dec.text):
+                        if e not in executes and e in defs:
+                            executes.append(e)
+                for e in executes:
+                    ex = (defs[e]['snx'] or defs[e]['arm'])[0]
+                    parts.append(f'<h2 class="pseudocode">Operation <a class="src" href="{site.source_link(ex)}">Sail</a></h2>')
+                    parts.append(code(body(ex), top_links, f'{key}.html', with_links, linked))
+                text = site.page(f'{page["title"]}', page['title'], '\n'.join(parts), 1)
+                if len(text.encode()) <= MAX_BYTES or not with_links:
+                    break
+                fallbacks.append((rel, 'first uses' if linked is None else 'none'))
+            site.write(rel, text)
             for heading, c in page['classes']:
                 anchor = re.sub(r'\W+', '_', heading)
-                parts.append(f'<h2 class="classheading" id="{anchor}">{html.escape(heading)}</h2>')
-                parts.append(diagram(c))
-                extra = guard_text(c)
-                parts.append(f'<p class="bits">{c.pattern}'
-                             + (''.join(f'<br>{html.escape(g)}' for g in extra)) + '</p>')
-                if c.decode not in defs:
-                    parts.append(f'<h3>Decode</h3><p>The Sail has no <code>{c.decode}</code>: ScarletNX\'s extract of '
-                                 f'sail-arm keeps what its roots reach, and none reaches it.</p>')
-                    continue
-                dec = (defs[c.decode]['snx'] or defs[c.decode]['arm'])[0]
-                parts.append(f'<h3>Decode <a class="src" href="{site.source_link(dec)}">Sail</a></h3>')
-                if dec.source[0] == 'snx':
-                    parts.append(f'<p>ScarletNX\'s fixup{" (it takes the place of sail-arm&#39;s)" if defs[c.decode]["arm"] else ""}'
-                                 f'{": " + html.escape(dec.comment) if dec.comment else ""}</p>')
-                parts.append(code(body(dec), top_links, f'{key}.html', with_links, linked))
-                for e in re.findall(r'\b(execute_\w+)\(', dec.text):
-                    if e not in executes and e in defs:
-                        executes.append(e)
-            for e in executes:
-                ex = (defs[e]['snx'] or defs[e]['arm'])[0]
-                parts.append(f'<h2 class="pseudocode">Operation <a class="src" href="{site.source_link(ex)}">Sail</a></h2>')
-                parts.append(code(body(ex), top_links, f'{key}.html', with_links, linked))
-            text = site.page(f'{page["title"]}', page['title'], '\n'.join(parts), 1)
-            if len(text.encode()) <= MAX_BYTES or not with_links:
-                break
-            fallbacks.append((rel, 'first uses' if linked is None else 'none'))
-        site.write(rel, text)
-        for heading, c in page['classes']:
-            anchor = re.sub(r'\W+', '_', heading)
-            ex = [(lo, w, v) for lo, w, v in c.guards]
-            exmask = sum(((1 << w) - 1) << lo for lo, w, v in ex) if len(ex) == 1 else 0
-            exval = int(ex[0][2], 2) << ex[0][0] if len(ex) == 1 else 0
-            out_rows.append([page['title'], f'{aid}/{key}.html#{anchor}', 'T16' if c.width == 16 else
-                             ('A64' if aid == 'a64' else 'A32'), heading, f'{c.mask:x}', f'{c.value:x}',
-                             f'{exmask:x}', f'{exval:x}', str(clauses.index(c))])
+                ex = [(lo, w, v) for lo, w, v in c.guards]
+                exmask = sum(((1 << w) - 1) << lo for lo, w, v in ex) if len(ex) == 1 else 0
+                exval = int(ex[0][2], 2) << ex[0][0] if len(ex) == 1 else 0
+                out_rows.append([page['title'], f'{aid}/{key}.html#{anchor}', 'T16' if c.width == 16 else
+                                 ('A64' if aid == 'a64' else 'A32'), heading, f'{c.mask:x}', f'{c.value:x}',
+                                 f'{exmask:x}', f'{exval:x}', str(clauses.index(c))])
+        except Exception as e:  # its sources changed in a way this doesn't read: this page alone fails
+            site.failed_page(f'{aid}/{key}.html', page['title'], 1, None, e)
 
     # shared pseudocode: a page per name
     fn_links = links(1)
     for n in helpers:
-        rel = f'{aid}/fn/{n}.html'
-        entry = defs[n]
-        parts = [f'<h1>{html.escape(n)}</h1>']
-        for d in entry['snx']:
-            parts.append(f'<h2>ScarletNX\'s fixup <a class="src" href="{site.source_link(d)}">{d.source[1].rsplit("/", 1)[1]}</a></h2>')
-            if d.comment:
-                parts.append(f'<p>{html.escape(d.comment)}</p>')
-            parts.append(code(d.text, fn_links, f'../fn/{n}.html'))
-        for d in entry['arm']:
-            what = 'sail-arm\'s definition' + (', which the fixup replaces' if entry['snx'] else '')
-            parts.append(f'<h2>{what} <a class="src" href="{site.source_link(d)}">{d.source[1].rsplit("/", 1)[1]}</a></h2>')
-            parts.append(code(d.text, fn_links, f'../fn/{n}.html'))
-        users = sorted(used_by.get(n, ()), key=lambda u: (u not in inst_names, pages[inst_names[u][:-5]]['title'].lower() if u in inst_names else u.lower()))
-        if users:
-            items, seen = [], set()
-            for u in users:
-                if u in inst_names:
-                    if inst_names[u] not in seen:
-                        seen.add(inst_names[u])
-                        items.append(f'<li><a href="../{inst_names[u]}">{html.escape(pages[inst_names[u][:-5]]["title"])}</a></li>')
-                elif u in helpers:
-                    items.append(f'<li><a href="{u}.html">{html.escape(u)}</a></li>')
-            parts.append('<h2>Used by</h2><ul class="cols">' + ''.join(items) + '</ul>')
-        text = site.page(n, n, '\n'.join(parts), 2)
-        if len(text.encode()) > MAX_BYTES:
-            text = site.page(n, n, '\n'.join(p if not p.startswith('<pre>') else
-                                              code(html.unescape(re.sub(r'<[^>]+>', '', p)), {}, '') for p in parts), 2)
-        site.write(rel, text)
+        try:
+            rel = f'{aid}/fn/{n}.html'
+            entry = defs[n]
+            parts = [f'<h1>{html.escape(n)}</h1>']
+            for d in entry['snx']:
+                parts.append(f'<h2>ScarletNX\'s fixup <a class="src" href="{site.source_link(d)}">{d.source[1].rsplit("/", 1)[1]}</a></h2>')
+                if d.comment:
+                    parts.append(f'<p>{html.escape(d.comment)}</p>')
+                parts.append(code(d.text, fn_links, f'../fn/{n}.html'))
+            for d in entry['arm']:
+                what = 'sail-arm\'s definition' + (', which the fixup replaces' if entry['snx'] else '')
+                parts.append(f'<h2>{what} <a class="src" href="{site.source_link(d)}">{d.source[1].rsplit("/", 1)[1]}</a></h2>')
+                parts.append(code(d.text, fn_links, f'../fn/{n}.html'))
+            users = sorted(used_by.get(n, ()), key=lambda u: (u not in inst_names, pages[inst_names[u][:-5]]['title'].lower() if u in inst_names else u.lower()))
+            if users:
+                items, seen = [], set()
+                for u in users:
+                    if u in inst_names:
+                        if inst_names[u] not in seen:
+                            seen.add(inst_names[u])
+                            items.append(f'<li><a href="../{inst_names[u]}">{html.escape(pages[inst_names[u][:-5]]["title"])}</a></li>')
+                    elif u in helpers:
+                        items.append(f'<li><a href="{u}.html">{html.escape(u)}</a></li>')
+                parts.append('<h2>Used by</h2><ul class="cols">' + ''.join(items) + '</ul>')
+            text = site.page(n, n, '\n'.join(parts), 2)
+            if len(text.encode()) > MAX_BYTES:
+                text = site.page(n, n, '\n'.join(p if not p.startswith('<pre>') else
+                                                  code(html.unescape(re.sub(r'<[^>]+>', '', p)), {}, '') for p in parts), 2)
+            site.write(rel, text)
+        except Exception as e:  # its sources changed in a way this doesn't read: this page alone fails
+            site.failed_page(f'{aid}/fn/{n}.html', n, 2, None, e)
 
     # the indexes: the instruction groups, each split over pages when it must be, and the shared pseudocode
     for g, gtitle in arch['groups'].items():
@@ -854,158 +890,161 @@ def build_gpu(site, root, g, out_rows):
 
     op_hi = g['op_lo'] + 15
     for key, page in sorted(pages.items()):
-        rel = f'{gid}/{key}.html'
-        fns = []
-        for heading, p in page['pats']:
-            f = fn_of(p['name'])
-            if f and f[0] not in fns:
-                fns.append(f[0])
-        # the fields: the decoder's, then the Sail's of every function the page's opcodes run
-        sail_fields, uses, by_form = [], set(), False
-        for f in fns:
-            fl, us = gpu_fields(defs, 'execute_' + f)
-            sail_fields += fl
-            uses |= us
-            by_form |= gid == 'sm53' and 'Form' in us and sum(1 for v in ops.values() if v[0] == f) > 1
-        for heading, p in page['pats']:
-            for fn in fused.get(p['name'], []):
-                for part in (fn + '_ok', fn):
-                    fl, us = gpu_fields(defs, part)
-                    sail_fields += fl
-                    uses |= us
-
-        def fields_for(p):
-            got = []
-            if gid == 'sm53':
-                got += [(n, lo, w, 'the decoder') for n, lo, w in SM53_ALWAYS]
-                form = p['name'].rsplit('_', 1)[1] if '_' in p['name'] else ''
-                for use, fl in SM53_USES.items():
-                    if use in uses and (use != 'RegB' or form in ('R', 'RC')):  # b's place holds the others' operand
-                        got += [(n, lo, w, f'{use}()') for n, lo, w in fl]
-                if uses & {'Right', 'RightOf', 'CbufWord'}:
-                    got += [(n, lo, w, 'the right operand') for n, lo, w in SM53_RIGHT.get(form, [])]
-            else:
-                got += [(n, lo, w, 'the decoder') for n, lo, w in SM86_ALWAYS if not (n == 'form' and page['kind'] not in SM86_FORMS)]
-                uniform = page['kind'] == 'UALU'
-                if uses & {'Dst', 'D_write', 'D_writeAt'}:
-                    got.append(('URd' if uniform else 'Rd', 16, 6 if uniform else 8, 'the decoder'))
-                if page['kind'] in SM86_FORMS:
-                    got.append(('URa' if uniform else 'Ra', 24, 6 if uniform else 8, 'the decoder'))
-            got += [(n, lo, w, src) for n, lo, w, src in sail_fields]
-            seen, table = set(), []
-            for n, lo, w, src in got:
-                if (lo, w) not in seen:
-                    seen.add((lo, w))
-                    table.append((n, lo, w, src))
-            return table
-
-        def enc_for(pats_here, fields):
-            fixed = {}
-            for k in range(16):
-                vals = {p['bits'][k] for p in pats_here}
-                if len(vals) == 1 and vals != {'-'}:
-                    fixed[op_hi - k] = vals.pop()
-            shown, taken = [], set()
-            for n, lo, w, src in fields:
-                if by_form and src not in ('the decoder', 'the right operand') and not src.endswith('()'):
-                    continue  # the Sail reads it in some forms: the table says which function
-                span = set(range(lo, lo + w))
-                if span & taken or any(b in fixed for b in span if n != 'form'):
-                    continue
-                if n == 'form' and all(b in fixed for b in span):
-                    continue
-                taken |= span
-                shown.append((n, lo, w))
-            return Encoding(g['width'], fixed, shown)
-
-        def field_table(fields):
-            rows = ''.join(f'<tr><td>{html.escape(n)}</td><td>{lo + w - 1}:{lo}</td><td>{html.escape(src)}</td></tr>'
-                           if w > 1 else f'<tr><td>{html.escape(n)}</td><td>{lo}</td><td>{html.escape(src)}</td></tr>'
-                           for n, lo, w, src in sorted(fields, key=lambda f: (-f[1] - f[2], f[0])))
-            return f'<table class="fields"><tr><th>Field</th><th>Bits</th><th>From</th></tr>{rows}</table>'
-
-        def note(p):
-            return f'<p class="note">{html.escape(p["note"])}</p>' if p['note'] else ''
-
-        def opbits(p):
-            return f'<p class="bits">bits {op_hi}:{g["op_lo"]}: {" ".join(p["bits"][i:i + 4] for i in range(0, 16, 4))}</p>'
-
-        def runs(p):
-            f = fn_of(p['name'])
-            if not f:
-                return '<p>ScarletNX\'s Sail has no operation for it: the translator\'s own code takes it, or refuses it.</p>'
-            if gid != 'sm53':  # SM86's Form() is the decoder's form (bits 11:9), not the place in the roots line
-                return f'<p>Runs <a href="#execute_{f[0]}">execute_{f[0]}</a>.</p>'
-            return f'<p>Runs <a href="#execute_{f[0]}">execute_{f[0]}</a> with <code>Form()</code> {f[1]}.</p>'
-
-        by_form_note = ('<p>The operation reads some of these fields in some forms alone (it chooses by <code>Form()</code>), '
-                        'so the diagrams show only the decoder\'s.</p>' if by_form else '')
-        for with_links, linked in ((True, None), (True, set()), (False, None)):
-            parts = [f'<h1>{html.escape(page["title"])}</h1>',
-                     '<p class="groups">' + ' / '.join(f'<a href="{gslug[grp]}.html">{html.escape(grp)}</a>'
-                                                       for grp in page['groups']) + '</p>', LEGEND]
-            if gid == 'sm53':
-                for heading, p in page['pats']:
-                    fields = fields_for(p)
-                    parts.append(f'<h2 class="classheading" id="{p["name"]}">{html.escape(heading)}</h2>')
-                    parts.append(diagram(enc_for([p], fields)))
-                    parts.append(opbits(p) + note(p) + runs(p))
-                fields = fields_for(page['pats'][0][1])
-                parts.append('<h3>Fields</h3>' + by_form_note + field_table(fields))
-            else:
-                ps = [p for h, p in page['pats']]
-                fields = fields_for(ps[0])
-                parts.append(f'<h2 class="classheading" id="{ps[0]["name"]}">Encoding</h2>')
-                parts.append(diagram(enc_for(ps, fields)))
-                parts.append('<p class="bits">' + '<br>'.join(opbits(p)[len('<p class="bits">'):-4] for p in ps) + '</p>')
-                forms = SM86_FORMS.get(page['kind'])
-                if forms:
-                    rows = ''.join(f'<tr><td>{int(p["bits"][4:7], 2)} ({p["bits"][4:7]})</td>'
-                                   f'<td>{forms.get(int(p["bits"][4:7], 2), ("?", "?"))[0]}</td>'
-                                   f'<td>{forms.get(int(p["bits"][4:7], 2), ("?", "?"))[1]}</td></tr>' for p in ps)
-                    parts.append(f'<h3>Forms</h3><table class="fields"><tr><th>Form (bits 11:9)</th><th>b</th>'
-                                 f'<th>c</th></tr>{rows}</table>')
-                notes = []
-                for p in ps:
-                    if p['note'] and p['note'] not in notes:
-                        notes.append(p['note'])
-                parts += [f'<p class="note">{html.escape(n_)}</p>' for n_ in notes]
-                parts.append(runs(ps[0]))
-                parts.append('<h3>Fields</h3>' + by_form_note + field_table(fields))
+        try:
+            rel = f'{gid}/{key}.html'
+            fns = []
+            for heading, p in page['pats']:
+                f = fn_of(p['name'])
+                if f and f[0] not in fns:
+                    fns.append(f[0])
+            # the fields: the decoder's, then the Sail's of every function the page's opcodes run
+            sail_fields, uses, by_form = [], set(), False
             for f in fns:
-                ex = defs.get('execute_' + f)
-                if not ex:
-                    continue
-                d = ex['snx'][-1]
-                parts.append(f'<h2 class="pseudocode" id="execute_{f}">Operation <a class="src" '
-                             f'href="{site.source_link(d)}">Sail</a></h2>')
-                if d.comment:
-                    parts.append(f'<p>{html.escape(d.comment)}</p>')
-                parts.append(code(body(d), top_links, f'{key}.html', with_links, linked))
-            fdone = []
+                fl, us = gpu_fields(defs, 'execute_' + f)
+                sail_fields += fl
+                uses |= us
+                by_form |= gid == 'sm53' and 'Form' in us and sum(1 for v in ops.values() if v[0] == f) > 1
             for heading, p in page['pats']:
                 for fn in fused.get(p['name'], []):
-                    if fn in fdone or fn not in defs:
+                    for part in (fn + '_ok', fn):
+                        fl, us = gpu_fields(defs, part)
+                        sail_fields += fl
+                        uses |= us
+
+            def fields_for(p):
+                got = []
+                if gid == 'sm53':
+                    got += [(n, lo, w, 'the decoder') for n, lo, w in SM53_ALWAYS]
+                    form = p['name'].rsplit('_', 1)[1] if '_' in p['name'] else ''
+                    for use, fl in SM53_USES.items():
+                        if use in uses and (use != 'RegB' or form in ('R', 'RC')):  # b's place holds the others' operand
+                            got += [(n, lo, w, f'{use}()') for n, lo, w in fl]
+                    if uses & {'Right', 'RightOf', 'CbufWord'}:
+                        got += [(n, lo, w, 'the right operand') for n, lo, w in SM53_RIGHT.get(form, [])]
+                else:
+                    got += [(n, lo, w, 'the decoder') for n, lo, w in SM86_ALWAYS if not (n == 'form' and page['kind'] not in SM86_FORMS)]
+                    uniform = page['kind'] == 'UALU'
+                    if uses & {'Dst', 'D_write', 'D_writeAt'}:
+                        got.append(('URd' if uniform else 'Rd', 16, 6 if uniform else 8, 'the decoder'))
+                    if page['kind'] in SM86_FORMS:
+                        got.append(('URa' if uniform else 'Ra', 24, 6 if uniform else 8, 'the decoder'))
+                got += [(n, lo, w, src) for n, lo, w, src in sail_fields]
+                seen, table = set(), []
+                for n, lo, w, src in got:
+                    if (lo, w) not in seen:
+                        seen.add((lo, w))
+                        table.append((n, lo, w, src))
+                return table
+
+            def enc_for(pats_here, fields):
+                fixed = {}
+                for k in range(16):
+                    vals = {p['bits'][k] for p in pats_here}
+                    if len(vals) == 1 and vals != {'-'}:
+                        fixed[op_hi - k] = vals.pop()
+                shown, taken = [], set()
+                for n, lo, w, src in fields:
+                    if by_form and src not in ('the decoder', 'the right operand') and not src.endswith('()'):
+                        continue  # the Sail reads it in some forms: the table says which function
+                    span = set(range(lo, lo + w))
+                    if span & taken or any(b in fixed for b in span if n != 'form'):
                         continue
-                    fdone.append(fn)
-                    d = defs[fn]['snx'][-1]
-                    parts.append(f'<h2 class="pseudocode">Fusion {fn} <a class="src" href="{site.source_link(d)}">Sail</a></h2>')
+                    if n == 'form' and all(b in fixed for b in span):
+                        continue
+                    taken |= span
+                    shown.append((n, lo, w))
+                return Encoding(g['width'], fixed, shown)
+
+            def field_table(fields):
+                rows = ''.join(f'<tr><td>{html.escape(n)}</td><td>{lo + w - 1}:{lo}</td><td>{html.escape(src)}</td></tr>'
+                               if w > 1 else f'<tr><td>{html.escape(n)}</td><td>{lo}</td><td>{html.escape(src)}</td></tr>'
+                               for n, lo, w, src in sorted(fields, key=lambda f: (-f[1] - f[2], f[0])))
+                return f'<table class="fields"><tr><th>Field</th><th>Bits</th><th>From</th></tr>{rows}</table>'
+
+            def note(p):
+                return f'<p class="note">{html.escape(p["note"])}</p>' if p['note'] else ''
+
+            def opbits(p):
+                return f'<p class="bits">bits {op_hi}:{g["op_lo"]}: {" ".join(p["bits"][i:i + 4] for i in range(0, 16, 4))}</p>'
+
+            def runs(p):
+                f = fn_of(p['name'])
+                if not f:
+                    return '<p>ScarletNX\'s Sail has no operation for it: the translator\'s own code takes it, or refuses it.</p>'
+                if gid != 'sm53':  # SM86's Form() is the decoder's form (bits 11:9), not the place in the roots line
+                    return f'<p>Runs <a href="#execute_{f[0]}">execute_{f[0]}</a>.</p>'
+                return f'<p>Runs <a href="#execute_{f[0]}">execute_{f[0]}</a> with <code>Form()</code> {f[1]}.</p>'
+
+            by_form_note = ('<p>The operation reads some of these fields in some forms alone (it chooses by <code>Form()</code>), '
+                            'so the diagrams show only the decoder\'s.</p>' if by_form else '')
+            for with_links, linked in ((True, None), (True, set()), (False, None)):
+                parts = [f'<h1>{html.escape(page["title"])}</h1>',
+                         '<p class="groups">' + ' / '.join(f'<a href="{gslug[grp]}.html">{html.escape(grp)}</a>'
+                                                           for grp in page['groups']) + '</p>', LEGEND]
+                if gid == 'sm53':
+                    for heading, p in page['pats']:
+                        fields = fields_for(p)
+                        parts.append(f'<h2 class="classheading" id="{p["name"]}">{html.escape(heading)}</h2>')
+                        parts.append(diagram(enc_for([p], fields)))
+                        parts.append(opbits(p) + note(p) + runs(p))
+                    fields = fields_for(page['pats'][0][1])
+                    parts.append('<h3>Fields</h3>' + by_form_note + field_table(fields))
+                else:
+                    ps = [p for h, p in page['pats']]
+                    fields = fields_for(ps[0])
+                    parts.append(f'<h2 class="classheading" id="{ps[0]["name"]}">Encoding</h2>')
+                    parts.append(diagram(enc_for(ps, fields)))
+                    parts.append('<p class="bits">' + '<br>'.join(opbits(p)[len('<p class="bits">'):-4] for p in ps) + '</p>')
+                    forms = SM86_FORMS.get(page['kind'])
+                    if forms:
+                        rows = ''.join(f'<tr><td>{int(p["bits"][4:7], 2)} ({p["bits"][4:7]})</td>'
+                                       f'<td>{forms.get(int(p["bits"][4:7], 2), ("?", "?"))[0]}</td>'
+                                       f'<td>{forms.get(int(p["bits"][4:7], 2), ("?", "?"))[1]}</td></tr>' for p in ps)
+                        parts.append(f'<h3>Forms</h3><table class="fields"><tr><th>Form (bits 11:9)</th><th>b</th>'
+                                     f'<th>c</th></tr>{rows}</table>')
+                    notes = []
+                    for p in ps:
+                        if p['note'] and p['note'] not in notes:
+                            notes.append(p['note'])
+                    parts += [f'<p class="note">{html.escape(n_)}</p>' for n_ in notes]
+                    parts.append(runs(ps[0]))
+                    parts.append('<h3>Fields</h3>' + by_form_note + field_table(fields))
+                for f in fns:
+                    ex = defs.get('execute_' + f)
+                    if not ex:
+                        continue
+                    d = ex['snx'][-1]
+                    parts.append(f'<h2 class="pseudocode" id="execute_{f}">Operation <a class="src" '
+                                 f'href="{site.source_link(d)}">Sail</a></h2>')
                     if d.comment:
                         parts.append(f'<p>{html.escape(d.comment)}</p>')
-                    for part in (fn + '_ok', fn):
-                        if part in defs:
-                            parts.append(code(defs[part]['snx'][-1].text, top_links, f'{key}.html', with_links, linked))
-            text = site.page(key, page['title'], '\n'.join(parts), 1, manual=manual)
-            if len(text.encode()) <= MAX_BYTES or not with_links:
-                break
-        site.write(rel, text)
-        for heading, p in page['pats']:
-            mask = sum(1 << (15 - k) for k, c in enumerate(p['bits']) if c != '-')
-            value = sum(1 << (15 - k) for k, c in enumerate(p['bits']) if c == '1')
-            if gid != 'sm53' and page['kind'] in SM86_FORMS:
-                heading = f'form {int(p["bits"][4:7], 2)}'
-            out_rows.append([page['title'], f'{rel}#{p["name"] if gid == "sm53" else page["pats"][0][1]["name"]}',
-                             g['set'], heading, f'{mask:x}', f'{value:x}', '0', '0', str(p['order'])])
+                    parts.append(code(body(d), top_links, f'{key}.html', with_links, linked))
+                fdone = []
+                for heading, p in page['pats']:
+                    for fn in fused.get(p['name'], []):
+                        if fn in fdone or fn not in defs:
+                            continue
+                        fdone.append(fn)
+                        d = defs[fn]['snx'][-1]
+                        parts.append(f'<h2 class="pseudocode">Fusion {fn} <a class="src" href="{site.source_link(d)}">Sail</a></h2>')
+                        if d.comment:
+                            parts.append(f'<p>{html.escape(d.comment)}</p>')
+                        for part in (fn + '_ok', fn):
+                            if part in defs:
+                                parts.append(code(defs[part]['snx'][-1].text, top_links, f'{key}.html', with_links, linked))
+                text = site.page(key, page['title'], '\n'.join(parts), 1, manual=manual)
+                if len(text.encode()) <= MAX_BYTES or not with_links:
+                    break
+            site.write(rel, text)
+            for heading, p in page['pats']:
+                mask = sum(1 << (15 - k) for k, c in enumerate(p['bits']) if c != '-')
+                value = sum(1 << (15 - k) for k, c in enumerate(p['bits']) if c == '1')
+                if gid != 'sm53' and page['kind'] in SM86_FORMS:
+                    heading = f'form {int(p["bits"][4:7], 2)}'
+                out_rows.append([page['title'], f'{rel}#{p["name"] if gid == "sm53" else page["pats"][0][1]["name"]}',
+                                 g['set'], heading, f'{mask:x}', f'{value:x}', '0', '0', str(p['order'])])
+        except Exception as e:  # its sources changed in a way this doesn't read: this page alone fails
+            site.failed_page(f'{gid}/{key}.html', page['title'], 1, manual, e)
 
     with_sail = sum(1 for p in pages.values() if p['sail'])
     gpu_pages(site, g, manual, defs, helpers, used_by, executes, pages, groups, gslug, links,
@@ -1022,38 +1061,41 @@ def gpu_pages(site, g, manual, defs, helpers, used_by, executes, pages, groups, 
     # the shared pseudocode: a page per name, a long one over several
     fn_links = links('../')
     for n in helpers:
-        d0 = defs[n]['snx'][-1]
-        users = sorted(used_by.get(n, ()), key=lambda u: (u not in executes, u.lower()))
-        items, seen = [], set()
-        for u in users:
-            if u in executes:
-                if executes[u] not in seen:
-                    seen.add(executes[u])
-                    items.append(f'<li><a href="../{executes[u]}.html">{html.escape(pages[executes[u]]["title"])}</a></li>')
-            elif u in helpers:
-                items.append(f'<li><a href="{u}.html">{html.escape(u)}</a></li>')
-        used = '<h2>Used by</h2><ul class="cols">' + ''.join(items) + '</ul>' if items else ''
-        head = (f'<h1>{html.escape(n)}</h1><p><a class="src" href="{site.source_link(d0)}">'
-                f'{d0.source[1].rsplit("/", 1)[1]}</a></p>' + (f'<p>{html.escape(d0.comment)}</p>' if d0.comment else ''))
-        text_all = '\n\n'.join(d.text for d in defs[n]['snx'])
-        lines = text_all.split('\n')
-        chunks, cur = [], []
-        for line in lines:
-            cur.append(line)
-            if len('\n'.join(cur).encode()) > 9000:
+        try:
+            d0 = defs[n]['snx'][-1]
+            users = sorted(used_by.get(n, ()), key=lambda u: (u not in executes, u.lower()))
+            items, seen = [], set()
+            for u in users:
+                if u in executes:
+                    if executes[u] not in seen:
+                        seen.add(executes[u])
+                        items.append(f'<li><a href="../{executes[u]}.html">{html.escape(pages[executes[u]]["title"])}</a></li>')
+                elif u in helpers:
+                    items.append(f'<li><a href="{u}.html">{html.escape(u)}</a></li>')
+            used = '<h2>Used by</h2><ul class="cols">' + ''.join(items) + '</ul>' if items else ''
+            head = (f'<h1>{html.escape(n)}</h1><p><a class="src" href="{site.source_link(d0)}">'
+                    f'{d0.source[1].rsplit("/", 1)[1]}</a></p>' + (f'<p>{html.escape(d0.comment)}</p>' if d0.comment else ''))
+            text_all = '\n\n'.join(d.text for d in defs[n]['snx'])
+            lines = text_all.split('\n')
+            chunks, cur = [], []
+            for line in lines:
+                cur.append(line)
+                if len('\n'.join(cur).encode()) > 9000:
+                    chunks.append(cur)
+                    cur = []
+            if cur:
                 chunks.append(cur)
-                cur = []
-        if cur:
-            chunks.append(cur)
-        for k, chunk in enumerate(chunks, 1):
-            nav = '' if len(chunks) == 1 else '<p>Part ' + ' '.join(
-                (f'<a href="{n}{"" if j == 1 else f"-{j}"}.html">{j}</a>' if j != k else f'<b>{j}</b>')
-                for j in range(1, len(chunks) + 1)) + '</p>'
-            pagehtml = head + nav + code('\n'.join(chunk), fn_links, f'../fn/{n}.html') + nav + (used if k == len(chunks) else '')
-            text = site.page(n, n, pagehtml, 2, manual=manual)
-            if len(text.encode()) > MAX_BYTES:
-                text = site.page(n, n, head + nav + code('\n'.join(chunk), {}, '') + nav + (used if k == len(chunks) else ''), 2, manual=manual)
-            site.write(f'{gid}/fn/{n}{"" if k == 1 else f"-{k}"}.html', text)
+            for k, chunk in enumerate(chunks, 1):
+                nav = '' if len(chunks) == 1 else '<p>Part ' + ' '.join(
+                    (f'<a href="{n}{"" if j == 1 else f"-{j}"}.html">{j}</a>' if j != k else f'<b>{j}</b>')
+                    for j in range(1, len(chunks) + 1)) + '</p>'
+                pagehtml = head + nav + code('\n'.join(chunk), fn_links, f'../fn/{n}.html') + nav + (used if k == len(chunks) else '')
+                text = site.page(n, n, pagehtml, 2, manual=manual)
+                if len(text.encode()) > MAX_BYTES:
+                    text = site.page(n, n, head + nav + code('\n'.join(chunk), {}, '') + nav + (used if k == len(chunks) else ''), 2, manual=manual)
+                site.write(f'{gid}/fn/{n}{"" if k == 1 else f"-{k}"}.html', text)
+        except Exception as e:  # its sources changed in a way this doesn't read: this page alone fails
+            site.failed_page(f'{gid}/fn/{n}.html', n, 2, manual, e)
 
     # the indexes
     for grp in groups:
@@ -1149,10 +1191,10 @@ def parse_decodetree(path, width):
             if re.fullmatch(r'[A-Za-z_]\w*=\w+', t):  # a constant argument: no bits
                 continue
             if not re.fullmatch(r'[01.\-]+', t):
-                raise SystemExit(f'{path}: {what}: no bits {t!r}')
+                raise GenError(f'{path}: {what}: no bits {t!r}')
             bits += list(t)
         if len(bits) != width:
-            raise SystemExit(f'{path}: {what}: {len(bits)} bits, not {width}')
+            raise GenError(f'{path}: {what}: {len(bits)} bits, not {width}')
         return bits, flds
 
     for line in lines:
@@ -1283,106 +1325,109 @@ def build_decoded(site, root, g, out_rows):
         shared_fn[f] = shared_fn.get(f, 0) + 1
 
     for key, page in sorted(pages.items()):
-        p = page['pat']
-        rel = f'{gid}/{key}.html'
-        f = fn_of(key)
-        sail_fields = []
-        if f:
-            sail_fields, _ = gpu_fields(defs, 'execute_' + f[0])
-        for fn in fused.get(key, []):
-            for part in (fn + '_ok', fn):
-                sail_fields += gpu_fields(defs, part)[0]
-
-        # the encoding: the fixed bits, and every field of the file (one put together from several places, each
-        # place a field of its own, named by the bits of the field's value it holds)
-        enc_fields = []
-        for name, segs in p['fields']:
-            if len(segs) == 1:
-                enc_fields.append((name, segs[0][0], segs[0][1]))
-                continue
-            top = sum(n for _, n in segs)
-            for lo, n in segs:
-                enc_fields.append((f'{name}[{top - 1}:{top - n}]' if n > 1 else f'{name}[{top - 1}]', lo, n))
-                top -= n
-        fixed = {width - 1 - k: b for k, b in enumerate(p['bits']) if b in '01'}
-        enc = Encoding(width, {b: fixed.get(b) for b in range(width)}, enc_fields)
-
-        # the fields' table: each field of the file, and which of the Sail's functions read it (or bits of it); then
-        # what the Sail reads outside them
-        readers, outside = {name: [] for name, _ in p['fields']}, []
-        spans = {name: set(b for lo, n in segs for b in range(lo, lo + n)) for name, segs in p['fields']}
-        for name, lo, n, src in sail_fields:
-            bits_read = set(range(lo, lo + n))
-            whole = next((fn for fn, segs in p['fields'] if (lo, n) in segs), None)  # it, or a piece of it
-            if whole:
-                what = src
-            else:
-                whole = next((fn for fn in spans if bits_read <= spans[fn]), None)
-                what = f'{src} ({lo + n - 1}:{lo})' if n > 1 else f'{src} ({lo})'
-            if whole:
-                if what not in readers[whole]:
-                    readers[whole].append(what)
-            elif (name, lo, n, src) not in outside:
-                outside.append((name, lo, n, src))
-        rows = [(name, segs[0][0] + segs[0][1], f'<tr><td>{html.escape(name)}</td><td>{field_bits(segs)}</td>'
-                       f'<td>{html.escape(", ".join(readers[name]))}</td></tr>') for name, segs in p['fields']]
-        rows += [(name, lo + n, f'<tr><td>{html.escape(name)}</td><td>{field_bits([(lo, n)])}</td>'
-                                f'<td>{html.escape(src)} (not a field of the file)</td></tr>')
-                 for name, lo, n, src in outside]
-        rows.sort(key=lambda r: -r[1])
-        table = ('<table class="fields"><tr><th>Field</th><th>Bits</th><th>The Sail reads it in</th></tr>'
-                 + ''.join(r[2] for r in rows) + '</table>')
-        shared_note = (f'<p>Its operation is {shared_fn[f[0]]} opcodes\' (<code>Form()</code> tells them apart), so '
-                       f'it may read the fields of their layouts too.</p>' if f and shared_fn[f[0]] > 1 else '')
-
-        pattern = ''.join('x' if b == 'f' else b for b in p['bits'])
-        pattern = ' '.join(pattern[i:i + 4] for i in range(0, width, 4))
-        if not f:
-            runs = '<p>ScarletNX\'s Sail has no operation for it: the translator\'s own code takes it, or refuses it.</p>'
-        else:
-            runs = f'<p>Runs <a href="#execute_{f[0]}">execute_{f[0]}</a> with <code>Form()</code> {f[1]}.</p>'
-        info = ''
-        if p['note']:
-            info += f'<p class="note">{html.escape(p["note"])}</p>'
-        if p['format']:
-            info += (f'<p>Its format is <code>@{p["format"]}</code>' + (f': {html.escape(p["format_note"])}'
-                                                                        if p['format_note'] else '') + '.</p>')
-        if p['group'] and len(p['group']) > 1:
-            info += ('<p>It is in a group of patterns that may match the same word: the decoder tries them in this '
-                     'order, and the first that matches decodes it: ' + ', '.join(n if n == key else f'<a href="{n}.html">{n}</a>'
-                                                               for n in p['group']) + '.</p>')
-        for with_links, linked in ((True, None), (True, set()), (False, None)):
-            parts = [f'<h1>{html.escape(page["title"])}</h1>',
-                     '<p class="groups">' + ' / '.join(f'<a href="{gslug[grp]}.html">{html.escape(grp)}</a>'
-                                                       for grp in page['groups']) + '</p>', LEGEND,
-                     f'<h2 class="classheading" id="{key}">Encoding</h2>', diagram(enc),
-                     f'<p class="bits">bits {width - 1}:0: {pattern}</p>', info, runs,
-                     '<h3>Fields</h3>' + shared_note + table]
-            if f and 'execute_' + f[0] in defs:
-                d = defs['execute_' + f[0]]['snx'][-1]
-                parts.append(f'<h2 class="pseudocode" id="execute_{f[0]}">Operation <a class="src" '
-                             f'href="{site.source_link(d)}">Sail</a></h2>')
-                if d.comment:
-                    parts.append(f'<p>{html.escape(d.comment)}</p>')
-                parts.append(code(body(d), top_links, f'{key}.html', with_links, linked))
+        try:
+            p = page['pat']
+            rel = f'{gid}/{key}.html'
+            f = fn_of(key)
+            sail_fields = []
+            if f:
+                sail_fields, _ = gpu_fields(defs, 'execute_' + f[0])
             for fn in fused.get(key, []):
-                if fn not in defs:
-                    continue
-                d = defs[fn]['snx'][-1]
-                parts.append(f'<h2 class="pseudocode">Fusion {fn} <a class="src" href="{site.source_link(d)}">Sail</a></h2>')
-                if d.comment:
-                    parts.append(f'<p>{html.escape(d.comment)}</p>')
                 for part in (fn + '_ok', fn):
-                    if part in defs:
-                        parts.append(code(defs[part]['snx'][-1].text, top_links, f'{key}.html', with_links, linked))
-            text = site.page(key, page['title'], '\n'.join(x for x in parts if x), 1, manual=manual)
-            if len(text.encode()) <= MAX_BYTES or not with_links:
-                break
-        site.write(rel, text)
-        mask = sum(1 << (width - 1 - k) for k, b in enumerate(p['bits']) if b in '01')
-        value = sum(1 << (width - 1 - k) for k, b in enumerate(p['bits']) if b == '1')
-        out_rows.append([key, f'{rel}#{key}', g['set'], page['groups'][0], f'{mask:x}', f'{value:x}', '0', '0',
-                         str(p['order'])])
+                    sail_fields += gpu_fields(defs, part)[0]
+
+            # the encoding: the fixed bits, and every field of the file (one put together from several places, each
+            # place a field of its own, named by the bits of the field's value it holds)
+            enc_fields = []
+            for name, segs in p['fields']:
+                if len(segs) == 1:
+                    enc_fields.append((name, segs[0][0], segs[0][1]))
+                    continue
+                top = sum(n for _, n in segs)
+                for lo, n in segs:
+                    enc_fields.append((f'{name}[{top - 1}:{top - n}]' if n > 1 else f'{name}[{top - 1}]', lo, n))
+                    top -= n
+            fixed = {width - 1 - k: b for k, b in enumerate(p['bits']) if b in '01'}
+            enc = Encoding(width, {b: fixed.get(b) for b in range(width)}, enc_fields)
+
+            # the fields' table: each field of the file, and which of the Sail's functions read it (or bits of it); then
+            # what the Sail reads outside them
+            readers, outside = {name: [] for name, _ in p['fields']}, []
+            spans = {name: set(b for lo, n in segs for b in range(lo, lo + n)) for name, segs in p['fields']}
+            for name, lo, n, src in sail_fields:
+                bits_read = set(range(lo, lo + n))
+                whole = next((fn for fn, segs in p['fields'] if (lo, n) in segs), None)  # it, or a piece of it
+                if whole:
+                    what = src
+                else:
+                    whole = next((fn for fn in spans if bits_read <= spans[fn]), None)
+                    what = f'{src} ({lo + n - 1}:{lo})' if n > 1 else f'{src} ({lo})'
+                if whole:
+                    if what not in readers[whole]:
+                        readers[whole].append(what)
+                elif (name, lo, n, src) not in outside:
+                    outside.append((name, lo, n, src))
+            rows = [(name, segs[0][0] + segs[0][1], f'<tr><td>{html.escape(name)}</td><td>{field_bits(segs)}</td>'
+                           f'<td>{html.escape(", ".join(readers[name]))}</td></tr>') for name, segs in p['fields']]
+            rows += [(name, lo + n, f'<tr><td>{html.escape(name)}</td><td>{field_bits([(lo, n)])}</td>'
+                                    f'<td>{html.escape(src)} (not a field of the file)</td></tr>')
+                     for name, lo, n, src in outside]
+            rows.sort(key=lambda r: -r[1])
+            table = ('<table class="fields"><tr><th>Field</th><th>Bits</th><th>The Sail reads it in</th></tr>'
+                     + ''.join(r[2] for r in rows) + '</table>')
+            shared_note = (f'<p>Its operation is {shared_fn[f[0]]} opcodes\' (<code>Form()</code> tells them apart), so '
+                           f'it may read the fields of their layouts too.</p>' if f and shared_fn[f[0]] > 1 else '')
+
+            pattern = ''.join('x' if b == 'f' else b for b in p['bits'])
+            pattern = ' '.join(pattern[i:i + 4] for i in range(0, width, 4))
+            if not f:
+                runs = '<p>ScarletNX\'s Sail has no operation for it: the translator\'s own code takes it, or refuses it.</p>'
+            else:
+                runs = f'<p>Runs <a href="#execute_{f[0]}">execute_{f[0]}</a> with <code>Form()</code> {f[1]}.</p>'
+            info = ''
+            if p['note']:
+                info += f'<p class="note">{html.escape(p["note"])}</p>'
+            if p['format']:
+                info += (f'<p>Its format is <code>@{p["format"]}</code>' + (f': {html.escape(p["format_note"])}'
+                                                                            if p['format_note'] else '') + '.</p>')
+            if p['group'] and len(p['group']) > 1:
+                info += ('<p>It is in a group of patterns that may match the same word: the decoder tries them in this '
+                         'order, and the first that matches decodes it: ' + ', '.join(n if n == key else f'<a href="{n}.html">{n}</a>'
+                                                                   for n in p['group']) + '.</p>')
+            for with_links, linked in ((True, None), (True, set()), (False, None)):
+                parts = [f'<h1>{html.escape(page["title"])}</h1>',
+                         '<p class="groups">' + ' / '.join(f'<a href="{gslug[grp]}.html">{html.escape(grp)}</a>'
+                                                           for grp in page['groups']) + '</p>', LEGEND,
+                         f'<h2 class="classheading" id="{key}">Encoding</h2>', diagram(enc),
+                         f'<p class="bits">bits {width - 1}:0: {pattern}</p>', info, runs,
+                         '<h3>Fields</h3>' + shared_note + table]
+                if f and 'execute_' + f[0] in defs:
+                    d = defs['execute_' + f[0]]['snx'][-1]
+                    parts.append(f'<h2 class="pseudocode" id="execute_{f[0]}">Operation <a class="src" '
+                                 f'href="{site.source_link(d)}">Sail</a></h2>')
+                    if d.comment:
+                        parts.append(f'<p>{html.escape(d.comment)}</p>')
+                    parts.append(code(body(d), top_links, f'{key}.html', with_links, linked))
+                for fn in fused.get(key, []):
+                    if fn not in defs:
+                        continue
+                    d = defs[fn]['snx'][-1]
+                    parts.append(f'<h2 class="pseudocode">Fusion {fn} <a class="src" href="{site.source_link(d)}">Sail</a></h2>')
+                    if d.comment:
+                        parts.append(f'<p>{html.escape(d.comment)}</p>')
+                    for part in (fn + '_ok', fn):
+                        if part in defs:
+                            parts.append(code(defs[part]['snx'][-1].text, top_links, f'{key}.html', with_links, linked))
+                text = site.page(key, page['title'], '\n'.join(x for x in parts if x), 1, manual=manual)
+                if len(text.encode()) <= MAX_BYTES or not with_links:
+                    break
+            site.write(rel, text)
+            mask = sum(1 << (width - 1 - k) for k, b in enumerate(p['bits']) if b in '01')
+            value = sum(1 << (width - 1 - k) for k, b in enumerate(p['bits']) if b == '1')
+            out_rows.append([key, f'{rel}#{key}', g['set'], page['groups'][0], f'{mask:x}', f'{value:x}', '0', '0',
+                             str(p['order'])])
+        except Exception as e:  # its sources changed in a way this doesn't read: this page alone fails
+            site.failed_page(f'{gid}/{key}.html', page['title'], 1, manual, e)
 
     with_sail = sum(1 for p in pages.values() if p['sail'])
     gpu_pages(site, g, manual, defs, helpers, used_by, executes, pages, groups, gslug, links,
@@ -1560,7 +1605,11 @@ def build_ctr_ipc(site, root, rows):
                     defined.setdefault(m.group(1), (f'{CTR_DIR}/{fname}', n))
     ifaces, types = [], {}
     for f in schemas:
-        t, fs = parse_swipc(os.path.join(base, f))
+        try:
+            t, fs = parse_swipc(os.path.join(base, f))
+        except Exception as e:  # a schema this doesn't read: its interfaces are left out
+            site.failed(f'{CTR_DIR}/{f}', e)
+            continue
         types.update(t)
         for i in fs:
             i['schema'] = f
@@ -1595,54 +1644,57 @@ def build_ctr_ipc(site, root, rows):
             f'<tr><td>{"" if k is None else k}</td><td>{what}</td></tr>' for k, what in words) + '</table>')
 
     for i in ifaces:
-        key = page_of(i)
-        mangled = i['name'].replace('::', '_')
-        src = f'{GITHUB}/{site.commit}/{CTR_DIR}/{i["schema"]}'
-        blocks = []
-        for c in i['cmds']:
-            req_h, resp_h, req, resp, params = ctr_wire(c, types)
-            handler = f'{mangled}_{c["name"]}'
-            h = defined.get(handler)
-            block = [f'<h2 id="{c["name"]}">{html.escape(c["name"])} <a class="src" href="{src}#L{c["line"]}">'
-                     f'{i["schema"]}</a></h2>',
-                     f'<p class="bits">command 0x{c["id"]:x}: request 0x{req_h:08x}, response 0x{resp_h:08x}</p>']
-            if c['comment']:
-                block.append(f'<p>{html.escape(c["comment"])}</p>')
-            block += doc_parts(c['doc'])
-            if c['decorators']:
-                block.append(f'<p>Marked {", ".join(c["decorators"])}.</p>')
-            block.append('<h3>Request</h3>' + words_table(req))
-            block.append('<h3>Response</h3>' + words_table(resp))
-            block.append(f'<h3>Handler</h3><pre class="sig">uint32_t {handler}(SnxCtrIpc* c'
-                         + ''.join(f', {html.escape(x)}' for x in params) + ')</pre>'
-                         + (f'<p><a href="{GITHUB}/{site.commit}/{h[0]}#L{h[1]}">{h[0].rsplit("/", 1)[1]}, line '
-                            f'{h[1]}</a></p>' if h else ''))
-            blocks.append('\n'.join(block))
-            rows.append([c['name'], f'3ds-ipc/{key}.html#{c["name"]}', '3DS', f'{title_of(i)} 0x{c["id"]:x}',
-                         'ffff0000', f'{c["id"] << 16:x}', '0', '0', str(c['id'])])
-        head = [f'<h1>{html.escape(title_of(i))}</h1>',
-                f'<p>The interface <code>{html.escape(i["name"])}</code> of <a href="{src}#L{i["line"]}">'
-                f'{i["schema"]}</a>' + (f', the service{"s" if len(i["ports"]) > 1 else ""} '
-                                       + ', '.join(f'<code>{html.escape(x)}</code>' for x in i['ports'])
-                                       if i['ports'] else ', a session a service opens (no port of its own)')
-                + f'. {len(i["cmds"])} command{"" if len(i["cmds"]) == 1 else "s"}; the handlers are in '
-                  f'<code>{CTR_DIR}</code>.</p>']
-        if i['comment']:
-            head.append(f'<p>{html.escape(i["comment"])}</p>')
-        head += doc_parts(i['doc'])
-        toc = '<ul class="cols">' + ''.join(f'<li><a href="#{c["name"]}">{html.escape(c["name"])}</a> (0x{c["id"]:x})</li>'
-                                           for c in i['cmds']) + '</ul>'
+        try:
+            key = page_of(i)
+            mangled = i['name'].replace('::', '_')
+            src = f'{GITHUB}/{site.commit}/{CTR_DIR}/{i["schema"]}'
+            blocks = []
+            for c in i['cmds']:
+                req_h, resp_h, req, resp, params = ctr_wire(c, types)
+                handler = f'{mangled}_{c["name"]}'
+                h = defined.get(handler)
+                block = [f'<h2 id="{c["name"]}">{html.escape(c["name"])} <a class="src" href="{src}#L{c["line"]}">'
+                         f'{i["schema"]}</a></h2>',
+                         f'<p class="bits">command 0x{c["id"]:x}: request 0x{req_h:08x}, response 0x{resp_h:08x}</p>']
+                if c['comment']:
+                    block.append(f'<p>{html.escape(c["comment"])}</p>')
+                block += doc_parts(c['doc'])
+                if c['decorators']:
+                    block.append(f'<p>Marked {", ".join(c["decorators"])}.</p>')
+                block.append('<h3>Request</h3>' + words_table(req))
+                block.append('<h3>Response</h3>' + words_table(resp))
+                block.append(f'<h3>Handler</h3><pre class="sig">uint32_t {handler}(SnxCtrIpc* c'
+                             + ''.join(f', {html.escape(x)}' for x in params) + ')</pre>'
+                             + (f'<p><a href="{GITHUB}/{site.commit}/{h[0]}#L{h[1]}">{h[0].rsplit("/", 1)[1]}, line '
+                                f'{h[1]}</a></p>' if h else ''))
+                blocks.append('\n'.join(block))
+                rows.append([c['name'], f'3ds-ipc/{key}.html#{c["name"]}', '3DS', f'{title_of(i)} 0x{c["id"]:x}',
+                             'ffff0000', f'{c["id"] << 16:x}', '0', '0', str(c['id'])])
+            head = [f'<h1>{html.escape(title_of(i))}</h1>',
+                    f'<p>The interface <code>{html.escape(i["name"])}</code> of <a href="{src}#L{i["line"]}">'
+                    f'{i["schema"]}</a>' + (f', the service{"s" if len(i["ports"]) > 1 else ""} '
+                                           + ', '.join(f'<code>{html.escape(x)}</code>' for x in i['ports'])
+                                           if i['ports'] else ', a session a service opens (no port of its own)')
+                    + f'. {len(i["cmds"])} command{"" if len(i["cmds"]) == 1 else "s"}; the handlers are in '
+                      f'<code>{CTR_DIR}</code>.</p>']
+            if i['comment']:
+                head.append(f'<p>{html.escape(i["comment"])}</p>')
+            head += doc_parts(i['doc'])
+            toc = '<ul class="cols">' + ''.join(f'<li><a href="#{c["name"]}">{html.escape(c["name"])}</a> (0x{c["id"]:x})</li>'
+                                               for c in i['cmds']) + '</ul>'
 
-        def render(chunk, k, n, key=key, head=head, toc=toc, i=i):
-            nav = '' if n == 1 else '<p>Page ' + ' '.join(
-                (f'<a href="{key}{"" if j == 1 else f"-{j}"}.html">{j}</a>' if j != k else f'<b>{j}</b>')
-                for j in range(1, n + 1)) + '</p>'
-            return site.page(title_of(i), title_of(i), '\n'.join(head) + (toc if n == 1 else '') + nav
-                             + '\n'.join(chunk) + nav, 1, manual=CTR_MANUAL)
+            def render(chunk, k, n, key=key, head=head, toc=toc, i=i):
+                nav = '' if n == 1 else '<p>Page ' + ' '.join(
+                    (f'<a href="{key}{"" if j == 1 else f"-{j}"}.html">{j}</a>' if j != k else f'<b>{j}</b>')
+                    for j in range(1, n + 1)) + '</p>'
+                return site.page(title_of(i), title_of(i), '\n'.join(head) + (toc if n == 1 else '') + nav
+                                 + '\n'.join(chunk) + nav, 1, manual=CTR_MANUAL)
 
-        for k, (rel, chunk) in enumerate(split_pages(blocks, render, f'3ds-ipc/{key}.html'), 1):
-            n = len(split_pages(blocks, render, f'3ds-ipc/{key}.html'))
-            site.write(rel, render(chunk, k, n))
+            for k, (rel, chunk) in enumerate(split_pages(blocks, render, f'3ds-ipc/{key}.html'), 1):
+                n = len(split_pages(blocks, render, f'3ds-ipc/{key}.html'))
+                site.write(rel, render(chunk, k, n))
+        except Exception as e:  # its sources changed in a way this doesn't read: this page alone fails
+            site.failed_page(f'3ds-ipc/{page_of(i)}.html', title_of(i), 1, CTR_MANUAL, e)
 
     ncmds = sum(len(i['cmds']) for i in ifaces)
     table = ('<table class="fields"><tr><th>Service</th><th>Interface</th><th>Commands</th><th>Schema</th></tr>'
@@ -2148,7 +2200,11 @@ def build_android(site, root, rows):
         for f in sorted(files):
             if f.endswith('.java'):
                 rel = os.path.relpath(os.path.join(d, f), root)
-                _, _, ts = java_parse(os.path.join(d, f), rel)
+                try:
+                    _, _, ts = java_parse(os.path.join(d, f), rel)
+                except Exception as e:  # a file this doesn't read: its types are left out
+                    site.failed(rel, e)
+                    continue
                 stack = list(ts)
                 while stack:
                     t = stack.pop(0)
@@ -2317,84 +2373,87 @@ def build_android(site, root, rows):
     source = f'{GITHUB}/{site.commit[:12]}'  # a member's link: the commit short, as there are thousands
     n_members = 0
     for t in api:
-        members = [m for m in t.members if m.mods & {'public', 'protected'} or m.kind == 'constant']
-        n_members += len(members)
-        up = '../'
-        head = [f'<h1>{html.escape(t.name)}' + (' <span class="tag">deprecated</span>' if getattr(t, 'deprecated', False)
-                                                 else '') + '</h1>',
-                f'<p class="groups">{kind_name(t)} of <a href="../p/{t.pkg}.html">{html.escape(t.pkg)}</a>'
-                + (f', in <a href="../{page_of(t.outer)}">{html.escape(t.outer.name)}</a>' if t.outer else '')
-                + f' &middot; <a class="src" href="{GITHUB}/{site.commit}/{t.path}#L{t.line}">{t.path.rsplit("/", 1)[1]}</a>'
-                + (f' &middot; <a href="{ANDROID_REFERENCE}{t.pkg.replace(".", "/")}/{t.fqn[len(t.pkg) + 1:]}">Android\'s '
-                   f'reference</a>' if t.fqn.startswith(ANDROID_DOCUMENTED) and 'public' in t.mods else '') + '</p>',
-                decl(t, up)]
-        chain, s_ = [], resolve(t.extends[0], t.outer or t) if t.extends and t.kind == 'class' else None
-        while s_ and s_ not in chain and len(chain) < 12:
-            chain.append(s_)
-            s_ = resolve(s_.extends[0], s_.outer or s_) if s_.extends else None
-        if chain:
-            head.append('<p>' + ' &larr; '.join([html.escape(t.name)] + [f'<a href="../{page_of(c)}">{html.escape(c.name)}</a>'
-                                                                        for c in chain]) + '</p>')
-        head.append(doc_html(t.doc, t, up) or '')
-        nested = [n for n in t.nested if n.fqn in by_fqn]
-        if nested:
-            head.append('<h2>Nested types</h2><ul class="cols">' + ''.join(
-                f'<li><a href="../{page_of(n)}">{html.escape(n.name)}</a> ({n.kind})</li>' for n in nested) + '</ul>')
-        subs = sorted(subclasses.get(t.fqn, []), key=lambda x: x.name.lower())
-        if subs:
-            head.append(f'<h2>{"Implemented" if t.kind == "interface" else "Extended"} in the framework by</h2>'
-                        '<ul class="cols">' + ''.join(f'<li><a href="../{page_of(x)}">{html.escape(x.name)}</a></li>'
-                                                      for x in subs[:120]) + '</ul>'
-                        + (f'<p>and {len(subs) - 120} more</p>' if len(subs) > 120 else ''))
-        # the members: by the source's groups (// ---- name ----) when it has them, else by kind, in source order
-        blocks, groups = [], []
-        if any(m.section for m in members):
-            for m in members:
-                g = m.section or 'Members'
-                if not groups or groups[-1][0] != g:
-                    groups.append((g, []))
-                groups[-1][1].append(m)
-        else:
-            for title, kinds in (('Enum constants', ('constant',)), ('Fields', ('field',)),
-                                 ('Constructors', ('constructor',)), ('Methods', ('method',))):
-                ms = [m for m in members if m.kind in kinds]
-                if ms:
-                    groups.append((title, ms))
-        for g, ms in groups:
-            first = True
-            for m in ms:
-                blocks.append((g if first else None, member_html(m, t, up), m))
-                first = False
-        rows.append([t.name, f'android/{page_of(t)}', 'Java', f'{t.kind} {t.pkg}'])
-        rel = f'android/{page_of(t)}'
-        stem = t.fqn
+        try:
+            members = [m for m in t.members if m.mods & {'public', 'protected'} or m.kind == 'constant']
+            n_members += len(members)
+            up = '../'
+            head = [f'<h1>{html.escape(t.name)}' + (' <span class="tag">deprecated</span>' if getattr(t, 'deprecated', False)
+                                                     else '') + '</h1>',
+                    f'<p class="groups">{kind_name(t)} of <a href="../p/{t.pkg}.html">{html.escape(t.pkg)}</a>'
+                    + (f', in <a href="../{page_of(t.outer)}">{html.escape(t.outer.name)}</a>' if t.outer else '')
+                    + f' &middot; <a class="src" href="{GITHUB}/{site.commit}/{t.path}#L{t.line}">{t.path.rsplit("/", 1)[1]}</a>'
+                    + (f' &middot; <a href="{ANDROID_REFERENCE}{t.pkg.replace(".", "/")}/{t.fqn[len(t.pkg) + 1:]}">Android\'s '
+                       f'reference</a>' if t.fqn.startswith(ANDROID_DOCUMENTED) and 'public' in t.mods else '') + '</p>',
+                    decl(t, up)]
+            chain, s_ = [], resolve(t.extends[0], t.outer or t) if t.extends and t.kind == 'class' else None
+            while s_ and s_ not in chain and len(chain) < 12:
+                chain.append(s_)
+                s_ = resolve(s_.extends[0], s_.outer or s_) if s_.extends else None
+            if chain:
+                head.append('<p>' + ' &larr; '.join([html.escape(t.name)] + [f'<a href="../{page_of(c)}">{html.escape(c.name)}</a>'
+                                                                            for c in chain]) + '</p>')
+            head.append(doc_html(t.doc, t, up) or '')
+            nested = [n for n in t.nested if n.fqn in by_fqn]
+            if nested:
+                head.append('<h2>Nested types</h2><ul class="cols">' + ''.join(
+                    f'<li><a href="../{page_of(n)}">{html.escape(n.name)}</a> ({n.kind})</li>' for n in nested) + '</ul>')
+            subs = sorted(subclasses.get(t.fqn, []), key=lambda x: x.name.lower())
+            if subs:
+                head.append(f'<h2>{"Implemented" if t.kind == "interface" else "Extended"} in the framework by</h2>'
+                            '<ul class="cols">' + ''.join(f'<li><a href="../{page_of(x)}">{html.escape(x.name)}</a></li>'
+                                                          for x in subs[:120]) + '</ul>'
+                            + (f'<p>and {len(subs) - 120} more</p>' if len(subs) > 120 else ''))
+            # the members: by the source's groups (// ---- name ----) when it has them, else by kind, in source order
+            blocks, groups = [], []
+            if any(m.section for m in members):
+                for m in members:
+                    g = m.section or 'Members'
+                    if not groups or groups[-1][0] != g:
+                        groups.append((g, []))
+                    groups[-1][1].append(m)
+            else:
+                for title, kinds in (('Enum constants', ('constant',)), ('Fields', ('field',)),
+                                     ('Constructors', ('constructor',)), ('Methods', ('method',))):
+                    ms = [m for m in members if m.kind in kinds]
+                    if ms:
+                        groups.append((title, ms))
+            for g, ms in groups:
+                first = True
+                for m in ms:
+                    blocks.append((g if first else None, member_html(m, t, up), m))
+                    first = False
+            rows.append([t.name, f'android/{page_of(t)}', 'Java', f'{t.kind} {t.pkg}'])
+            rel = f'android/{page_of(t)}'
+            stem = t.fqn
 
-        def render(chunk, k, n, head=head, stem=stem, t=t):
-            nav = '' if n == 1 else '<p>Page ' + ' '.join(
-                (f'<a href="{stem}{"" if j == 1 else f"-{j}"}.html">{j}</a>' if j != k else f'<b>{j}</b>')
-                for j in range(1, n + 1)) + '</p>'
-            body, open_ = [], False
-            for g, b, _ in chunk:
-                if g is not None or not open_:
-                    if open_:
-                        body.append('</dl>')
-                    body.append(f'<h2>{html.escape(g[0].upper() + g[1:])}</h2>' if g else '')
-                    body.append('<dl>')
-                    open_ = True
-                body.append(b)
-            if open_:
-                body.append('</dl>')
-            return site.page(t.name, t.fqn, ('\n'.join(head) if k == 1 else f'<h1>{html.escape(t.name)}</h1>')
-                             + nav + '\n'.join(body) + nav, 2, manual=ANDROID_MANUAL)
+            def render(chunk, k, n, head=head, stem=stem, t=t):
+                nav = '' if n == 1 else '<p>Page ' + ' '.join(
+                    (f'<a href="{stem}{"" if j == 1 else f"-{j}"}.html">{j}</a>' if j != k else f'<b>{j}</b>')
+                    for j in range(1, n + 1)) + '</p>'
+                body, open_ = [], False
+                for g, b, _ in chunk:
+                    if g is not None or not open_:
+                        if open_:
+                            body.append('</dl>')
+                        body.append(f'<h2>{html.escape(g[0].upper() + g[1:])}</h2>' if g else '')
+                        body.append('<dl>')
+                        open_ = True
+                    body.append(b)
+                if open_:
+                    body.append('</dl>')
+                return site.page(t.name, t.fqn, ('\n'.join(head) if k == 1 else f'<h1>{html.escape(t.name)}</h1>')
+                                 + nav + '\n'.join(body) + nav, 2, manual=ANDROID_MANUAL)
 
-        split = split_pages(blocks, render, rel) if blocks else [(rel, [])]
-        searched = set()
-        for k, (r, chunk) in enumerate(split, 1):
-            site.write(r, render(chunk, k, len(split)))
-            for _, _, m in chunk:  # the search names each member once, an overload by the first
-                if m.name not in searched:
-                    searched.add(m.name)
-                    rows.append([m.name, f'{r}#{anchor(m)}', 'Java', f'{m.kind} of {t.name}'])
+            split = split_pages(blocks, render, rel) if blocks else [(rel, [])]
+            searched = set()
+            for k, (r, chunk) in enumerate(split, 1):
+                site.write(r, render(chunk, k, len(split)))
+                for _, _, m in chunk:  # the search names each member once, an overload by the first
+                    if m.name not in searched:
+                        searched.add(m.name)
+                        rows.append([m.name, f'{r}#{anchor(m)}', 'Java', f'{m.kind} of {t.name}'])
+        except Exception as e:  # its sources changed in a way this doesn't read: this page alone fails
+            site.failed_page(f'android/{page_of(t)}', t.name, 2, ANDROID_MANUAL, e)
 
     # the packages
     def group_of(pkg):
@@ -2787,31 +2846,34 @@ def build_nvn(site, root, rows, here):
     # a page per function
     for fam in families:
         for f in fam['funcs']:
-            parts = [f'<h1>{f["name"]}{nvn_badge(f["where"])}</h1>',
-                     f'<p class="groups"><a href="../{fam["name"]}.html">{html.escape(ftitle(fam))}</a></p>',
-                     signature(f, '../')]
-            if f['doc'] and f['doc']['brief']:
-                parts.append(f'<p>{doc_text(f["doc"]["brief"], "../")}</p>')
-            if f['comment']:
-                parts.append(f'<p>{html.escape(friendly(f["comment"]))}</p>')
-            parts += doc_html(f, '../')
-            plat = ('Switch and Switch 2' if f['where'] == {'s1', 's2'} else 'Switch 2 (NVN2)' if f['where'] == {'s2'}
-                    else 'Switch (dropped in NVN2)' if f['where'] == {'s1'} else 'in no driver\'s procedure table: '
-                    'the SDK exports it itself')
-            rows_ = [('Drivers', plat),
-                     ('Declared', f'<a href="{GITHUB}/{site.commit}/{hook_rel}#L{f["line"]}">nvn.hook</a>')]
-            if f.get('route'):
-                rows_.append(('Handler', f'the loader\'s own (<code>nvn_loader.c</code>)'))
-            else:
-                h = handlers.get(f['handler'])
-                rows_.append(('Handler', f'<a href="{GITHUB}/{site.commit}/{h[0]}#L{h[1]}"><code>{f["handler"]}</code></a> '
-                                         f'({h[0].rsplit("/", 1)[1]})' if h else f'<code>{f["handler"]}</code>'))
-            parts.append('<table class="fields">' + ''.join(f'<tr><th>{k}</th><td>{v}</td></tr>' for k, v in rows_)
-                         + '</table>')
-            parts.append(f'<p class="note">Types as nvn.hook writes them: {HOOK_TYPES}.</p>')
-            page(f'f/{f["name"]}.html', f['name'], '\n'.join(parts), 2)
-            rows.append([f['name'], f'nvn/f/{f["name"]}.html', 'NVN',
-                         'function' + (', Switch 2' if f['where'] == {'s2'} else ', Switch 1' if f['where'] == {'s1'} else '')])
+            try:
+                parts = [f'<h1>{f["name"]}{nvn_badge(f["where"])}</h1>',
+                         f'<p class="groups"><a href="../{fam["name"]}.html">{html.escape(ftitle(fam))}</a></p>',
+                         signature(f, '../')]
+                if f['doc'] and f['doc']['brief']:
+                    parts.append(f'<p>{doc_text(f["doc"]["brief"], "../")}</p>')
+                if f['comment']:
+                    parts.append(f'<p>{html.escape(friendly(f["comment"]))}</p>')
+                parts += doc_html(f, '../')
+                plat = ('Switch and Switch 2' if f['where'] == {'s1', 's2'} else 'Switch 2 (NVN2)' if f['where'] == {'s2'}
+                        else 'Switch (dropped in NVN2)' if f['where'] == {'s1'} else 'in no driver\'s procedure table: '
+                        'the SDK exports it itself')
+                rows_ = [('Drivers', plat),
+                         ('Declared', f'<a href="{GITHUB}/{site.commit}/{hook_rel}#L{f["line"]}">nvn.hook</a>')]
+                if f.get('route'):
+                    rows_.append(('Handler', f'the loader\'s own (<code>nvn_loader.c</code>)'))
+                else:
+                    h = handlers.get(f['handler'])
+                    rows_.append(('Handler', f'<a href="{GITHUB}/{site.commit}/{h[0]}#L{h[1]}"><code>{f["handler"]}</code></a> '
+                                             f'({h[0].rsplit("/", 1)[1]})' if h else f'<code>{f["handler"]}</code>'))
+                parts.append('<table class="fields">' + ''.join(f'<tr><th>{k}</th><td>{v}</td></tr>' for k, v in rows_)
+                             + '</table>')
+                parts.append(f'<p class="note">Types as nvn.hook writes them: {HOOK_TYPES}.</p>')
+                page(f'f/{f["name"]}.html', f['name'], '\n'.join(parts), 2)
+                rows.append([f['name'], f'nvn/f/{f["name"]}.html', 'NVN',
+                             'function' + (', Switch 2' if f['where'] == {'s2'} else ', Switch 1' if f['where'] == {'s1'} else '')])
+            except Exception as e:  # its sources changed in a way this doesn't read: this page alone fails
+                site.failed_page(f'nvn/f/{f["name"]}.html', f['name'], 2, NVN_MANUAL, e)
 
     # a page per family, split when it must be
     for fam in families:
@@ -2837,59 +2899,62 @@ def build_nvn(site, root, rows, here):
     # a page per enum (its values split over pages when they must be), and per type
     rt, zt, tex = vk_tables
     for name, t in sorted(types.items()):
-        used = sorted({f['name'] for f in t['users']})
-        used_html = ('<h2>Used by</h2><ul class="cols">' + ''.join(f'<li><a href="../f/{u}.html">{u}</a></li>' for u in used)
-                     + '</ul>') if used else ''
-        src = f'<p><a class="src" href="{GITHUB}/{site.commit}/{NVN_DIR}/nvn.h#L{t["line"]}">nvn.h</a></p>'
-        head = f'<h1>{name}{nvn_badge(t["where"])}</h1>{src}' + (f'<p>{html.escape(friendly(t["comment"]))}</p>' if t['comment'] else '')
-        if t['kind'] == 'enum':
-            is_format = name == 'NVNformat'
-            trs = []
-            for v in t['values']:
-                cells = f'<td id="{v["name"]}">{v["name"]}{" <span class=\"s2\">Switch 2</span>" if v["s2"] else ""}</td><td>{html.escape(v["value"])}</td>'
-                if is_format:
-                    vk = vk_of_format(v['tic'], rt, zt, tex)
-                    conv = vk and vk.endswith(' converted')
-                    vk = vk.split()[0] if vk else vk
-                    cells += (f'<td><a href="{VK_FORMAT_URL.format(vk)}">{vk}</a>'
-                              f'{" (converted to it on upload)" if conv else ""}</td>' if vk else
-                              '<td>(none: ScarletNX has no texture descriptor for it)</td>')
-                elif any(x['comment'] for x in t['values']):
-                    cells += f'<td>{html.escape(friendly(v["comment"]) or "")}</td>'
-                trs.append(f'<tr{" class=\"s2row\"" if v["s2"] else ""}>{cells}</tr>')
-                rows.append([v['name'], f'nvn/e/{name}.html#{v["name"]}', 'NVN',
-                             f'{name} {v["value"]}' + (', Switch 2' if v['s2'] or t['where'] == {'s2'} else '')])
-            hdr = '<tr><th>Name</th><th>Value</th>' + ('<th>Vulkan format</th>' if is_format else
-                  '<th>Note</th>' if any(x['comment'] for x in t['values']) else '') + '</tr>'
-            note = ('<p>The Vulkan format whose texels are laid out as the NVN format\'s, as ScarletNX\'s tables give it '
-                    '(<code>nvn_tic_format.inc</code>, then <code>vk/format.c</code>); a block-compressed format the GPU '
-                    'can\'t sample, ScarletNX decodes. The link is the format\'s definition on docs.vulkan.org.</p>'
-                    if is_format else '')
+        try:
+            used = sorted({f['name'] for f in t['users']})
+            used_html = ('<h2>Used by</h2><ul class="cols">' + ''.join(f'<li><a href="../f/{u}.html">{u}</a></li>' for u in used)
+                         + '</ul>') if used else ''
+            src = f'<p><a class="src" href="{GITHUB}/{site.commit}/{NVN_DIR}/nvn.h#L{t["line"]}">nvn.h</a></p>'
+            head = f'<h1>{name}{nvn_badge(t["where"])}</h1>{src}' + (f'<p>{html.escape(friendly(t["comment"]))}</p>' if t['comment'] else '')
+            if t['kind'] == 'enum':
+                is_format = name == 'NVNformat'
+                trs = []
+                for v in t['values']:
+                    cells = f'<td id="{v["name"]}">{v["name"]}{" <span class=\"s2\">Switch 2</span>" if v["s2"] else ""}</td><td>{html.escape(v["value"])}</td>'
+                    if is_format:
+                        vk = vk_of_format(v['tic'], rt, zt, tex)
+                        conv = vk and vk.endswith(' converted')
+                        vk = vk.split()[0] if vk else vk
+                        cells += (f'<td><a href="{VK_FORMAT_URL.format(vk)}">{vk}</a>'
+                                  f'{" (converted to it on upload)" if conv else ""}</td>' if vk else
+                                  '<td>(none: ScarletNX has no texture descriptor for it)</td>')
+                    elif any(x['comment'] for x in t['values']):
+                        cells += f'<td>{html.escape(friendly(v["comment"]) or "")}</td>'
+                    trs.append(f'<tr{" class=\"s2row\"" if v["s2"] else ""}>{cells}</tr>')
+                    rows.append([v['name'], f'nvn/e/{name}.html#{v["name"]}', 'NVN',
+                                 f'{name} {v["value"]}' + (', Switch 2' if v['s2'] or t['where'] == {'s2'} else '')])
+                hdr = '<tr><th>Name</th><th>Value</th>' + ('<th>Vulkan format</th>' if is_format else
+                      '<th>Note</th>' if any(x['comment'] for x in t['values']) else '') + '</tr>'
+                note = ('<p>The Vulkan format whose texels are laid out as the NVN format\'s, as ScarletNX\'s tables give it '
+                        '(<code>nvn_tic_format.inc</code>, then <code>vk/format.c</code>); a block-compressed format the GPU '
+                        'can\'t sample, ScarletNX decodes. The link is the format\'s definition on docs.vulkan.org.</p>'
+                        if is_format else '')
 
-            def render(chunk, k, n, name=name, head=head, hdr=hdr, note=note, used_html=used_html):
-                nav = '' if n == 1 else '<p>Page ' + ' '.join(
-                    (f'<a href="{name}{"" if j == 1 else f"-{j}"}.html">{j}</a>' if j != k else f'<b>{j}</b>')
-                    for j in range(1, n + 1)) + '</p>'
-                return site.page(name, name, f'{head}{note}{nav}<table class="fields">{hdr}{"".join(chunk)}</table>{nav}'
-                                 + (used_html if k == n else ''), 2, manual=NVN_MANUAL)
+                def render(chunk, k, n, name=name, head=head, hdr=hdr, note=note, used_html=used_html):
+                    nav = '' if n == 1 else '<p>Page ' + ' '.join(
+                        (f'<a href="{name}{"" if j == 1 else f"-{j}"}.html">{j}</a>' if j != k else f'<b>{j}</b>')
+                        for j in range(1, n + 1)) + '</p>'
+                    return site.page(name, name, f'{head}{note}{nav}<table class="fields">{hdr}{"".join(chunk)}</table>{nav}'
+                                     + (used_html if k == n else ''), 2, manual=NVN_MANUAL)
 
-            split = split_pages(trs, render, f'nvn/e/{name}.html')
-            for k, (rel, chunk) in enumerate(split, 1):
-                site.write(rel, render(chunk, k, len(split)))
-        else:
-            body = head + f'<pre>{linked(t["text"], "../")}</pre>' + used_html
-            if len(site.page(name, name, body, 2, manual=NVN_MANUAL).encode()) > MAX_BYTES:
-                # too many users to name: how many of each family's
-                counts = {}
-                for f in t['users']:
-                    fam = next(fm for fm in families if f in fm['funcs'])
-                    counts[fam['name']] = counts.get(fam['name'], 0) + 1
-                body = head + f'<pre>{linked(t["text"], "../")}</pre><h2>Used by</h2><ul>' + ''.join(
-                    f'<li>{c} functions of <a href="../{fn}.html">{html.escape(fn.replace("_", " ").capitalize())}</a></li>'
-                    for fn, c in sorted(counts.items())) + '</ul>'
-            page(f't/{name}.html', name, body, 2)
-        rows.append([name, f'nvn/{"e" if t["kind"] == "enum" else "t"}/{name}.html', 'NVN',
-                     t['kind'] + (', Switch 2' if t['where'] == {'s2'} else '')])
+                split = split_pages(trs, render, f'nvn/e/{name}.html')
+                for k, (rel, chunk) in enumerate(split, 1):
+                    site.write(rel, render(chunk, k, len(split)))
+            else:
+                body = head + f'<pre>{linked(t["text"], "../")}</pre>' + used_html
+                if len(site.page(name, name, body, 2, manual=NVN_MANUAL).encode()) > MAX_BYTES:
+                    # too many users to name: how many of each family's
+                    counts = {}
+                    for f in t['users']:
+                        fam = next(fm for fm in families if f in fm['funcs'])
+                        counts[fam['name']] = counts.get(fam['name'], 0) + 1
+                    body = head + f'<pre>{linked(t["text"], "../")}</pre><h2>Used by</h2><ul>' + ''.join(
+                        f'<li>{c} functions of <a href="../{fn}.html">{html.escape(fn.replace("_", " ").capitalize())}</a></li>'
+                        for fn, c in sorted(counts.items())) + '</ul>'
+                page(f't/{name}.html', name, body, 2)
+            rows.append([name, f'nvn/{"e" if t["kind"] == "enum" else "t"}/{name}.html', 'NVN',
+                         t['kind'] + (', Switch 2' if t['where'] == {'s2'} else '')])
+        except Exception as e:  # its sources changed in a way this doesn't read: this page alone fails
+            site.failed_page(f'nvn/{"e" if t["kind"] == "enum" else "t"}/{name}.html', name, 2, NVN_MANUAL, e)
 
     # the drivers' functions nvn.hook doesn't have
     have = {f['name'] for f in funcs}
@@ -2973,75 +3038,93 @@ def main(argv):
         BUILT.add('android')
     shutil.rmtree(os.path.join(out, 'android'), ignore_errors=True)
     shutil.rmtree(os.path.join(out, '3ds-ipc'), ignore_errors=True)
+    os.makedirs(out, exist_ok=True)
     site = Site(out, commit)
-    summary = []
-    for a in ARCHES:
-        rows = []
-        n_pages, n_clauses = build_arch(site, root, a, rows)
-        site.write(f'{a["id"]}/data.js', '// The search\'s data (tools/gen-manual.py): title, page, instruction set, '
-                   'class, mask, value, the bits that must not be a value (mask, value), and the order the decoder tries it in\n'
+    site.root = os.path.abspath(root) + os.sep
+    parts = []  # the manuals that failed whole
+
+    def part(pid, name, manual, make):
+        """A manual made alone: when it fails, a page in its index's place says why, and the others are made"""
+        try:
+            return make()
+        except Exception as e:  # its sources changed in a way this doesn't read
+            traceback.print_exc()
+            reason = f'{type(e).__name__}: {e}'.replace(site.root, '')
+            report(f'{pid}: {reason}')
+            parts.append((pid, reason))
+            shutil.rmtree(os.path.join(out, pid), ignore_errors=True)
+            BUILT.discard(pid)
+            site.write(f'{pid}/index.html', site.page(
+                name, name, f'<h1>{html.escape(name)}</h1><p>This manual could not be made from ScarletNX at '
+                            f'{commit[:12]}: <code>{html.escape(reason)}</code>. The rest of the site was made; this '
+                            f'page is in the manual\'s place until its generator reads ScarletNX\'s sources again.</p>'
+                + other_manuals({'id': pid}), 1, manual=manual))
+            return None
+
+    def data(pid, what, rows):
+        site.write(f'{pid}/data.js', f'// The search\'s data (tools/gen-manual.py): {what}\n'
                    'var ARM = (window.ARM || []).concat([\n' + ',\n'.join(
                        '[' + ','.join('"' + str(v).replace('\\', '\\\\').replace('"', '\\"') + '"' for v in r) + ']'
                        for r in rows) + '\n]);\nwindow.ARM = ARM;\n')
-        summary.append(f'<li><a href="{a["id"]}/">{a["title"]}</a>: {a["about"]} ({n_pages} instructions, {n_clauses} encodings)</li>')
+
+    def made(pid, build, what, *args):
+        def make():
+            rows = []
+            got = build(site, root, *args, rows) if args else build(site, root, rows)
+            data(pid, what, rows)
+            return got
+        return make
+
+    summary, arm_search = [], []
+    for a in ARCHES:
+        if not os.path.isdir(os.path.join(root, a['dir'])):
+            continue
+        got = part(a['id'], a['title'], None, made(a['id'], build_arch, 'title, page, instruction set, class, mask, '
+                                                    'value, the bits that must not be a value (mask, value), and the '
+                                                    'order the decoder tries it in', a))
+        if got:
+            arm_search.append(a['id'])
+            summary.append(f'<li><a href="{a["id"]}/">{a["title"]}</a>: {a["about"]} ({got[0]} instructions, '
+                           f'{got[1]} encodings)</li>')
+        else:
+            summary.append(f'<li><a href="{a["id"]}/">{a["title"]}</a>: {a["about"]} (not made this time)</li>')
     gpus = []
     for g in GPUS:
-        if not os.path.exists(os.path.join(root, GPU_DIR, g['decode'])):
+        if g['id'] not in BUILT:
             continue
-        rows = []
-        n_pages, n_pats = build_gpu(site, root, g, rows)
-        site.write(f'{g["id"]}/data.js', '// The search\'s data (tools/gen-manual.py): title, page, instruction set, '
-                   'class, mask, value (of the 16-bit opcode), none, and the order of the encodings\' file\n'
-                   'var ARM = (window.ARM || []).concat([\n' + ',\n'.join(
-                       '[' + ','.join('"' + str(v).replace('\\', '\\\\').replace('"', '\\"') + '"' for v in r) + ']'
-                       for r in rows) + '\n]);\nwindow.ARM = ARM;\n')
-        gpus.append(f'<li><a href="{g["id"]}/">{g["name"]}</a>: {g["title"]} ({n_pages} instructions, {n_pats} encodings)</li>')
+        got = part(g['id'], g['name'], (g['name'], g['id'], ''), made(
+            g['id'], build_gpu, 'title, page, instruction set, class, mask, value (of the 16-bit opcode), none, and '
+                                'the order of the encodings\' file', g))
+        gpus.append(f'<li><a href="{g["id"]}/">{g["name"]}</a>: {g["title"]} '
+                    + (f'({got[0]} instructions, {got[1]} encodings)' if got else '(not made this time)') + '</li>')
     for g in DECODED:
         if g['id'] not in BUILT:
             continue
-        rows = []
-        n_pages, n_pats = build_decoded(site, root, g, rows)
-        site.write(f'{g["id"]}/data.js', '// The search\'s data (tools/gen-manual.py): title, page, instruction set, '
-                   'group, mask, value (of the whole word), none, and the order of the encodings\' file\n'
-                   'var ARM = (window.ARM || []).concat([\n' + ',\n'.join(
-                       '[' + ','.join('"' + str(v).replace('\\', '\\\\').replace('"', '\\"') + '"' for v in r) + ']'
-                       for r in rows) + '\n]);\nwindow.ARM = ARM;\n')
-        gpus.append(f'<li><a href="{g["id"]}/">{g["name"]}</a>: {g["title"]} ({n_pages} instructions)</li>')
-    nvn = None
-    if os.path.exists(os.path.join(root, NVN_DIR, 'nvn.hook')):
+        got = part(g['id'], g['name'], (g['name'], g['id'], ''), made(
+            g['id'], build_decoded, 'title, page, instruction set, group, mask, value (of the whole word), none, and '
+                                    'the order of the encodings\' file', g))
+        gpus.append(f'<li><a href="{g["id"]}/">{g["name"]}</a>: {g["title"]} '
+                    + (f'({got[0]} instructions)' if got else '(not made this time)') + '</li>')
+    if 'nvn' in BUILT:
         shutil.rmtree(os.path.join(out, 'nvn'), ignore_errors=True)
-        rows = []
-        nvn = build_nvn(site, root, rows, here)
-        site.write('nvn/data.js', '// The search\'s data (tools/gen-manual.py): name, page, NVN, what it is\n'
-                   'var ARM = (window.ARM || []).concat([\n' + ',\n'.join(
-                       '[' + ','.join('"' + str(v).replace('\\', '\\\\').replace('"', '\\"') + '"' for v in r) + ']'
-                       for r in rows) + '\n]);\nwindow.ARM = ARM;\n')
-    ctr = None
-    if '3ds-ipc' in BUILT:
-        rows = []
-        ctr = build_ctr_ipc(site, root, rows)
-        site.write('3ds-ipc/data.js', '// The search\'s data (tools/gen-manual.py): command, page, 3DS, service and '
-                   'command ID, the header word\'s mask and value, none, the ID\n'
-                   'var ARM = (window.ARM || []).concat([\n' + ',\n'.join(
-                       '[' + ','.join('"' + str(v).replace('\\', '\\\\').replace('"', '\\"') + '"' for v in r) + ']'
-                       for r in rows) + '\n]);\nwindow.ARM = ARM;\n')
-    android = None
-    if 'android' in BUILT:
-        rows = []
-        android = build_android(site, root, rows)
-        site.write('android/data.js', '// The search\'s data (tools/gen-manual.py): name, page, Java, what it is\n'
-                   'var ARM = (window.ARM || []).concat([\n' + ',\n'.join(
-                       '[' + ','.join('"' + str(v).replace('\\', '\\\\').replace('"', '\\"') + '"' for v in r) + ']'
-                       for r in rows) + '\n]);\nwindow.ARM = ARM;\n')
+        part('nvn', 'NVN API', NVN_MANUAL, made('nvn', lambda site_, root_, rows: build_nvn(site_, root_, rows, here),
+                                                'name, page, NVN, what it is'))
+    ctr = part('3ds-ipc', '3DS IPC', CTR_MANUAL, made(
+        '3ds-ipc', build_ctr_ipc, 'command, page, 3DS, service and command ID, the header word\'s mask and value, '
+                                  'none, the ID')) if '3ds-ipc' in BUILT else None
+    android = part('android', 'Android API', ANDROID_MANUAL, made(
+        'android', build_android, 'name, page, Java, what it is')) if 'android' in BUILT else None
     for name in ('manual.css', 'search.js'):
         shutil.copyfile(os.path.join(here, 'manual', name), os.path.join(out, name))
-    shutil.copyfile(os.path.join(root, ARCHES[0]['dir'], 'LICENSE'), os.path.join(out, 'LICENSE-sail-arm.txt'))
+    license_ = os.path.join(root, ARCHES[0]['dir'], 'LICENSE')
+    if os.path.exists(license_):
+        shutil.copyfile(license_, os.path.join(out, 'LICENSE-sail-arm.txt'))
     site.write('index.html', site.page('ARM ISA', 'ARM ISA',
                '<h1>ARM ISA</h1><p>The instructions ScarletNX recompiles, laid out as Arm\'s reference lays them out '
                'and made from the Sail it recompiles them from: <a href="https://github.com/rems-project/sail-arm">'
                'sail-arm</a>\'s model of Armv9.4-A, and ScarletNX\'s fixups of it. Each instruction has its encodings, '
                'their decode and its operation; every name they use is a page of the shared pseudocode.</p>'
-               '<div id="search" data-root=""></div>'
+               + ('<div id="search" data-root=""></div>' if arm_search else '') +
                f'<ul>{"".join(summary)}</ul>'
                '<p>The search takes a name (the nearest when none is the same) or an instruction word in hex '
                '(<code>0x1a020020</code>, or a Thumb halfword <code>0x4148</code>): it lists every encoding it '
@@ -3051,10 +3134,13 @@ def main(argv):
                + (f'<h2>The Android API</h2><ul><li><a href="android/">Android API</a>: the Java side of the framework '
                   f'ScarletNX gives an Android app ({android[0]} types in {android[1]} packages, {android[2]} members)'
                   f'</li></ul>' if android else ''),
-               0, search=[a['id'] for a in ARCHES]))
+               0, search=arm_search or None))
     print(f'{len(site.written)} files in {out} (ScarletNX {commit[:12]})')
+    if parts or site.failures:  # the site is whole, with pages in the failed ones' places
+        print(f'gen-manual: made in part: {len(parts)} manual(s) and {len(site.failures)} page(s) or file(s) '
+              'failed (above); a page in the place of each says why', file=sys.stderr)
+        return 3
     return 0
-
 
 if __name__ == '__main__':
     sys.exit(main(sys.argv[1:]))

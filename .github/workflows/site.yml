@@ -31,6 +31,7 @@ jobs:
       - run: sh tests/check-manual.sh
       - run: sh tests/check-book.sh
       - run: sh tests/check-docs.sh
+      - run: sh tests/check-build.sh
       - uses: actions/checkout@v5
         with:
           repository: scarletnx/ScarletNX

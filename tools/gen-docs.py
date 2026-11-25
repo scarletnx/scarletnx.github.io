@@ -15,6 +15,8 @@ The Markdown is what the documents use: ATX headings, paragraphs, lists (nested,
 tables, links, `code`, **strong**, *emphasis*, ~~struck~~, <https://...> and bare https:// links, and HTML
 comments (dropped). Any other HTML in them is text. Pages link the manuals' stylesheet (manual.css) and have no
 script.
+
+A document or a page this can't read is a page that says so, and the others are made: the exit status is then 3.
 """
 import html
 import os
@@ -29,6 +31,26 @@ TITLE = 'ScarletNX documentation'
 
 def fail(what):
     sys.exit(f'gen-docs: {what}')
+
+
+FAILED = []  # the documents and pages that failed: the others are made, and the exit status is 3
+
+
+def failed(what, e):
+    """A document or a page this doesn't read: on stderr (a warning of the run in GitHub's Actions), and its reason"""
+    reason = f'{type(e).__name__}: {e}'
+    print(f'gen-docs: {what}: {reason}', file=sys.stderr)
+    if os.environ.get('GITHUB_ACTIONS') == 'true':
+        print(f'::warning title=gen-docs::{what}: {reason}', file=sys.stderr)
+    FAILED.append(what)
+    return reason
+
+
+def stand_in(rel, reason):
+    """A document this couldn't read, as one page that says so, so the links to it lead somewhere"""
+    name = os.path.basename(rel)[:-3]
+    return Doc(rel, f'# {name}\n\nThis document could not be made from ScarletNX\'s docs/: `{reason}`. The rest of the '
+                    f'documentation was made.\n')
 
 
 # --- Markdown blocks -------------------------------------------------------------------------------------------
@@ -465,12 +487,22 @@ def main(argv):
     mds = [f for f in files if f.endswith('.md')]
     if 'README.md' not in mds:
         fail(f'{docs} has no README.md, the documents\' index')
-    documents = {f: Doc(f, open(os.path.join(docs, f), encoding='utf-8').read()) for f in mds}
+    documents = {}
+    for f in mds:  # a document this doesn't read stands in as a page that says so; the others are made
+        try:
+            documents[f] = Doc(f, open(os.path.join(docs, f), encoding='utf-8').read())
+        except Exception as e:
+            documents[f] = stand_in(f, failed(f, e))
 
     # every page, and the page each heading is on
     pages, where = [], {}
-    for f, doc in documents.items():
-        for name, title, bs, ids in pages_of(doc):
+    for f, doc in list(documents.items()):
+        try:
+            split = pages_of(doc)
+        except Exception as e:
+            doc = documents[f] = stand_in(f, failed(f, e))
+            split = pages_of(doc)
+        for name, title, bs, ids in split:
             pages.append((doc, name, title, bs, ids))
             for i in ids:
                 where.setdefault((f, i), name)
@@ -500,12 +532,15 @@ def main(argv):
         up = relative(name, 'index').rsplit('index.html', 1)[0] or './'
         css = os.path.relpath('manual.css', os.path.join('snx', os.path.dirname(name))).replace(os.sep, '/')
         body = []
-        for k, d in bs:
-            if k == 'toc':
-                body.append('<ul>\n' + '\n'.join(f'<li><a href="{relative(name, p)}">{html.escape(t, quote=False)}</a></li>'
-                                                 for p, t in d) + '\n</ul>')
-            else:
-                body.append(render([(k, d)], link, ids))
+        try:
+            for k, d in bs:
+                if k == 'toc':
+                    body.append('<ul>\n' + '\n'.join(f'<li><a href="{relative(name, p)}">{html.escape(t, quote=False)}</a></li>'
+                                                     for p, t in d) + '\n</ul>')
+                else:
+                    body.append(render([(k, d)], link, ids))
+        except Exception as e:  # a page this doesn't render: one that says so in its place
+            body = [f'<p>This page could not be made from ScarletNX\'s docs/: <code>{html.escape(failed(name, e))}</code>.</p>']
         crumbs = [f'<a href="{up}../../">ScarletNX</a>', f'<a href="{up}">{TITLE}</a>' if name != 'index' else TITLE]
         if name != doc.page:
             crumbs.append(f'<a href="{relative(name, doc.page)}">{html.escape(doc.title, quote=False)}</a>')
@@ -532,6 +567,9 @@ def main(argv):
         os.makedirs(os.path.dirname(path), exist_ok=True)
         open(path, 'w', encoding='utf-8').write(page)
     print(f'{len(documents)} document(s), {len(pages)} page(s): {out}')
+    if FAILED:
+        print(f'gen-docs: made in part: {len(FAILED)} document(s) or page(s) failed (above)', file=sys.stderr)
+        return 3
     return 0
 
 
