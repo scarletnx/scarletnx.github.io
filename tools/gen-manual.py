@@ -7,7 +7,7 @@ the PICA200's (the 3DS's GPU) and the USSE's (the Vita's GPU); and the NVN API (
         --commit HASH       the ScarletNX commit the Sail is from, for the links to it (else asked of git, else main)
 
 SCARLETNX is a checkout of ScarletNX; it reads src/common/cpu/aarch64/sail, src/common/cpu/arm/sail,
-src/nx/gpu/shader, src/3ds/gpu, src/vita/gpu, src/3ds/services and src/nx/gpu/nvn (a GPU manual is left out when its files aren't there). Every instruction is a page laid out as Arm's
+src/nx/gpu/shader, src/3ds/gpu, src/vita/gpu, src/3ds/services, src/android/framework and src/nx/gpu/nvn (a GPU manual is left out when its files aren't there). Every instruction is a page laid out as Arm's
 reference lays one out:
   ARM (manual/a64, manual/a32): made only from the Sail. Each class an encoding diagram (the fixed bits, the fields,
     under them the names of the fields the encoding fixes), its decode and the operation.
@@ -19,6 +19,8 @@ reference lays one out:
     Sail's functions read each, and the operation is the Sail's, as for Maxwell's.
   3DS IPC (manual/3ds-ipc): the commands of src/3ds/services/*.swipc, each request's and response's words as
     swipc --ctr's dispatcher reads and writes them, and the handler.
+  Android (manual/android): the Java side of src/android/framework as javadoc reads it: each public and protected
+    type and member, its declaration, its doc comment (/** */), the source's groups of members (// ---- name ----).
   NVN (manual/nvn): each function's signature, its doc comment (nvn.hook's ## @brief, @param, @return) and handler.
 Every name the Sail defines is a page of the shared pseudocode, which the instructions link to. Pages stay under the
 site's 16 KB: the indexes and a long definition split over pages, an instruction's links shrink to first uses.
@@ -763,13 +765,11 @@ def gpu_used_by(defs, enum_members):
 
 
 def other_manuals(g):
-    """The links of a GPU manual's index (or the NVN API's) to the other manuals"""
+    """The links of a manual's index to the other manuals made"""
     names = ['the <a href="../">ARM ISA</a>'] + [f'the <a href="../{o["id"]}/">{o["name"]}</a>' for o in GPUS + DECODED
                                                 if o is not g and o['id'] in BUILT]
-    if g['id'] == '3ds-ipc':
-        names.append('the <a href="../nvn/">NVN API</a>')
-    elif g['id'] == 'nvn' and '3ds-ipc' in BUILT:
-        names.append('the <a href="../3ds-ipc/">3DS IPC</a>')
+    names += [f'the <a href="../{i}/">{n}</a>' for i, n in (('nvn', 'NVN API'), ('3ds-ipc', '3DS IPC'),
+                                                           ('android', 'Android API')) if i != g['id'] and i in BUILT]
     text = ', '.join(names[:-1]) + ' and ' + names[-1] if len(names) > 1 else names[0]
     return f'<p>{text[0].upper() + text[1:]}.</p>'
 
@@ -1672,6 +1672,782 @@ def build_ctr_ipc(site, root, rows):
     return len(ifaces), ncmds
 
 
+# ---- the Android API: the Java side of ScarletNX's Android framework, as javadoc reads it ----
+
+JAVA_TOKEN = re.compile(r'''
+    (?P<sect>//[ \t]*-{3,}[^\n]*?-{3,}[ \t]*(?=\n)|/\*[ \t]*-{3,}[^\n]*?-{3,}[ \t]*\*/)
+  | (?P<doc>/\*\*(?!/).*?\*/)
+  | (?P<block>/\*.*?\*/)
+  | (?P<line>//[^\n]*)
+  | (?P<text>"""(?:.|\n)*?""")
+  | (?P<str>"(?:\\.|[^"\\\n])*")
+  | (?P<chr>'(?:\\.|[^'\\\n])+')
+  | (?P<num>\.?\d(?:[\w.]|[eEpP][+-])*)
+  | (?P<id>[A-Za-z_$][\w$]*)
+  | (?P<ws>\s+)
+  | (?P<op>>>>=|<<=|>>=|\.\.\.|->|::|\+\+|--|&&|\|\||[-+*/%&|^!=<>]=|.)
+''', re.S | re.X)
+JAVA_MODIFIERS = {'public', 'protected', 'private', 'static', 'final', 'abstract', 'native', 'synchronized',
+                  'transient', 'volatile', 'strictfp', 'default', 'sealed', 'non-sealed'}
+JAVA_KINDS = {'class', 'interface', 'enum', 'record'}
+
+
+class JTok:
+    __slots__ = ('kind', 'text', 'line')
+
+    def __init__(self, kind, text, line):
+        self.kind, self.text, self.line = kind, text, line
+
+
+def java_tokens(src):
+    """The file's tokens but whitespace and plain comments; a doc comment is a token ('doc')"""
+    out, line = [], 1
+    for m in JAVA_TOKEN.finditer(src):
+        k, t = m.lastgroup, m.group(0)
+        if k not in ('ws', 'block', 'line'):
+            out.append(JTok(k, t, line))
+        line += t.count('\n')
+    return out
+
+
+def javadoc_text(raw):
+    """A doc comment's text: the stars and the margin gone, its lines joined"""
+    body = raw[3:-2]
+    lines = [re.sub(r'^\s*\*(?!/) ?', '', l) for l in body.split('\n')]
+    return re.sub(r'[ \t]*\n[ \t]*', '\n', '\n'.join(lines)).strip()
+
+
+class JMember:
+    def __init__(self, kind, name, sig, mods, doc, line, **extra):
+        self.kind, self.name, self.sig, self.mods, self.doc, self.line = kind, name, sig, mods, doc, line
+        self.section = None
+        self.__dict__.update(extra)
+
+
+class JType:
+    def __init__(self, kind, name, fqn, pkg, mods, doc, line, path, outer):
+        self.kind, self.name, self.fqn, self.pkg, self.mods, self.doc, self.line = kind, name, fqn, pkg, mods, doc, line
+        self.path, self.outer = path, outer
+        self.extends, self.implements, self.tparams, self.members, self.nested = [], [], '', [], []
+        self.imports = None
+
+
+def java_join(toks):
+    """Tokens as source text, spaced as one writes Java"""
+    out = ''
+    for t in toks:
+        s = t.text
+        if not out:
+            out = s
+        elif s in (',', ';', ')', ']', '.', '...', '::') or out[-1] in '(.[@' or out.endswith('::'):
+            out += s
+        elif s in ('(', '[') and (out[-1].isalnum() or out[-1] in '_$>]'):
+            out += s
+        elif s == '<' and (out[-1].isalnum() or out[-1] in '_$'):
+            out += s
+        elif s == '>' or out[-1] == '<':
+            out += s
+        elif s == '?' and out[-1] == '<':
+            out += s
+        else:
+            out += ' ' + s
+    return out
+
+
+def java_parse(path, rel):
+    """A Java file's package, imports and types (each with its nested ones): the declarations javadoc sees"""
+    toks = java_tokens(open(path, encoding='utf-8').read())
+    pkg, imports, i = '', [], 0
+    types = []
+
+    def skip_balanced(i, open_, close):
+        depth = 0
+        while i < len(toks):
+            t = toks[i].text if toks[i].kind == 'op' else None
+            if t == open_:
+                depth += 1
+            elif t == close:
+                depth -= 1
+                if depth == 0:
+                    return i + 1
+            i += 1
+        return i
+
+    def skip_annotation(i):  # at '@': the annotation and its arguments
+        i += 1
+        if i < len(toks) and toks[i].text == 'interface':
+            return i
+        while i < len(toks) and toks[i].kind == 'id':
+            i += 1
+            if i < len(toks) and toks[i].text == '.':
+                i += 1
+            else:
+                break
+        if i < len(toks) and toks[i].text == '(':
+            i = skip_balanced(i, '(', ')')
+        return i
+
+    def angle_end(i):  # at '<': past the matching '>' of type arguments
+        depth = 0
+        while i < len(toks):
+            t = toks[i].text
+            if t == '<':
+                depth += 1
+            elif t == '>':
+                depth -= 1
+            elif t == '>>':
+                depth -= 2
+            elif t == '>>>':
+                depth -= 3
+            elif t in (';', '{', '(', ')', '='):
+                return i
+            i += 1
+            if depth <= 0:
+                return i
+        return i
+
+    def type_end(i):  # past a type: a name, its type arguments, its array brackets
+        while i < len(toks):
+            if toks[i].kind != 'id':
+                return i
+            i += 1
+            if i < len(toks) and toks[i].text == '<':
+                i = angle_end(i)
+            while i < len(toks) and toks[i].text == '@':
+                i = skip_annotation(i)
+            if i < len(toks) and toks[i].text == '.':
+                i += 1
+                continue
+            break
+        while i + 1 < len(toks) and toks[i].text == '[' and toks[i + 1].text == ']':
+            i += 2
+        if i < len(toks) and toks[i].text == '...':
+            i += 1
+        return i
+
+    def split_top(seq, sep=','):
+        parts, cur, depth = [], [], 0
+        for t in seq:
+            if t.text in ('(', '[', '{', '<'):
+                depth += 1
+            elif t.text in (')', ']', '}', '>'):
+                depth -= 1
+            elif t.text == '>>':
+                depth -= 2
+            elif t.text == '>>>':
+                depth -= 3
+            if t.text == sep and depth == 0:
+                parts.append(cur)
+                cur = []
+            else:
+                cur.append(t)
+        if cur:
+            parts.append(cur)
+        return parts
+
+    def params_of(seq):
+        out = []
+        for p in split_top(seq):
+            p = [t for t in p if t.text != 'final']
+            k = 0
+            while k < len(p) and p[k].text == '@':
+                j = k + 1
+                while j < len(p) and (p[j].kind == 'id' or p[j].text == '.'):
+                    j += 1
+                if j < len(p) and p[j].text == '(':
+                    d = 0
+                    while j < len(p):
+                        d += {'(': 1, ')': -1}.get(p[j].text, 0)
+                        j += 1
+                        if d == 0:
+                            break
+                k = j
+            p = p[k:]
+            if p:
+                out.append((java_join(p[:-1]), p[-1].text))
+        return out
+
+    def body(i, owner):
+        """A class body from just past its '{': its members and nested types; returns past its '}'"""
+        enum_consts = owner.kind == 'enum'
+        doc, section, first = None, None, len(owner.members)
+        while i < len(toks):
+            t = toks[i]
+            for m in owner.members[first:]:  # the members read since: the group they are in
+                m.section = section
+            first = len(owner.members)
+            if t.kind == 'sect':  # // ---- a group of members ----
+                section = t.text.strip('/* \t-') or None
+                i += 1
+                continue
+            if t.text == '}' and t.kind == 'op':
+                return i + 1
+            if t.kind == 'doc':
+                doc = (javadoc_text(t.text), t.line)
+                i += 1
+                continue
+            if enum_consts:  # the constants: names, their arguments, their bodies, up to ';' or '}'
+                if t.text == ';':
+                    enum_consts = False
+                    i += 1
+                    continue
+                if t.text == ',':
+                    i += 1
+                    continue
+                if t.text == '@':
+                    i = skip_annotation(i)
+                    continue
+                if t.kind == 'id':
+                    m = JMember('constant', t.text, t.text, {'public', 'static', 'final'}, doc and doc[0], t.line)
+                    i += 1
+                    if i < len(toks) and toks[i].text == '(':
+                        j = skip_balanced(i, '(', ')')
+                        m.sig += java_join(toks[i:j])
+                        i = j
+                    if i < len(toks) and toks[i].text == '{':
+                        i = skip_balanced(i, '{', '}')
+                    owner.members.append(m)
+                    doc = None
+                    continue
+                enum_consts = False
+            if t.text == ';':
+                i += 1
+                doc = None
+                continue
+            start = i
+            mods, deprecated = set(), False
+            while i < len(toks):
+                if toks[i].text == '@' and (i + 1 >= len(toks) or toks[i + 1].text != 'interface'):
+                    deprecated |= i + 1 < len(toks) and toks[i + 1].text == 'Deprecated'
+                    i = skip_annotation(i)
+                elif toks[i].kind == 'id' and toks[i].text in JAVA_MODIFIERS:
+                    mods.add(toks[i].text)
+                    i += 1
+                else:
+                    break
+            if i < len(toks) and toks[i].text == '{':  # an initializer
+                i = skip_balanced(i, '{', '}')
+                doc = None
+                continue
+            kind = toks[i].text if i < len(toks) else ''
+            if kind == '@' and i + 1 < len(toks) and toks[i + 1].text == 'interface':
+                kind = '@interface'
+                i += 1
+            if kind in JAVA_KINDS or kind == '@interface':
+                if owner.kind in ('interface', '@interface'):
+                    mods |= {'public', 'static'}
+                i = type_decl(i + 1, kind, mods, doc, owner.pkg, owner, owner.path, deprecated)
+                doc = None
+                continue
+            # a member: type parameters, a type, a name; or a constructor's name
+            tparams = ''
+            if i < len(toks) and toks[i].text == '<':
+                j = angle_end(i)
+                tparams = java_join(toks[i:j])
+                i = j
+            if i < len(toks) and toks[i].kind == 'id' and toks[i].text == owner.name and i + 1 < len(toks) \
+                    and toks[i + 1].text in ('(', '{'):
+                name_at, type_toks = i, []
+            else:
+                j = type_end(i)
+                type_toks = toks[i:j]
+                name_at = j
+            if name_at >= len(toks) or toks[name_at].kind != 'id' or not type_toks and toks[name_at].text != owner.name:
+                # not a declaration this reads: skip to the statement's end
+                while i < len(toks) and toks[i].text not in (';', '{', '}'):
+                    i += 1
+                if i < len(toks) and toks[i].text == '{':
+                    i = skip_balanced(i, '{', '}')
+                elif i < len(toks) and toks[i].text == ';':
+                    i += 1
+                doc = None
+                continue
+            name = toks[name_at].text
+            line = toks[start].line
+            if owner.kind in ('interface', '@interface'):
+                mods.add('public')
+            nxt = toks[name_at + 1].text if name_at + 1 < len(toks) else ''
+            if nxt == '(' or (nxt == '{' and owner.kind == 'record' and not type_toks):
+                if nxt == '(':
+                    j = skip_balanced(name_at + 1, '(', ')')
+                    params = params_of(toks[name_at + 2:j - 1])
+                else:
+                    j, params = name_at + 1, None  # a record's compact constructor
+                k = j
+                while k < len(toks) and toks[k].text not in ('{', ';'):
+                    k += 1
+                throws = ''
+                tail = toks[j:k]
+                if tail and tail[0].text == 'throws':
+                    throws = java_join(tail[1:])
+                default = java_join(tail[1:]) if tail and tail[0].text == 'default' else ''
+                behaviour = None
+                if k < len(toks) and toks[k].text == '{':
+                    end = skip_balanced(k, '{', '}')
+                    inner = toks[k + 1:end - 1]
+                    if not inner:
+                        behaviour = 'empty'
+                    elif inner[0].text == 'throw' and len(inner) > 2 and inner[2].text == 'UnsupportedOperationException':
+                        behaviour = 'unsupported'
+                    k = end
+                else:
+                    if 'abstract' not in mods and 'native' not in mods and owner.kind in ('interface', '@interface'):
+                        mods.add('abstract')
+                    k += 1
+                ret = java_join(type_toks)
+                kindm = 'constructor' if not type_toks else 'method'
+                owner.members.append(JMember(kindm, name, '', mods, doc and doc[0], line, ret=ret, params=params or [],
+                                             throws=throws, tparams=tparams, behaviour=behaviour, default=default,
+                                             deprecated=deprecated))
+                i = k
+                doc = None
+                continue
+            # fields: declarators to ';' (an initializer's braces, brackets and parentheses skipped)
+            ftype = java_join(type_toks)
+            k = name_at
+            decls = []
+            while k < len(toks):
+                nm = toks[k].text
+                k += 1
+                dims = ''
+                while k + 1 < len(toks) and toks[k].text == '[' and toks[k + 1].text == ']':
+                    dims += '[]'
+                    k += 2
+                init = []
+                if k < len(toks) and toks[k].text == '=':
+                    k += 1
+                    depth = 0
+                    while k < len(toks):
+                        x = toks[k].text if toks[k].kind == 'op' else None
+                        if x in ('(', '[', '{'):
+                            depth += 1
+                        elif x in (')', ']', '}'):
+                            depth -= 1
+                        elif x in (',', ';') and depth == 0:
+                            if x == ';' or (k + 1 < len(toks) and toks[k + 1].kind == 'id' and k + 2 < len(toks)
+                                            and toks[k + 2].text in ('=', ',', ';', '[')):
+                                break
+                        init.append(toks[k])
+                        k += 1
+                decls.append((nm, dims, init))
+                if k < len(toks) and toks[k].text == ',':
+                    k += 1
+                    continue
+                break
+            k += 1  # the ';'
+            for nm, dims, init in decls:
+                value = None
+                if init and {'static', 'final'} <= mods and len(init) <= 6 and all(
+                        x.kind in ('num', 'str', 'chr', 'id', 'op') for x in init) and not any(
+                        x.text in ('new', '{', '(') for x in init):
+                    value = re.sub(r'^([-~!]) ', r'\1', java_join(init))
+                owner.members.append(JMember('field', nm, '', mods, doc and doc[0], line, type=ftype + dims,
+                                             value=value, deprecated=deprecated))
+            i = k
+            doc = None
+        return i
+
+    def type_decl(i, kind, mods, doc, pkg, outer, rel, deprecated=False):
+        name = toks[i].text
+        line = toks[i].line
+        fqn = (outer.fqn + '.' if outer else (pkg + '.' if pkg else '')) + name
+        t = JType(kind, name, fqn, pkg, mods, doc and doc[0], line, rel, outer)
+        t.deprecated = deprecated
+        i += 1
+        if i < len(toks) and toks[i].text == '<':
+            j = angle_end(i)
+            t.tparams = java_join(toks[i:j])
+            i = j
+        if kind == 'record' and i < len(toks) and toks[i].text == '(':
+            j = skip_balanced(i, '(', ')')
+            t.components = params_of(toks[i + 1:j - 1])
+            i = j
+        while i < len(toks) and toks[i].text != '{':
+            w = toks[i].text
+            if w in ('extends', 'implements', 'permits'):
+                j = i + 1
+                while j < len(toks) and toks[j].text not in ('{', 'implements', 'extends', 'permits'):
+                    j += 1
+                names = [java_join(p) for p in split_top(toks[i + 1:j])]
+                if w == 'extends' and kind not in ('interface', '@interface'):
+                    t.extends = names
+                elif w != 'permits':
+                    (t.implements if w == 'implements' else t.extends).extend(names)
+                i = j
+            else:
+                i += 1
+        i = body(i + 1, t)
+        (outer.nested if outer else types).append(t)
+        return i
+
+    while i < len(toks):
+        t = toks[i]
+        if t.kind == 'sect':
+            i += 1
+            continue
+        if t.text == 'package':
+            j = i + 1
+            while toks[j].text != ';':
+                j += 1
+            pkg = ''.join(x.text for x in toks[i + 1:j])
+            i = j + 1
+            continue
+        if t.text == 'import':
+            j = i + 1
+            while toks[j].text != ';':
+                j += 1
+            imports.append(''.join(x.text for x in toks[i + 1:j]))
+            i = j + 1
+            continue
+        doc = None
+        if t.kind == 'doc':
+            doc = (javadoc_text(t.text), t.line)
+            i += 1
+        mods, deprecated = set(), False
+        while i < len(toks) and (toks[i].text in JAVA_MODIFIERS or
+                                 toks[i].text == '@' and toks[i + 1].text != 'interface'):
+            if toks[i].text == '@':
+                deprecated |= toks[i + 1].text == 'Deprecated'
+                i = skip_annotation(i)
+            else:
+                mods.add(toks[i].text)
+                i += 1
+        if i < len(toks) and toks[i].kind == 'doc':
+            continue
+        kind = toks[i].text if i < len(toks) else ''
+        if kind == '@':
+            kind = '@interface'
+            i += 1
+        if kind in JAVA_KINDS or kind == '@interface':
+            i = type_decl(i + 1, kind, mods, doc, pkg, None, rel, deprecated)
+        else:
+            i += 1
+    for t in types:
+        t.imports = imports
+    return pkg, imports, types
+ANDROID_DIR = 'src/android/framework'
+ANDROID_MANUAL = ('Android API', 'android', 'The framework is ScarletNX\'s (GPL-3.0-or-later); the parts that follow '
+                                           'the Android Open Source Project\'s sources (Apache-2.0) say so in their '
+                                           'files.')
+ANDROID_REFERENCE = 'https://developer.android.com/reference/'
+# the packages Android's reference documents (its own, and the libraries it ships)
+ANDROID_DOCUMENTED = ('android.', 'org.json', 'org.xmlpull.v1', 'javax.microedition.khronos', 'dalvik.system')
+
+
+def java_first_sentence(doc):
+    text = re.sub(r'\s+', ' ', re.sub(r'\{@\w+\s+([^}]*)\}', r'\1', doc or '')).strip()
+    m = re.match(r'(.+?[.:;!?])(\s|$)', text)
+    return (m.group(1) if m else text)[:300]
+
+
+def build_android(site, root, rows):
+    base = os.path.join(root, ANDROID_DIR)
+    types, by_fqn = [], {}
+    for d, dirs, files in os.walk(base):
+        dirs.sort()
+        for f in sorted(files):
+            if f.endswith('.java'):
+                rel = os.path.relpath(os.path.join(d, f), root)
+                _, _, ts = java_parse(os.path.join(d, f), rel)
+                stack = list(ts)
+                while stack:
+                    t = stack.pop(0)
+                    types.append(t)
+                    stack = t.nested + stack
+    # the API: public and protected types whose enclosing types are too, and their public and protected members
+    def visible(t):
+        while t:
+            if not t.mods & {'public', 'protected'}:
+                return False
+            t = t.outer
+        return True
+
+    api = [t for t in types if visible(t)]
+    by_fqn = {t.fqn: t for t in api}
+    packages = {}
+    for t in api:
+        packages.setdefault(t.pkg, []).append(t)
+
+    def page_of(t):
+        return f'c/{t.fqn}.html'
+
+    def resolve(name, ctx):
+        """A type's name, as ctx's file writes it, to the API's type, or None"""
+        name = name.strip()
+        if name in by_fqn:
+            return by_fqn[name]
+        first, _, rest = name.partition('.')
+        top = None
+        c = ctx
+        while c and not top:  # nested in ctx or in its outer types, or ctx's own
+            if c.name == first:
+                top = c
+            top = top or next((n for n in c.nested if n.name == first), None)
+            c = c.outer
+        if not top:
+            for imp in ctx.imports or []:
+                if imp.endswith('.' + first) and imp in by_fqn:
+                    top = by_fqn[imp]
+                    break
+        if not top and (f'{ctx.pkg}.{first}' if ctx.pkg else first) in by_fqn:
+            top = by_fqn[f'{ctx.pkg}.{first}' if ctx.pkg else first]
+        if not top:
+            for imp in ctx.imports or []:
+                if imp.endswith('.*') and f'{imp[:-2]}.{first}' in by_fqn:
+                    top = by_fqn[f'{imp[:-2]}.{first}']
+                    break
+        if not top:
+            return None
+        for part in rest.split('.') if rest else []:
+            top = next((n for n in top.nested if n.name == part and n.fqn in by_fqn), None)
+            if not top:
+                return None
+        return top
+
+    def type_html(text, ctx, up):
+        """A type as the source writes it, each name of the API a link to its page"""
+        out, last = [], 0
+        for m in re.finditer(r'[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*', text):
+            out.append(html.escape(text[last:m.start()]))
+            t = resolve(m.group(0), ctx)
+            out.append(f'<a href="{up}{page_of(t)}">{m.group(0)}</a>' if t else html.escape(m.group(0)))
+            last = m.end()
+        out.append(html.escape(text[last:]))
+        return ''.join(out)
+
+    def doc_html(doc, ctx, up):
+        """A doc comment as HTML: its paragraphs, {@code} and {@link}; its @ tags as a table"""
+        if not doc:
+            return ''
+        body, tags = [], []
+        for part in re.split(r'\n(?=\s*@\w)', doc):
+            m = re.match(r'\s*@(\w+)\s*(.*)', part, re.S)
+            if m and body:
+                tags.append((m.group(1), m.group(2)))
+            elif m and not body and part.lstrip().startswith('@'):
+                tags.append((m.group(1), m.group(2)))
+            else:
+                body.append(part)
+
+        def inline(text):
+            out, last = [], 0
+            for m in re.finditer(r'\{@(\w+)\s*([^}]*)\}', text):
+                out.append(html.escape(text[last:m.start()]))
+                what, arg = m.group(1), m.group(2).strip()
+                if what in ('link', 'linkplain'):
+                    target, _, label = arg.partition(' ')
+                    cls, _, member = target.partition('#')
+                    t = resolve(cls, ctx) if cls else ctx
+                    shown = html.escape(label or (target.replace('#', '.') if cls else member))
+                    out.append(f'<a href="{up}{page_of(t)}">{shown}</a>' if t and t.fqn in by_fqn
+                               else f'<code>{shown}</code>')
+                else:
+                    out.append(f'<code>{html.escape(arg)}</code>')
+                last = m.end()
+            out.append(html.escape(text[last:]))
+            return ' '.join(''.join(out).split())
+
+        paras = [p for p in re.split(r'\n\s*\n|<p>', '\n'.join(body)) if p.strip()]
+        out = ''.join(f'<p>{inline(p)}</p>' for p in paras)
+        if tags:
+            out += '<table class="fields">' + ''.join(
+                f'<tr><th>{html.escape(t)}</th><td>{inline(v)}</td></tr>' for t, v in tags) + '</table>'
+        return out
+
+    def anchor(m):
+        if m.kind in ('method', 'constructor'):
+            erased = [re.sub(r'<.*>', '', t).split('.')[-1].replace('[]', '_').replace('...', '_')
+                      for t, _ in m.params]
+            return re.sub(r'[^\w-]', '', '-'.join([m.name] + erased))
+        return m.name
+
+    def badges(m):
+        out = []
+        if 'native' in m.mods:
+            out.append('native')
+        if getattr(m, 'behaviour', None) == 'empty':
+            out.append('empty body')
+        if getattr(m, 'behaviour', None) == 'unsupported':
+            out.append('throws UnsupportedOperationException')
+        if getattr(m, 'deprecated', False):
+            out.append('deprecated')
+        return ''.join(f' <span class="tag">{b}</span>' for b in out)
+
+    def decl(t, up):
+        mods = [x for x in ('public', 'protected', 'abstract', 'static', 'final', 'sealed') if x in t.mods]
+        kind = {'@interface': '@interface'}.get(t.kind, t.kind)
+        text = ' '.join(mods + [kind]) + f' {html.escape(t.name)}{html.escape(t.tparams)}'
+        if getattr(t, 'components', None):
+            text += '(' + ', '.join(f'{type_html(a, t, up)} {html.escape(b)}' for a, b in t.components) + ')'
+        if t.extends:
+            text += ' extends ' + ', '.join(type_html(x, t.outer or t, up) for x in t.extends)
+        if t.implements:
+            text += ' implements ' + ', '.join(type_html(x, t.outer or t, up) for x in t.implements)
+        return f'<pre class="sig">{text}</pre>'
+
+    def member_html(m, t, up):
+        mods = ' '.join(x for x in ('public', 'protected', 'abstract', 'static', 'final', 'native', 'synchronized',
+                                    'default') if x in m.mods)
+        if m.kind in ('method', 'constructor'):
+            sig = (f'{mods} ' + (f'{html.escape(m.tparams)} ' if m.tparams else '')
+                   + (f'{type_html(m.ret, t, up)} ' if m.kind == 'method' else '') + f'{html.escape(m.name)}('
+                   + ', '.join(f'{type_html(a, t, up)} {html.escape(b)}' for a, b in m.params) + ')'
+                   + (f' throws {type_html(m.throws, t, up)}' if m.throws else '')
+                   + (f' default {html.escape(m.default)}' if m.default else ''))
+        elif m.kind == 'constant':
+            sig = html.escape(m.sig)
+        else:
+            sig = f'{mods} {type_html(m.type, t, up)} {html.escape(m.name)}' + (
+                f' = {html.escape(m.value)}' if m.value else '')
+        return (f'<dt id="{anchor(m)}"><code>{sig.strip()}</code>{badges(m)} <a class="src" '
+                f'href="{source}/{t.path}#L{m.line}">source</a></dt>'
+                + (f'<dd>{doc_html(m.doc, t, up)}</dd>' if m.doc else ''))
+
+    subclasses = {}
+    for t in api:
+        for x in t.extends + t.implements:
+            s_ = resolve(x, t.outer or t)
+            if s_:
+                subclasses.setdefault(s_.fqn, []).append(t)
+
+    def kind_name(t):
+        return {'class': 'Class', 'interface': 'Interface', 'enum': 'Enum', 'record': 'Record',
+                '@interface': 'Annotation'}[t.kind]
+
+    source = f'{GITHUB}/{site.commit[:12]}'  # a member's link: the commit short, as there are thousands
+    n_members = 0
+    for t in api:
+        members = [m for m in t.members if m.mods & {'public', 'protected'} or m.kind == 'constant']
+        n_members += len(members)
+        up = '../'
+        head = [f'<h1>{html.escape(t.name)}' + (' <span class="tag">deprecated</span>' if getattr(t, 'deprecated', False)
+                                                 else '') + '</h1>',
+                f'<p class="groups">{kind_name(t)} of <a href="../p/{t.pkg}.html">{html.escape(t.pkg)}</a>'
+                + (f', in <a href="../{page_of(t.outer)}">{html.escape(t.outer.name)}</a>' if t.outer else '')
+                + f' &middot; <a class="src" href="{GITHUB}/{site.commit}/{t.path}#L{t.line}">{t.path.rsplit("/", 1)[1]}</a>'
+                + (f' &middot; <a href="{ANDROID_REFERENCE}{t.pkg.replace(".", "/")}/{t.fqn[len(t.pkg) + 1:]}">Android\'s '
+                   f'reference</a>' if t.fqn.startswith(ANDROID_DOCUMENTED) and 'public' in t.mods else '') + '</p>',
+                decl(t, up)]
+        chain, s_ = [], resolve(t.extends[0], t.outer or t) if t.extends and t.kind == 'class' else None
+        while s_ and s_ not in chain and len(chain) < 12:
+            chain.append(s_)
+            s_ = resolve(s_.extends[0], s_.outer or s_) if s_.extends else None
+        if chain:
+            head.append('<p>' + ' &larr; '.join([html.escape(t.name)] + [f'<a href="../{page_of(c)}">{html.escape(c.name)}</a>'
+                                                                        for c in chain]) + '</p>')
+        head.append(doc_html(t.doc, t, up) or '')
+        nested = [n for n in t.nested if n.fqn in by_fqn]
+        if nested:
+            head.append('<h2>Nested types</h2><ul class="cols">' + ''.join(
+                f'<li><a href="../{page_of(n)}">{html.escape(n.name)}</a> ({n.kind})</li>' for n in nested) + '</ul>')
+        subs = sorted(subclasses.get(t.fqn, []), key=lambda x: x.name.lower())
+        if subs:
+            head.append(f'<h2>{"Implemented" if t.kind == "interface" else "Extended"} in the framework by</h2>'
+                        '<ul class="cols">' + ''.join(f'<li><a href="../{page_of(x)}">{html.escape(x.name)}</a></li>'
+                                                      for x in subs[:120]) + '</ul>'
+                        + (f'<p>and {len(subs) - 120} more</p>' if len(subs) > 120 else ''))
+        # the members: by the source's groups (// ---- name ----) when it has them, else by kind, in source order
+        blocks, groups = [], []
+        if any(m.section for m in members):
+            for m in members:
+                g = m.section or 'Members'
+                if not groups or groups[-1][0] != g:
+                    groups.append((g, []))
+                groups[-1][1].append(m)
+        else:
+            for title, kinds in (('Enum constants', ('constant',)), ('Fields', ('field',)),
+                                 ('Constructors', ('constructor',)), ('Methods', ('method',))):
+                ms = [m for m in members if m.kind in kinds]
+                if ms:
+                    groups.append((title, ms))
+        for g, ms in groups:
+            first = True
+            for m in ms:
+                blocks.append((g if first else None, member_html(m, t, up), m))
+                first = False
+        rows.append([t.name, f'android/{page_of(t)}', 'Java', f'{t.kind} {t.pkg}'])
+        rel = f'android/{page_of(t)}'
+        stem = t.fqn
+
+        def render(chunk, k, n, head=head, stem=stem, t=t):
+            nav = '' if n == 1 else '<p>Page ' + ' '.join(
+                (f'<a href="{stem}{"" if j == 1 else f"-{j}"}.html">{j}</a>' if j != k else f'<b>{j}</b>')
+                for j in range(1, n + 1)) + '</p>'
+            body, open_ = [], False
+            for g, b, _ in chunk:
+                if g is not None or not open_:
+                    if open_:
+                        body.append('</dl>')
+                    body.append(f'<h2>{html.escape(g[0].upper() + g[1:])}</h2>' if g else '')
+                    body.append('<dl>')
+                    open_ = True
+                body.append(b)
+            if open_:
+                body.append('</dl>')
+            return site.page(t.name, t.fqn, ('\n'.join(head) if k == 1 else f'<h1>{html.escape(t.name)}</h1>')
+                             + nav + '\n'.join(body) + nav, 2, manual=ANDROID_MANUAL)
+
+        split = split_pages(blocks, render, rel) if blocks else [(rel, [])]
+        searched = set()
+        for k, (r, chunk) in enumerate(split, 1):
+            site.write(r, render(chunk, k, len(split)))
+            for _, _, m in chunk:  # the search names each member once, an overload by the first
+                if m.name not in searched:
+                    searched.add(m.name)
+                    rows.append([m.name, f'{r}#{anchor(m)}', 'Java', f'{m.kind} of {t.name}'])
+
+    # the packages
+    def group_of(pkg):
+        return ('ScarletNX\'s runtime' if pkg.startswith('snx.') else 'Android' if pkg.startswith('android.')
+                else 'The libraries Android ships')
+
+    for pkg, ts in packages.items():
+        items = []
+        for kind, title in (('interface', 'Interfaces'), ('class', 'Classes'), ('enum', 'Enums'),
+                            ('record', 'Records'), ('@interface', 'Annotations')):
+            for x in sorted((x for x in ts if x.kind == kind), key=lambda x: x.fqn.lower()):
+                items.append((title, f'<tr><td><a href="../{page_of(x)}">{html.escape(x.fqn[len(pkg) + 1:])}</a></td>'
+                                     f'<td>{html.escape(java_first_sentence(x.doc))}</td></tr>'))
+
+        def render(chunk, k, n, pkg=pkg):
+            nav = '' if n == 1 else '<p>Page ' + ' '.join(
+                (f'<a href="{pkg}{"" if j == 1 else f"-{j}"}.html">{j}</a>' if j != k else f'<b>{j}</b>')
+                for j in range(1, n + 1)) + '</p>'
+            body, last = [], None
+            for title, row in chunk:
+                if title != last:
+                    if last:
+                        body.append('</table>')
+                    body.append(f'<h2>{title}</h2><table class="fields">')
+                    last = title
+                body.append(row)
+            if last:
+                body.append('</table>')
+            return site.page(pkg, pkg, f'<h1>{html.escape(pkg)}</h1><p class="groups">{group_of(pkg)}</p>{nav}'
+                             + ''.join(body) + nav, 1, manual=ANDROID_MANUAL)
+
+        for k, (r, chunk) in enumerate(split_pages(items, render, f'android/p/{pkg}.html'), 1):
+            site.write(r, render(chunk, k, len(split_pages(items, render, f'android/p/{pkg}.html'))))
+        rows.append([pkg, f'android/p/{pkg}.html', 'Java', 'package'])
+
+    lists = ''
+    for g in ('Android', 'The libraries Android ships', 'ScarletNX\'s runtime'):
+        pk = sorted(p for p in packages if group_of(p) == g)
+        if pk:
+            lists += f'<h2>{g}</h2><ul class="cols">' + ''.join(
+                f'<li><a href="p/{p}.html">{html.escape(p)}</a> ({len(packages[p])})</li>' for p in pk) + '</ul>'
+    natives = sum(1 for t in api for m in t.members if 'native' in m.mods and m.mods & {'public', 'protected'})
+    site.write('android/index.html', site.page('Android API', 'Android API',
+        '<h1>Android API</h1><p>The Java side of the Android framework ScarletNX gives an Android app '
+        f'(<code>{ANDROID_DIR}</code>), as javadoc reads it: every public and protected type and member, its '
+        'declaration, the doc comment over it, the groups its source puts the members in, and where it is. '
+        f'{len(api)} types in {len(packages)} packages, {n_members} members, {natives} of them native (their '
+        'bodies are ScarletNX\'s C). A member whose body is empty, or only throws UnsupportedOperationException, is '
+        'marked so. Each type of Android\'s own packages links to Android\'s reference.</p>'
+        '<div id="search" data-root="../" data-placeholder="Search: a package, type or member"></div>'
+        + lists + other_manuals({'id': 'android'}), 1, search=['android'], manual=ANDROID_MANUAL))
+    return len(api), len(packages), n_members
+
 # ---- the NVN manual: the API ScarletNX implements (nvn.hook), its types (nvn.h), Switch 2's marked ----
 
 NVN_DIR = 'src/nx/gpu/nvn'
@@ -2180,7 +2956,7 @@ def main(argv):
     root = argv[0]
     out = argv[1] if len(argv) == 2 else os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '_site', 'manual')
     commit = commit or find_commit(root, [a['dir'] for a in ARCHES] + [GPU_DIR] + [g['dir'] for g in DECODED]
-                                   + [NVN_DIR, VK_FORMATS, CTR_DIR])
+                                   + [NVN_DIR, VK_FORMATS, CTR_DIR, ANDROID_DIR])
     here = os.path.dirname(os.path.abspath(__file__))
 
     # the manual is made whole each time: what the Sail no longer has goes
@@ -2191,6 +2967,11 @@ def main(argv):
     ctr_dir = os.path.join(root, CTR_DIR)
     if os.path.isdir(ctr_dir) and any(f.endswith('.swipc') for f in os.listdir(ctr_dir)):
         BUILT.add('3ds-ipc')
+    if os.path.exists(os.path.join(root, NVN_DIR, 'nvn.hook')):
+        BUILT.add('nvn')
+    if os.path.isdir(os.path.join(root, ANDROID_DIR)):
+        BUILT.add('android')
+    shutil.rmtree(os.path.join(out, 'android'), ignore_errors=True)
     shutil.rmtree(os.path.join(out, '3ds-ipc'), ignore_errors=True)
     site = Site(out, commit)
     summary = []
@@ -2244,6 +3025,14 @@ def main(argv):
                    'var ARM = (window.ARM || []).concat([\n' + ',\n'.join(
                        '[' + ','.join('"' + str(v).replace('\\', '\\\\').replace('"', '\\"') + '"' for v in r) + ']'
                        for r in rows) + '\n]);\nwindow.ARM = ARM;\n')
+    android = None
+    if 'android' in BUILT:
+        rows = []
+        android = build_android(site, root, rows)
+        site.write('android/data.js', '// The search\'s data (tools/gen-manual.py): name, page, Java, what it is\n'
+                   'var ARM = (window.ARM || []).concat([\n' + ',\n'.join(
+                       '[' + ','.join('"' + str(v).replace('\\', '\\\\').replace('"', '\\"') + '"' for v in r) + ']'
+                       for r in rows) + '\n]);\nwindow.ARM = ARM;\n')
     for name in ('manual.css', 'search.js'):
         shutil.copyfile(os.path.join(here, 'manual', name), os.path.join(out, name))
     shutil.copyfile(os.path.join(root, ARCHES[0]['dir'], 'LICENSE'), os.path.join(out, 'LICENSE-sail-arm.txt'))
@@ -2258,7 +3047,10 @@ def main(argv):
                '(<code>0x1a020020</code>, or a Thumb halfword <code>0x4148</code>): it lists every encoding it '
                'matches.</p>' + (f'<h2>The GPUs\' instructions</h2><ul>{"".join(gpus)}</ul>' if gpus else '')
                + (f'<h2>The 3DS\'s services</h2><ul><li><a href="3ds-ipc/">3DS IPC</a>: the commands of the services\' '
-                  f'schemas, word by word ({ctr[0]} interfaces, {ctr[1]} commands)</li></ul>' if ctr else ''),
+                  f'schemas, word by word ({ctr[0]} interfaces, {ctr[1]} commands)</li></ul>' if ctr else '')
+               + (f'<h2>The Android API</h2><ul><li><a href="android/">Android API</a>: the Java side of the framework '
+                  f'ScarletNX gives an Android app ({android[0]} types in {android[1]} packages, {android[2]} members)'
+                  f'</li></ul>' if android else ''),
                0, search=[a['id'] for a in ARCHES]))
     print(f'{len(site.written)} files in {out} (ScarletNX {commit[:12]})')
     return 0

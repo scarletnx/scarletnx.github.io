@@ -42,3 +42,6 @@ tr.s2row td { background: #f3eefc; }
   tr.s2row td { background: #2a2338; }
 }
 h1 .s2, h1 .s1 { font-size: .45em; vertical-align: middle; }
+/* the Android API's marks on a member: native, an empty body, deprecated */
+.tag { font-size: smaller; padding: 0 .4em; border: 1px solid #8886; white-space: nowrap; }
+dl dt { margin-top: .3em; }

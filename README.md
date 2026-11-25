@@ -20,7 +20,9 @@ and the NVN API (`manual/nvn/`): every function of ScarletNX's `nvn.hook` with i
 and enums of its `nvn.h`, each format's Vulkan equivalent (its `vk/format.c`), and what only Switch 2's drivers have
 marked, by `tools/manual/nvn-drivers.txt` (the drivers' procedure tables, which `tools/nvn_hash.py --json` reads),
 and the 3DS IPC (`manual/3ds-ipc/`): the commands of ScarletNX's `src/3ds/services/*.swipc`, each request's and
-response's words as `swipc --ctr`'s dispatcher reads and writes them, with the handler. It is the one part with CSS (`manual.css`) and JavaScript (the search, `search.js`: a name, the nearest names, or the
+response's words as `swipc --ctr`'s dispatcher reads and writes them, with the handler, and the Android API
+(`manual/android/`): the Java side of ScarletNX's `src/android/framework` as javadoc reads it, each public and
+protected type and member with its declaration, doc comment and the source's groups. It is the one part with CSS (`manual.css`) and JavaScript (the search, `search.js`: a name, the nearest names, or the
 encodings an instruction word matches), from files and small, and its pages read without them. It is made, by the
 site's workflow from ScarletNX's `main`, or from a checkout (into `_site/manual/`):
 

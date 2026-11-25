@@ -135,6 +135,35 @@ has 3ds-ipc/data.js '["GetServiceHandle","3ds-ipc/srv.html#GetServiceHandle","3D
 has index.html '<a href="3ds-ipc/">3DS IPC</a>'
 has nvn/index.html '<a href="../3ds-ipc/">3DS IPC</a>'
 
+# the Android API: src/android/framework's public and protected types and members as javadoc reads them, the doc
+# comments, the source's groups (// ---- name ----), the marks, the links between the types
+for f in android/index.html android/data.js android/p/android.app.html android/c/android.app.Activity.html \
+         android/c/android.app.Activity.Result.html android/c/android.view.View.OnClickListener.html \
+         android/c/android.view.View.Direction.html android/c/snx.android.Device.html; do
+    [ -f "$tmp/manual/$f" ] || fail "no $f"
+done
+[ -f "$tmp/manual/android/c/android.app.NotApi.html" ] && fail "a package-private class is in the API"
+grep -q 'hidden\|packagePrivate\|titles' "$tmp/manual/android/c/android.app.Activity.html" && fail "a private member is in the API"
+has android/c/android.app.Activity.html '<pre class="sig">public class Activity extends <a href="../c/android.content.Context.html">Context</a> implements <a href="../c/android.view.View.OnClickListener.html">View.OnClickListener</a></pre>'
+has android/c/android.app.Activity.html '<h2>The lifecycle the app overrides</h2>'                    # a group of the source
+has android/c/android.app.Activity.html '<dt id="RESULT_OK"><code>public static final int RESULT_OK = -1</code>'
+has android/c/android.app.Activity.html '<dt id="setContentView-View"><code>public void setContentView(<a href="../c/android.view.View.html">View</a> view)</code>'
+has android/c/android.app.Activity.html 'See <a href="../c/android.view.View.html">View</a> and <code>setContentView(int)</code>.'
+has android/c/android.app.Activity.html '<span class="tag">throws UnsupportedOperationException</span>'
+has android/c/android.app.Activity.html '<a href="https://developer.android.com/reference/android/app/Activity">Android'
+has android/c/android.app.Activity.html '/blob/0123456789ab/src/android/framework/android/app/Activity.java#L26">source</a>'
+has android/c/android.app.Activity.Result.html 'public record Result(int code, <a href="../c/android.content.Context.html">android.content.Context</a> from)'
+has android/c/android.view.View.OnClickListener.html '<li><a href="../c/android.app.Activity.html">Activity</a></li>'   # implemented by
+has android/c/android.view.View.OnClickListener.html '<code>public default boolean onLongClick('
+has android/c/android.view.View.html '<span class="tag">deprecated</span>'
+has android/c/android.view.View.Direction.html '<dt id="RTL"><code>RTL</code>'
+has android/c/android.content.Context.html '<code>public final &lt;T&gt; T getSystemService(Class&lt;T&gt; serviceClass)</code>'
+has android/c/snx.android.Device.html '<code>public static native int densityDpi()</code> <span class="tag">native</span>'
+grep -q 'Android&#x27;s reference\|reference/snx' "$tmp/manual/android/c/snx.android.Device.html" && fail "ScarletNX's runtime links Android's reference"
+has android/data.js '["setContentView","android/c/android.app.Activity.html#setContentView-int","Java","method of Activity"]'
+has index.html '<a href="android/">Android API</a>'
+has 3ds-ipc/index.html '<a href="../android/">Android API</a>'
+
 # the same Sail makes the same manual
 python3 tools/gen-manual.py tests/sail "$tmp/again" --commit 0123456789abcdef0123456789abcdef01234567 >/dev/null
 diff -r "$tmp/manual" "$tmp/again" >/dev/null || fail "two runs differ"

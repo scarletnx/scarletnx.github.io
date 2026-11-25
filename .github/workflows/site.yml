@@ -41,6 +41,7 @@ jobs:
             src/3ds/gpu
             src/vita/gpu
             src/3ds/services
+            src/android/framework
       - run: sh tools/build-site.sh ScarletNX _site
       - uses: actions/upload-pages-artifact@v4
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
