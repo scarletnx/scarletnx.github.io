@@ -180,6 +180,8 @@ def load(root, arch, commit):
             else:
                 entry[who].append(d)
     for c in clauses:  # a field given straight to the decode function: the name of its parameter
+        if c.decode not in defs:  # the extract (sailgen --extract) left it out: no root reaches it
+            continue
         d = (defs[c.decode]['snx'] or defs[c.decode]['arm'])[-1]
         m = re.match(r'function \w+ \(?([\w, ]*)\)? =', d.text)
         params = [p.strip() for p in m.group(1).split(',')] if m and m.group(1).strip() else []
@@ -409,7 +411,7 @@ def build_arch(site, root, arch, out_rows):
     for key, page in pages.items():
         for heading, c in page['classes']:
             inst_names[c.decode] = f'{key}.html'
-            for d in defs[c.decode]['arm'] + defs[c.decode]['snx']:
+            for d in (defs[c.decode]['arm'] + defs[c.decode]['snx'] if c.decode in defs else []):
                 for e in re.findall(r'\b(execute_\w+)\(', d.text):
                     inst_names.setdefault(e, f'{key}.html')
 
@@ -454,6 +456,10 @@ def build_arch(site, root, arch, out_rows):
                 extra = guard_text(c)
                 parts.append(f'<p class="bits">{c.pattern}'
                              + (''.join(f'<br>{html.escape(g)}' for g in extra)) + '</p>')
+                if c.decode not in defs:
+                    parts.append(f'<h3>Decode</h3><p>The Sail has no <code>{c.decode}</code>: ScarletNX\'s extract of '
+                                 f'sail-arm keeps what its roots reach, and none reaches it.</p>')
+                    continue
                 dec = (defs[c.decode]['snx'] or defs[c.decode]['arm'])[0]
                 parts.append(f'<h3>Decode <a class="src" href="{site.source_link(dec)}">Sail</a></h3>')
                 if dec.source[0] == 'snx':
