@@ -7,7 +7,7 @@ the PICA200's (the 3DS's GPU) and the USSE's (the Vita's GPU); and the NVN API (
         --commit HASH       the ScarletNX commit the Sail is from, for the links to it (else asked of git, else main)
 
 SCARLETNX is a checkout of ScarletNX; it reads src/common/cpu/aarch64/sail, src/common/cpu/arm/sail,
-src/nx/gpu/shader, src/3ds/gpu, src/vita/gpu and src/nx/gpu/nvn (a GPU manual is left out when its files aren't there). Every instruction is a page laid out as Arm's
+src/nx/gpu/shader, src/3ds/gpu, src/vita/gpu, src/3ds/services and src/nx/gpu/nvn (a GPU manual is left out when its files aren't there). Every instruction is a page laid out as Arm's
 reference lays one out:
   ARM (manual/a64, manual/a32): made only from the Sail. Each class an encoding diagram (the fixed bits, the fields,
     under them the names of the fields the encoding fixes), its decode and the operation.
@@ -17,6 +17,8 @@ reference lays one out:
   PICA200 and USSE (manual/pica, manual/usse): the encodings' file (pica.decode, usse.decode) names every bit of the
     word, so each pattern's diagram is the file's, its format's and fields'; the fields' table says which of the
     Sail's functions read each, and the operation is the Sail's, as for Maxwell's.
+  3DS IPC (manual/3ds-ipc): the commands of src/3ds/services/*.swipc, each request's and response's words as
+    swipc --ctr's dispatcher reads and writes them, and the handler.
   NVN (manual/nvn): each function's signature, its doc comment (nvn.hook's ## @brief, @param, @return) and handler.
 Every name the Sail defines is a page of the shared pseudocode, which the instructions link to. Pages stay under the
 site's 16 KB: the indexes and a long definition split over pages, an instruction's links shrink to first uses.
@@ -764,6 +766,10 @@ def other_manuals(g):
     """The links of a GPU manual's index (or the NVN API's) to the other manuals"""
     names = ['the <a href="../">ARM ISA</a>'] + [f'the <a href="../{o["id"]}/">{o["name"]}</a>' for o in GPUS + DECODED
                                                 if o is not g and o['id'] in BUILT]
+    if g['id'] == '3ds-ipc':
+        names.append('the <a href="../nvn/">NVN API</a>')
+    elif g['id'] == 'nvn' and '3ds-ipc' in BUILT:
+        names.append('the <a href="../3ds-ipc/">3DS IPC</a>')
     text = ', '.join(names[:-1]) + ' and ' + names[-1] if len(names) > 1 else names[0]
     return f'<p>{text[0].upper() + text[1:]}.</p>'
 
@@ -1386,6 +1392,286 @@ def build_decoded(site, root, g, out_rows):
     return len(pages), len(pats)
 
 
+# ---- the 3DS IPC manual: the services' schemas (src/3ds/services/*.swipc), as swipc --ctr lays out their words ----
+
+CTR_DIR = 'src/3ds/services'
+CTR_MANUAL = ('3DS IPC', '3ds-ipc', 'The schemas and the handlers are ScarletNX\'s (GPL-3.0-or-later).')
+
+
+def parse_swipc(path):
+    """A .swipc file's types (name -> what it stands for) and interfaces: name, ports, line, comment over it, and
+    commands (id, name, arguments (type, name, out), decorators, line, comment over it). A comment over a definition
+    is the # or // lines right over it; ## lines are doxygen's commands (parse_doc)"""
+    raw = open(path, encoding='utf-8').read()
+    comments, text, i, line = {}, [], 0, 1
+    while i < len(raw):  # the text without its comments, its lines kept; each line's comment
+        if raw[i] == '#' or raw.startswith('//', i):
+            j = raw.find('\n', i)
+            j = len(raw) if j < 0 else j
+            comments[line] = raw[i:j]
+            text.append(' ' * (j - i))
+            i = j
+        elif raw.startswith('/*', i):
+            j = raw.index('*/', i) + 2
+            text.append(re.sub(r'[^\n]', ' ', raw[i:j]))
+            line += raw.count('\n', i, j)
+            i = j
+        else:
+            if raw[i] == '\n':
+                line += 1
+            text.append(raw[i])
+            i += 1
+    text = ''.join(text)
+
+    def line_of(pos):
+        return text.count('\n', 0, pos) + 1
+
+    def comment_over(n):
+        lines = []
+        while n - 1 in comments and not comments[n - 1].lstrip('#/ ').startswith(('SPDX', 'Copyright')):
+            n -= 1
+            lines.insert(0, comments[n])
+        doc = [l.lstrip()[2:].strip() for l in lines if l.lstrip().startswith(('##', '///'))]
+        plain = ' '.join(re.sub(r'^(#|//)\s?', '', l.strip()) for l in lines
+                         if not l.lstrip().startswith(('##', '///')))
+        return plain.strip() or None, parse_doc(doc) if doc else None
+
+    def split_args(body):
+        out, depth, cur = [], 0, ''
+        for ch in body:
+            depth += {'<': 1, '>': -1, '(': 1, ')': -1}.get(ch, 0)
+            if ch == ',' and depth == 0:
+                out.append(cur)
+                cur = ''
+            else:
+                cur += ch
+        out.append(cur)
+        result = []
+        for a in (x.strip() for x in out):
+            if a:
+                m = re.match(r'(.+?)\s+(\w+)$', a, re.S)
+                result.append((re.sub(r'\s+', ' ', m.group(1)) if m else a, m.group(2) if m else ''))
+        return result
+
+    types, ifaces, iface = {}, [], None
+    pat = re.compile(r'\btype\s+(\w+)\s*=\s*([^;]+);'
+                     r'|\binterface\s+([\w:]+)(?:\s+is\s+([^{]+?))?\s*\{'
+                     r'|((?:@\w+(?:\([^)]*\))?\s*)*)\[\s*(\w+)\s*\]\s*(\w+)\s*\(([^)]*)\)\s*(?:->\s*(\([^)]*\)|[^;]+?))?\s*;'
+                     r'|(\})', re.S)
+    for m in pat.finditer(text):
+        if m.group(1):
+            types[m.group(1)] = re.sub(r'\s+', ' ', m.group(2).strip())
+        elif m.group(3):
+            n = line_of(m.start())
+            comment, doc = comment_over(n)
+            iface = {'name': m.group(3), 'ports': [x.strip() for x in (m.group(4) or '').split(',') if x.strip()],
+                     'line': n, 'comment': comment, 'doc': doc, 'cmds': []}
+            ifaces.append(iface)
+        elif m.group(6) and iface is not None:
+            n = line_of(m.start(6))
+            comment, doc = comment_over(n)
+            outs = m.group(9)
+            if outs and outs.startswith('('):
+                outs = split_args(outs[1:-1])
+            elif outs:
+                outs = split_args(outs)
+            args = [(t, a, False) for t, a in split_args(m.group(8))] + [(t, a, True) for t, a in (outs or [])]
+            iface['cmds'].append({'id': int(m.group(6), 0), 'name': m.group(7), 'args': args,
+                                  'decorators': re.findall(r'@\w+', m.group(5) or ''), 'line': n,
+                                  'comment': comment, 'doc': doc})
+        elif m.group(10):
+            iface = None
+    return types, ifaces
+
+
+def ctr_wire(cmd, types):
+    """A command's words as swipc --ctr's dispatcher reads and writes them (tools/swipc/ctr.inc): the request's and the
+    response's header and their words (index, what), and the handler's C prototype's parameters"""
+    def resolve(t):
+        seen = set()
+        while t in types and t not in seen:
+            seen.add(t)
+            t = types[t]
+        return t
+
+    normal, pid, req, resp, params, runs = [0, 0], False, [], [], [], []
+    for t, name, out in cmd['args']:
+        r = resolve(t)
+        hm = re.fullmatch(r'handle<\s*(copy|move)\b[^>]*>', r)
+        bm = re.fullmatch(r'bytes<\s*(\w+)\s*>', r)
+        im = re.fullmatch(r'u(32|64)', r)
+        shown = t if t == r else f'{t} ({r})'
+        if r == 'pid' and not out:
+            pid = True
+            params.append(f'uint32_t a_{name}')
+        elif hm and out:
+            move = hm.group(1) == 'move'
+            if not runs or runs[-1][0] != move:
+                runs.append([move, []])
+            runs[-1][1].append((name, shown))
+            params.append(f'uint32_t* a_{name}')
+        elif im or (bm and int(bm.group(1), 0) % 4 == 0):
+            words = int(im.group(1)) // 32 if im else int(bm.group(1), 0) // 4
+            at = normal[out] + (2 if out else 1)
+            for k in range(words):
+                what = name if words == 1 else (f'{name}, low word' if im and k == 0 else f'{name}, high word' if im
+                                                 else f'{name}, bytes {4 * k}-{4 * k + 3}')
+                (resp if out else req).append((at + k, f'<code>{html.escape(name)}</code>: {html.escape(shown)}'
+                                               if words == 1 else f'<code>{html.escape(what)}</code>: {html.escape(shown)}'))
+            normal[out] += words
+            params.append(f'{"" if out else "const "}uint8_t* a_{name}' if bm else
+                          f'uint{im.group(1)}_t{"*" if out else ""} a_{name}')
+        else:
+            req.append((None, f'<code>{html.escape(name)}</code>: {html.escape(shown)}, a type swipc --ctr refuses'))
+    if pid:
+        req.append((normal[0] + 1, '0x20: the calling process\'s ID follows'))
+        req.append((normal[0] + 2, '<code>{}</code>: the caller\'s process ID, which the kernel writes over the '
+                                   'client\'s word'.format(html.escape(next(n for t, n, o in cmd['args']
+                                                                            if resolve(t) == 'pid' and not o)))))
+    at = normal[1] + 2
+    for move, hs in runs:
+        resp.append((at, f'0x{((len(hs) - 1) << 26) | (16 if move else 0):x}: {"moved" if move else "copied"} '
+                         f'handle{"s" if len(hs) > 1 else ""}, {len(hs)}'))
+        at += 1
+        for name, shown in hs:
+            resp.append((at, f'<code>{html.escape(name)}</code>: {html.escape(shown)}'))
+            at += 1
+    translated = at - normal[1] - 2
+    req_header = cmd['id'] << 16 | normal[0] << 6 | (2 if pid else 0)
+    resp_header = cmd['id'] << 16 | (normal[1] + 1) << 6 | translated
+    req.insert(0, (0, f'header 0x{req_header:08x}: command 0x{cmd["id"]:x}, {normal[0]} normal word'
+                      f'{"" if normal[0] == 1 else "s"}, {2 if pid else 0} translated'))
+    resp.insert(0, (0, f'header 0x{resp_header:08x}: command 0x{cmd["id"]:x}, {normal[1] + 1} normal word'
+                       f'{"" if normal[1] == 0 else "s"}, {translated} translated'))
+    resp.insert(1, (1, 'the result: 0 for success. A failed command\'s response is the header and the result alone'))
+    return req_header, resp_header, req, resp, params
+
+
+def build_ctr_ipc(site, root, rows):
+    base = os.path.join(root, CTR_DIR)
+    schemas = sorted(f for f in os.listdir(base) if f.endswith('.swipc'))
+    # the handlers' definitions in the services' C: file and line
+    defined = {}
+    for fname in sorted(os.listdir(base)):
+        if fname.endswith('.c'):
+            for n, line in enumerate(open(os.path.join(base, fname), encoding='utf-8'), 1):
+                m = re.match(r'(?:static\s+)?uint32_t\s+(\w+)\(SnxCtrIpc\*', line)
+                if m and not line.rstrip().endswith(';'):
+                    defined.setdefault(m.group(1), (f'{CTR_DIR}/{fname}', n))
+    ifaces, types = [], {}
+    for f in schemas:
+        t, fs = parse_swipc(os.path.join(base, f))
+        types.update(t)
+        for i in fs:
+            i['schema'] = f
+            ifaces.append(i)
+
+    def page_of(i):
+        name = i['ports'][0] if i['ports'] else i['name'].split('::')[-1]
+        return re.sub(r'[^A-Za-z0-9]+', '_', name).strip('_') or 'interface'
+
+    def title_of(i):
+        return ', '.join(i['ports']) if i['ports'] else i['name'].split('::')[-1]
+
+    def page(rel, title, body, depth, search=False):
+        site.write(f'3ds-ipc/{rel}', site.page(title, title, body, depth, search=['3ds-ipc'] if search else None,
+                                               manual=CTR_MANUAL))
+
+    def doc_parts(doc):
+        if not doc:
+            return []
+        parts = [f'<p>{html.escape(doc["brief"])}</p>'] if doc['brief'] else []
+        if doc['params']:
+            parts.append('<table class="fields"><tr><th>Argument</th><th>Description</th></tr>' + ''.join(
+                f'<tr><td><code>{html.escape(n)}</code></td><td>{html.escape(t)}</td></tr>' for n, t in doc['params'])
+                + '</table>')
+        if doc['return']:
+            parts.append(f'<p>Returns: {html.escape(doc["return"])}</p>')
+        parts += [f'<p>{html.escape(tag.capitalize())}: {html.escape(t)}</p>' for tag, t in doc['other']]
+        return parts
+
+    def words_table(words):
+        return ('<table class="fields"><tr><th>Word</th><th>Contents</th></tr>' + ''.join(
+            f'<tr><td>{"" if k is None else k}</td><td>{what}</td></tr>' for k, what in words) + '</table>')
+
+    for i in ifaces:
+        key = page_of(i)
+        mangled = i['name'].replace('::', '_')
+        src = f'{GITHUB}/{site.commit}/{CTR_DIR}/{i["schema"]}'
+        blocks = []
+        for c in i['cmds']:
+            req_h, resp_h, req, resp, params = ctr_wire(c, types)
+            handler = f'{mangled}_{c["name"]}'
+            h = defined.get(handler)
+            block = [f'<h2 id="{c["name"]}">{html.escape(c["name"])} <a class="src" href="{src}#L{c["line"]}">'
+                     f'{i["schema"]}</a></h2>',
+                     f'<p class="bits">command 0x{c["id"]:x}: request 0x{req_h:08x}, response 0x{resp_h:08x}</p>']
+            if c['comment']:
+                block.append(f'<p>{html.escape(c["comment"])}</p>')
+            block += doc_parts(c['doc'])
+            if c['decorators']:
+                block.append(f'<p>Marked {", ".join(c["decorators"])}.</p>')
+            block.append('<h3>Request</h3>' + words_table(req))
+            block.append('<h3>Response</h3>' + words_table(resp))
+            block.append(f'<h3>Handler</h3><pre class="sig">uint32_t {handler}(SnxCtrIpc* c'
+                         + ''.join(f', {html.escape(x)}' for x in params) + ')</pre>'
+                         + (f'<p><a href="{GITHUB}/{site.commit}/{h[0]}#L{h[1]}">{h[0].rsplit("/", 1)[1]}, line '
+                            f'{h[1]}</a></p>' if h else ''))
+            blocks.append('\n'.join(block))
+            rows.append([c['name'], f'3ds-ipc/{key}.html#{c["name"]}', '3DS', f'{title_of(i)} 0x{c["id"]:x}',
+                         'ffff0000', f'{c["id"] << 16:x}', '0', '0', str(c['id'])])
+        head = [f'<h1>{html.escape(title_of(i))}</h1>',
+                f'<p>The interface <code>{html.escape(i["name"])}</code> of <a href="{src}#L{i["line"]}">'
+                f'{i["schema"]}</a>' + (f', the service{"s" if len(i["ports"]) > 1 else ""} '
+                                       + ', '.join(f'<code>{html.escape(x)}</code>' for x in i['ports'])
+                                       if i['ports'] else ', a session a service opens (no port of its own)')
+                + f'. {len(i["cmds"])} command{"" if len(i["cmds"]) == 1 else "s"}; the handlers are in '
+                  f'<code>{CTR_DIR}</code>.</p>']
+        if i['comment']:
+            head.append(f'<p>{html.escape(i["comment"])}</p>')
+        head += doc_parts(i['doc'])
+        toc = '<ul class="cols">' + ''.join(f'<li><a href="#{c["name"]}">{html.escape(c["name"])}</a> (0x{c["id"]:x})</li>'
+                                           for c in i['cmds']) + '</ul>'
+
+        def render(chunk, k, n, key=key, head=head, toc=toc, i=i):
+            nav = '' if n == 1 else '<p>Page ' + ' '.join(
+                (f'<a href="{key}{"" if j == 1 else f"-{j}"}.html">{j}</a>' if j != k else f'<b>{j}</b>')
+                for j in range(1, n + 1)) + '</p>'
+            return site.page(title_of(i), title_of(i), '\n'.join(head) + (toc if n == 1 else '') + nav
+                             + '\n'.join(chunk) + nav, 1, manual=CTR_MANUAL)
+
+        for k, (rel, chunk) in enumerate(split_pages(blocks, render, f'3ds-ipc/{key}.html'), 1):
+            n = len(split_pages(blocks, render, f'3ds-ipc/{key}.html'))
+            site.write(rel, render(chunk, k, n))
+
+    ncmds = sum(len(i['cmds']) for i in ifaces)
+    table = ('<table class="fields"><tr><th>Service</th><th>Interface</th><th>Commands</th><th>Schema</th></tr>'
+             + ''.join(f'<tr><td><a href="{page_of(i)}.html">{html.escape(title_of(i))}</a></td>'
+                       f'<td><code>{html.escape(i["name"])}</code></td><td>{len(i["cmds"])}</td>'
+                       f'<td><a href="{GITHUB}/{site.commit}/{CTR_DIR}/{i["schema"]}">{i["schema"]}</a></td></tr>'
+                       for i in sorted(ifaces, key=lambda i: title_of(i).lower())) + '</table>')
+    page('index.html', '3DS IPC',
+         '<h1>3DS IPC</h1><p>The 3DS services\' commands that ScarletNX\'s schemas declare '
+         f'(<code>{CTR_DIR}/*.swipc</code>), each laid out word by word as the dispatcher <code>swipc --ctr</code> '
+         'makes of the schema reads the request and writes the response, with the handler that answers it. '
+         f'{len(ifaces)} interfaces, {ncmds} commands.</p>'
+         '<div id="search" data-root="../" data-placeholder="Search: a command, or a header word in hex"></div>'
+         '<p>The search takes a command\'s name (the nearest when none is the same) or a header word in hex '
+         '(<code>0x00050100</code>): its bits 31:16 are the command.</p>'
+         '<h2>The words</h2><p>A command is up to 64 words at the thread\'s TLS + 0x80. Its header is the command in '
+         'bits 31:16, then the count of normal words (bits 11:6) and of translated words (bits 5:0); the normal '
+         'words follow in the schema\'s order (u32 a word, u64 two, its low word first, bytes&lt;N&gt; N / 4), then '
+         'the translated: descriptors, each followed by what it describes. A request\'s pid is descriptor 0x20 and '
+         'the word the kernel writes the caller\'s process ID over; a response\'s handles of one kind in a row '
+         'share a descriptor, 0x0 copied, 0x10 moved, with the count less one in bits 31:26. A response\'s first '
+         'normal word is the result.</p>'
+         '<h2>Services</h2>' + table +
+         '<p>The services\' other commands are answered by their C (each service\'s own dispatch), before its '
+         'schema\'s dispatcher, and are not here.</p>' + other_manuals({'id': '3ds-ipc'}),
+         1, search=True)
+    return len(ifaces), ncmds
+
+
 # ---- the NVN manual: the API ScarletNX implements (nvn.hook), its types (nvn.h), Switch 2's marked ----
 
 NVN_DIR = 'src/nx/gpu/nvn'
@@ -1894,7 +2180,7 @@ def main(argv):
     root = argv[0]
     out = argv[1] if len(argv) == 2 else os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '_site', 'manual')
     commit = commit or find_commit(root, [a['dir'] for a in ARCHES] + [GPU_DIR] + [g['dir'] for g in DECODED]
-                                   + [NVN_DIR, VK_FORMATS])
+                                   + [NVN_DIR, VK_FORMATS, CTR_DIR])
     here = os.path.dirname(os.path.abspath(__file__))
 
     # the manual is made whole each time: what the Sail no longer has goes
@@ -1902,6 +2188,10 @@ def main(argv):
         shutil.rmtree(os.path.join(out, a['id']), ignore_errors=True)
     BUILT.update(g['id'] for g in GPUS if os.path.exists(os.path.join(root, GPU_DIR, g['decode'])))
     BUILT.update(g['id'] for g in DECODED if os.path.exists(os.path.join(root, g['dir'], g['decode'])))
+    ctr_dir = os.path.join(root, CTR_DIR)
+    if os.path.isdir(ctr_dir) and any(f.endswith('.swipc') for f in os.listdir(ctr_dir)):
+        BUILT.add('3ds-ipc')
+    shutil.rmtree(os.path.join(out, '3ds-ipc'), ignore_errors=True)
     site = Site(out, commit)
     summary = []
     for a in ARCHES:
@@ -1945,6 +2235,15 @@ def main(argv):
                    'var ARM = (window.ARM || []).concat([\n' + ',\n'.join(
                        '[' + ','.join('"' + str(v).replace('\\', '\\\\').replace('"', '\\"') + '"' for v in r) + ']'
                        for r in rows) + '\n]);\nwindow.ARM = ARM;\n')
+    ctr = None
+    if '3ds-ipc' in BUILT:
+        rows = []
+        ctr = build_ctr_ipc(site, root, rows)
+        site.write('3ds-ipc/data.js', '// The search\'s data (tools/gen-manual.py): command, page, 3DS, service and '
+                   'command ID, the header word\'s mask and value, none, the ID\n'
+                   'var ARM = (window.ARM || []).concat([\n' + ',\n'.join(
+                       '[' + ','.join('"' + str(v).replace('\\', '\\\\').replace('"', '\\"') + '"' for v in r) + ']'
+                       for r in rows) + '\n]);\nwindow.ARM = ARM;\n')
     for name in ('manual.css', 'search.js'):
         shutil.copyfile(os.path.join(here, 'manual', name), os.path.join(out, name))
     shutil.copyfile(os.path.join(root, ARCHES[0]['dir'], 'LICENSE'), os.path.join(out, 'LICENSE-sail-arm.txt'))
@@ -1957,7 +2256,9 @@ def main(argv):
                f'<ul>{"".join(summary)}</ul>'
                '<p>The search takes a name (the nearest when none is the same) or an instruction word in hex '
                '(<code>0x1a020020</code>, or a Thumb halfword <code>0x4148</code>): it lists every encoding it '
-               'matches.</p>' + (f'<h2>The GPUs\' instructions</h2><ul>{"".join(gpus)}</ul>' if gpus else ''),
+               'matches.</p>' + (f'<h2>The GPUs\' instructions</h2><ul>{"".join(gpus)}</ul>' if gpus else '')
+               + (f'<h2>The 3DS\'s services</h2><ul><li><a href="3ds-ipc/">3DS IPC</a>: the commands of the services\' '
+                  f'schemas, word by word ({ctr[0]} interfaces, {ctr[1]} commands)</li></ul>' if ctr else ''),
                0, search=[a['id'] for a in ARCHES]))
     print(f'{len(site.written)} files in {out} (ScarletNX {commit[:12]})')
     return 0

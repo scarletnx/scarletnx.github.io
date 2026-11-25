@@ -18,8 +18,9 @@ diagram, its decode, the operation, and the shared pseudocode they use), made fr
 `tools/gen-manual.py` (the GPUs' encodings from its `sm53.decode`, `sm86.decode`, `pica.decode` and `usse.decode`),
 and the NVN API (`manual/nvn/`): every function of ScarletNX's `nvn.hook` with its signature, doc comment and handler, the types
 and enums of its `nvn.h`, each format's Vulkan equivalent (its `vk/format.c`), and what only Switch 2's drivers have
-marked, by `tools/manual/nvn-drivers.txt` (the drivers' procedure tables, which `tools/nvn_hash.py --json` reads). It
-is the one part with CSS (`manual.css`) and JavaScript (the search, `search.js`: a name, the nearest names, or the
+marked, by `tools/manual/nvn-drivers.txt` (the drivers' procedure tables, which `tools/nvn_hash.py --json` reads),
+and the 3DS IPC (`manual/3ds-ipc/`): the commands of ScarletNX's `src/3ds/services/*.swipc`, each request's and
+response's words as `swipc --ctr`'s dispatcher reads and writes them, with the handler. It is the one part with CSS (`manual.css`) and JavaScript (the search, `search.js`: a name, the nearest names, or the
 encodings an instruction word matches), from files and small, and its pages read without them. It is made, by the
 site's workflow from ScarletNX's `main`, or from a checkout (into `_site/manual/`):
 

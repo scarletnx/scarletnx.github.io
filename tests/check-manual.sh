@@ -116,6 +116,25 @@ has nvn/t/NVNdlssParameters.html '<h1>NVNdlssParameters <span class="s2">Switch 
 has nvn/data.js '["nvnCommandBufferSetComputeWorkloadPriority","nvn/f/nvnCommandBufferSetComputeWorkloadPriority.html","NVN","function, Switch 2"]'
 has nvn/index.html 'data-load="../nvn/data.js"'
 
+# the 3DS IPC: src/3ds/services/*.swipc's commands, word by word as swipc --ctr lays them out (tools/swipc/ctr.inc),
+# and the handlers in the services' C
+for f in 3ds-ipc/index.html 3ds-ipc/srv.html 3ds-ipc/hid_USER.html 3ds-ipc/fs_USER.html 3ds-ipc/data.js; do
+    [ -f "$tmp/manual/$f" ] || fail "no $f"
+done
+has 3ds-ipc/srv.html 'command 0x5: request 0x00050100, response 0x00050042'                # 3dbrew's headers
+has 3ds-ipc/srv.html '<tr><td>2</td><td><code>name, bytes 4-7</code>: bytes&lt;8&gt;</td></tr>'
+has 3ds-ipc/srv.html '<tr><td>2</td><td>0x10: moved handle, 1</td></tr>'
+has 3ds-ipc/srv.html "<tr><td>1</td><td>0x20: the calling process's ID follows</td></tr>"  # RegisterClient's pid
+has 3ds-ipc/srv.html 'uint32_t snx_ctr_srv_GetServiceHandle(SnxCtrIpc* c, const uint8_t* a_name, uint32_t a_length, uint32_t a_flags, uint32_t* a_session)'
+has 3ds-ipc/srv.html '/src/3ds/services/srv.c#L28">srv.c, line 28</a>'
+has 3ds-ipc/hid_USER.html 'command 0xa: request 0x000a0000, response 0x000a0047'
+has 3ds-ipc/hid_USER.html '<tr><td>2</td><td>0x14000000: copied handles, 6</td></tr>'      # six copied: one descriptor
+has 3ds-ipc/hid_USER.html 'which has the same commands'                                    # the comment over the interface
+has 3ds-ipc/fs_USER.html '<tr><td>2</td><td><code>archive, high word</code>: u64</td></tr>'
+has 3ds-ipc/data.js '["GetServiceHandle","3ds-ipc/srv.html#GetServiceHandle","3DS","srv: 0x5","ffff0000","50000","0","0","5"]'
+has index.html '<a href="3ds-ipc/">3DS IPC</a>'
+has nvn/index.html '<a href="../3ds-ipc/">3DS IPC</a>'
+
 # the same Sail makes the same manual
 python3 tools/gen-manual.py tests/sail "$tmp/again" --commit 0123456789abcdef0123456789abcdef01234567 >/dev/null
 diff -r "$tmp/manual" "$tmp/again" >/dev/null || fail "two runs differ"

@@ -40,6 +40,7 @@ jobs:
             src/nx/gpu/vk
             src/3ds/gpu
             src/vita/gpu
+            src/3ds/services
       - run: sh tools/build-site.sh ScarletNX _site
       - uses: actions/upload-pages-artifact@v4
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'

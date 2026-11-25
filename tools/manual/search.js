@@ -100,7 +100,8 @@
         if (op) for (i = 0; i < rows.length; i++) if (matches(rows[i], op)) found.push([-1, rows[i]]);
         found.sort(function (a, b) { return a[1][2] < b[1][2] ? -1 : a[1][2] > b[1][2] ? 1 : a[1][8] - b[1][8]; });
         var first = {};
-        for (i = 0; i < found.length; i++) if (!first[found[i][1][2]]) first[found[i][1][2]] = found[i][1];
+        // the first an instruction set's decoder tries decodes the word; the 3DS IPC's services share command IDs
+        for (i = 0; i < found.length; i++) if (!first[found[i][1][2]] && found[i][1][2] != '3DS') first[found[i][1][2]] = found[i][1];
         var words_found = found.length, Q = q.toUpperCase(), best = 1e9;
         for (i = 0; i < rows.length; i++) {
             var t = rows[i][0].toUpperCase(), m = mnemonic(t);
