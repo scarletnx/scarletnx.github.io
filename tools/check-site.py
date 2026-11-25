@@ -105,6 +105,7 @@ def part_of(rel):
 
 def drop(site):
     import importlib.util
+    sys.dont_write_bytecode = True  # no __pycache__ in tools/
     spec = importlib.util.spec_from_file_location('stand_in', os.path.join(os.path.dirname(__file__), 'stand-in.py'))
     stand_in = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(stand_in)
