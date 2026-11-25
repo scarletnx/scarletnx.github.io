@@ -5,6 +5,10 @@
     tools/check-site.py SITE                every .html of a made site (tools/build-site.sh's _site)
     tools/check-site.py [FILE.html...]      every .html of the repository when none is named (not book/, the
                                             book's sources, nor tests/)
+    tools/check-site.py --drop SITE         as SITE, then a part of the site with a page that fails (a manual's
+                                            folder, manual/snx, manual/cs-book) is put out of it, a page in its
+                                            place saying why (tools/stand-in.py): the exit status is 3 when one
+                                            is, and 1 when a page of no such part fails (the main page)
 
 A page fails on JavaScript (a <script>, an on... attribute, a javascript: link), on CSS (a <style>, a style
 attribute, a stylesheet <link>), on a size over 16 KB (a second to load at 128 kbit/s), and on an element an old
@@ -90,7 +94,46 @@ def check(path, root):
     return page.failures
 
 
+def part_of(rel):
+    """The part of the site a page is of: manual/X for a page in a manual's folder, manual for the manuals' index
+    (manual/index.html), None for the site's own pages, which no generator makes"""
+    bits = rel.split('/')
+    if bits[0] != 'manual' or len(bits) < 2:
+        return None
+    return 'manual' if len(bits) == 2 else 'manual/' + bits[1]
+
+
+def drop(site):
+    import importlib.util
+    spec = importlib.util.spec_from_file_location('stand_in', os.path.join(os.path.dirname(__file__), 'stand-in.py'))
+    stand_in = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(stand_in)
+    root = os.path.abspath(site)
+    files = sorted(glob.glob(os.path.join(root, '**', '*.html'), recursive=True))
+    bad, fatal = {}, []
+    for path in files:
+        failures = check(path, root)
+        if not failures:
+            continue
+        part = part_of(os.path.relpath(path, root).replace(os.sep, '/'))
+        if part is None:
+            fatal += failures
+        else:
+            bad.setdefault(part, []).extend(failures)
+    for part, failures in sorted(bad.items(), key=lambda kv: kv[0] == 'manual'):  # the manuals' index last
+        print('\n'.join(failures))
+        print(f'check-site: {part}/ is put out of the site: {len(failures)} failure(s)')
+        stand_in.stand_in(root, part, f'{len(failures)} of its pages failed tools/check-site.py, the first: '
+                                      f'{os.path.relpath(failures[0], root)}')
+    if fatal:
+        print('\n'.join(fatal))
+        return 1
+    return 3 if bad else 0
+
+
 def main(argv):
+    if argv[:1] == ['--drop'] and len(argv) == 2:
+        return drop(argv[1])
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     site = len(argv) == 1 and os.path.isdir(argv[0])
     if site:

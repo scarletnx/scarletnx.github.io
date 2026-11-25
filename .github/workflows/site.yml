@@ -3,6 +3,10 @@
 # book/ (tools/gen-book.py, which compiles and runs its programs). Every push and pull request builds and checks
 # it; main deploys it, and again every day for ScarletNX's changes. Nothing made is committed. The repository's
 # Pages source is "GitHub Actions".
+#
+# A part of the site that fails to be made (ScarletNX's sources changed in a way a generator doesn't read) is a page
+# saying why, and the rest still deploys: build-site.sh's status 3. The report job then fails the run, after the
+# deploy, so it shows; the build step's warnings say what failed.
 name: Site
 on:
   push:
@@ -18,6 +22,8 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      status: ${{ steps.site.outputs.status }}
     steps:
       - uses: actions/checkout@v5
       - run: python3 tools/check-site.py
@@ -42,7 +48,12 @@ jobs:
             src/vita/gpu
             src/3ds/services
             src/android/framework
-      - run: sh tools/build-site.sh ScarletNX _site
+      - id: site
+        run: |
+          status=0
+          sh tools/build-site.sh ScarletNX _site || status=$?
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          [ "$status" = 0 ] || [ "$status" = 3 ]
       - uses: actions/upload-pages-artifact@v4
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         with:
@@ -60,3 +71,11 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
+  report:
+    needs: [build, deploy]
+    if: always() && needs.build.outputs.status == '3'
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "::error title=Site made in part::A part of the site could not be made and is a page saying why; the rest was deployed. The build job's warnings say which part and why."
+          exit 1
