@@ -1,18 +1,22 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Makes the ISA manuals (manual/) from ScarletNX's Sail: ARM's (A64 and AArch32), Maxwell's (SM53) and Ampere's (SM86).
+"""Makes the ISA manuals (manual/) from ScarletNX's Sail: ARM's (A64 and AArch32), Maxwell's (SM53), Ampere's (SM86),
+the PICA200's (the 3DS's GPU) and the USSE's (the Vita's GPU); and the NVN API (manual/nvn) from nvn.hook and nvn.h.
 
     tools/gen-manual.py SCARLETNX [OUT]     OUT is _site/manual beside tools/ when not named
         --commit HASH       the ScarletNX commit the Sail is from, for the links to it (else asked of git, else main)
 
-SCARLETNX is a checkout of ScarletNX; it reads src/common/cpu/aarch64/sail, src/common/cpu/arm/sail and
-src/nx/gpu/shader (the GPU manuals are left out when it has none). Every instruction is a page laid out as Arm's
+SCARLETNX is a checkout of ScarletNX; it reads src/common/cpu/aarch64/sail, src/common/cpu/arm/sail,
+src/nx/gpu/shader, src/3ds/gpu, src/vita/gpu and src/nx/gpu/nvn (a GPU manual is left out when its files aren't there). Every instruction is a page laid out as Arm's
 reference lays one out:
   ARM (manual/a64, manual/a32): made only from the Sail. Each class an encoding diagram (the fixed bits, the fields,
     under them the names of the fields the encoding fixes), its decode and the operation.
   Maxwell and Ampere (manual/sm53, manual/sm86): the opcode from the encodings' file (sm53.decode, sm86.decode), the
     fields the decoder gives and those the Sail reads (Field(lo, n), through the Sail's calls), the file's notes,
     and the operation in the Sail (the function the .roots file runs for it, and its fusions).
+  PICA200 and USSE (manual/pica, manual/usse): the encodings' file (pica.decode, usse.decode) names every bit of the
+    word, so each pattern's diagram is the file's, its format's and fields'; the fields' table says which of the
+    Sail's functions read each, and the operation is the Sail's, as for Maxwell's.
 Every name the Sail defines is a page of the shared pseudocode, which the instructions link to. Pages stay under the
 site's 16 KB: the indexes and a long definition split over pages, an instruction's links shrink to first uses.
 The output is the same for the same Sail: no date, nothing random.
@@ -585,6 +589,7 @@ GPUS = [
     },
 ]
 GPU_DIR = 'src/nx/gpu/shader'
+BUILT = set()  # the GPU manuals this run makes (their Sail is there), which the indexes link to
 
 # What the shader Sail's state functions read (sm53.sail's comments: d at 0, a at 8, b at 20; the constant buffer word
 # bank at 34, offset at 20; the immediate of 19 bits and its sign at 56), and the guard predicate every instruction has
@@ -652,7 +657,7 @@ def parse_roots(base, rel, title=None):
     lines = open(os.path.join(base, rel), encoding='utf-8').read().split('\n')
     comments = [l[1:].strip() for l in lines if l.startswith('#') and 'SPDX' not in l and 'Copyright' not in l]
     if title is None and comments:
-        title = re.sub(r'^SM\d+\'s ', '', comments[0]).split(' (')[0]
+        title = re.sub(r'^(SM\d+|The \w+)\'s ', '', comments[0]).split(' (')[0]
         title = title[0].upper() + title[1:]
     files = []
     for line in lines:
@@ -717,6 +722,51 @@ def gpu_fields(defs, fn, env=None, depth=0, via=None, out=None, uses=None):
     return out, uses
 
 
+def load_gpu_sail(base, dir_rel, rels):
+    """The definitions of a GPU's Sail files, by name; a val and the function after it one definition. Each knows
+    the section of its file it is in (a /* ---- name ---- */ line before it)"""
+    defs = {}
+    for rel in rels:
+        path = os.path.join(base, rel)
+        if not os.path.exists(path):
+            continue
+        sections = [(n, m.group(1)) for n, line in enumerate(open(path, encoding='utf-8'), 1)
+                    for m in [re.match(r'/\* ---- (.+?) ---- \*/$', line.strip())] if m]
+        for d in parse(path, ('snx', f'{dir_rel}/{rel}')):
+            if d.kind == 'clause':
+                continue
+            d.section = ([t for n, t in sections if n < d.line] or [None])[-1]
+            entry = defs.setdefault(d.name, {'arm': [], 'snx': []})
+            last = entry['snx'][-1] if entry['snx'] else None
+            if last and last.kind == 'val' and d.kind == 'function':
+                last.text += '\n\n' + d.text
+                last.kind = 'function'
+                last.comment = ' '.join(c for c in (last.comment, d.comment) if c)
+            else:
+                entry['snx'].append(d)
+    return defs
+
+
+def gpu_used_by(defs, enum_members):
+    """Who names what: a definition's users"""
+    used_by = {}
+    for n, entry in defs.items():
+        for d in entry['snx']:
+            for ref in set(IDENT.findall(d.text)) - {n}:
+                ref = enum_members.get(ref, ref)
+                if ref in defs:
+                    used_by.setdefault(ref, set()).add(n)
+    return used_by
+
+
+def other_manuals(g):
+    """The links of a GPU manual's index (or the NVN API's) to the other manuals"""
+    names = ['the <a href="../">ARM ISA</a>'] + [f'the <a href="../{o["id"]}/">{o["name"]}</a>' for o in GPUS + DECODED
+                                                if o is not g and o['id'] in BUILT]
+    text = ', '.join(names[:-1]) + ' and ' + names[-1] if len(names) > 1 else names[0]
+    return f'<p>{text[0].upper() + text[1:]}.</p>'
+
+
 def build_gpu(site, root, g, out_rows):
     gid, base = g['id'], os.path.join(root, GPU_DIR)
     manual = (g['name'], gid, f'The Sail and the encodings\' file are ScarletNX\'s (GPL-3.0-or-later); its encodings '
@@ -727,21 +777,7 @@ def build_gpu(site, root, g, out_rows):
     for m in re.finditer(r'X\((\w+), (?:(\w+), )?"([^"]*)"\)', header):
         info[m.group(1)] = (m.group(2), m.group(3))
     ops, fuses, family, files = parse_roots(base, g['roots'])
-    defs = {}
-    for rel in g['sails'] + [f for f in files if f not in g['sails']]:
-        if not os.path.exists(os.path.join(base, rel)):
-            continue
-        for d in parse(os.path.join(base, rel), ('snx', f'{GPU_DIR}/{rel}')):
-            if d.kind == 'clause':
-                continue
-            entry = defs.setdefault(d.name, {'arm': [], 'snx': []})
-            last = entry['snx'][-1] if entry['snx'] else None
-            if last and last.kind == 'val' and d.kind == 'function':
-                last.text += '\n\n' + d.text
-                last.kind = 'function'
-                last.comment = ' '.join(c for c in (last.comment, d.comment) if c)
-            else:
-                entry['snx'].append(d)
+    defs = load_gpu_sail(base, GPU_DIR, g['sails'] + [f for f in files if f not in g['sails']])
 
     def fn_of(opc):
         return ops.get(g['prefix'] + opc)
@@ -807,13 +843,7 @@ def build_gpu(site, root, g, out_rows):
         return table
 
     top_links = links('')
-    used_by = {}
-    for n, entry in defs.items():
-        for d in entry['snx']:
-            for ref in set(IDENT.findall(d.text)) - {n}:
-                ref = enum_members.get(ref, ref)
-                if ref in defs:
-                    used_by.setdefault(ref, set()).add(n)
+    used_by = gpu_used_by(defs, enum_members)
 
     op_hi = g['op_lo'] + 15
     for key, page in sorted(pages.items()):
@@ -970,6 +1000,18 @@ def build_gpu(site, root, g, out_rows):
             out_rows.append([page['title'], f'{rel}#{p["name"] if gid == "sm53" else page["pats"][0][1]["name"]}',
                              g['set'], heading, f'{mask:x}', f'{value:x}', '0', '0', str(p['order'])])
 
+    with_sail = sum(1 for p in pages.values() if p['sail'])
+    gpu_pages(site, g, manual, defs, helpers, used_by, executes, pages, groups, gslug, links,
+              f'laid out as Arm\'s reference lays an instruction out: each encoding\'s diagram (its opcode from '
+              f'<code>{g["decode"]}</code>, the fields the decoder and the Sail read) and the operation in ScarletNX\'s '
+              f'Sail. {len(pages)} instructions, {len(pats)} encodings; {with_sail} with Sail.')
+    return len(pages), len(pats)
+
+
+def gpu_pages(site, g, manual, defs, helpers, used_by, executes, pages, groups, gslug, links, intro):
+    """A GPU manual's shared pseudocode (a page per name, a long one over several), its groups' indexes, the shared
+    pseudocode's index and the manual's index, whose paragraph goes on with intro"""
+    gid = g['id']
     # the shared pseudocode: a page per name, a long one over several
     fn_links = links('../')
     for n in helpers:
@@ -1033,20 +1075,313 @@ def build_gpu(site, root, g, out_rows):
     split = split_pages(helpers, render_shared, f'{gid}/shared.html')
     for k, (rel, chunk) in enumerate(split, 1):
         site.write(rel, render_shared(chunk, k, len(split)))
-    with_sail = sum(1 for p in pages.values() if p['sail'])
     glist = ''.join(f'<li><a href="{gslug[grp]}.html">{html.escape(grp)}</a> '
                     f'({sum(1 for p in pages.values() if grp in p["groups"])})</li>' for grp in groups)
     site.write(f'{gid}/index.html', site.page(g['name'], g['name'],
-               f'<h1>{g["name"]}: {g["title"][g["title"].index("(") + 1:-1]}</h1><p>{g["about"][0].upper() + g["about"][1:]}, laid out as Arm\'s reference lays an instruction '
-               f'out: each encoding\'s diagram (its opcode from <code>{g["decode"]}</code>, the fields the decoder and '
-               f'the Sail read) and the operation in ScarletNX\'s Sail. {len(pages)} instructions, {len(pats)} encodings; '
-               f'{with_sail} with Sail.</p><div id="search" data-root="../"></div>'
+               f'<h1>{g["name"]}: {g["title"][g["title"].index("(") + 1:-1]}</h1><p>{g["about"][0].upper() + g["about"][1:]}, '
+               f'{intro}</p><div id="search" data-root="../"></div>'
                f'<p>The search takes a name (the nearest when none is the same) or {g["word"]}.</p>'
                f'<h2>Instructions</h2><ul>{glist}</ul><h2>Shared pseudocode</h2>'
                f'<p><a href="shared.html">Every function and type the instructions use</a> ({len(helpers)})</p>'
-               f'<p>The <a href="../">ARM ISA</a>, and the '
-               + ' and '.join(f'<a href="../{o["id"]}/">{o["name"]}</a>' for o in GPUS if o is not g) + '.</p>',
+               + other_manuals(g),
                1, search=[gid], manual=manual))
+
+
+# ---- the 3DS's and the Vita's GPUs (PICA200, USSE): their encodings' files name every field of the word ----
+
+DECODED = [
+    {
+        'id': 'pica', 'name': 'PICA200 ISA', 'title': 'PICA200 (3DS)', 'set': 'PICA', 'width': 32, 'dir': 'src/3ds/gpu',
+        'decode': 'pica.decode', 'prefix': 'P_', 'roots': 'sail/pica.roots', 'sails': ['sail/pica.sail'],
+        'about': 'the vertex shader instructions of the 3DS\'s GPU (the PICA200) that ScarletNX\'s shader decompiler '
+                 '(<code>vk/vsgen.c</code>) takes',
+        'word': 'a 32-bit instruction word in hex (<code>0x4c000000</code>)',
+        'encodings': 'nihstro\'s <code>shader_bytecode.h</code> (BSD-3-Clause), as Azahar reads them',
+    },
+    {
+        'id': 'usse', 'name': 'USSE ISA', 'title': 'USSE (SGX543)', 'set': 'USSE', 'width': 64, 'dir': 'src/vita/gpu',
+        'decode': 'usse.decode', 'prefix': 'U_', 'roots': 'sail/usse.roots', 'sails': ['sail/usse.sail'],
+        'about': 'the shader instructions of the Vita\'s GPU (the SGX543\'s USSE) that ScarletNX\'s shader translator '
+                 '(<code>usse.c</code>) takes',
+        'word': 'a 64-bit instruction word in hex (<code>0x3800000000000000</code>)',
+        'encodings': 'Vita3K\'s <code>usse_translator_entry.cpp</code> (GPL-2.0-or-later)',
+    },
+]
+
+
+def parse_decodetree(path, width):
+    """The patterns of a decodetree file whose patterns are whole words, in order, each with its format's bits and
+    fields put in: name, bits (left bit first: '0', '1', '-' ignored, 'f' a field's), fields (name and its segments
+    (lo, n), the most significant first), the format's name and its note, the note before the pattern, and the { }
+    group it is in (the decoder tries a group's patterns in order: the first that matches wins)"""
+    lines, cont = [], ''
+    for line in open(path, encoding='utf-8').read().split('\n'):
+        if line.rstrip().endswith('\\'):
+            cont += line.rstrip()[:-1] + ' '
+            continue
+        lines.append(cont + line)
+        cont = ''
+    fields, formats, pats, groups = {}, {}, [], []
+    block, blank_before, fmt_note, depth = [], True, None, 0
+
+    def layout(tokens, what):
+        bits, flds = [], []
+        for t in tokens:
+            if t[0] in '&@':
+                continue
+            m = re.fullmatch(r'([A-Za-z_]\w*):s?(\d+)', t)
+            if m:
+                n = int(m.group(2))
+                flds.append((m.group(1), [(width - len(bits) - n, n)]))
+                bits += ['f'] * n
+                continue
+            m = re.fullmatch(r'(?:([A-Za-z_]\w*)=)?%(\w+)', t)
+            if m:
+                flds.append((m.group(1) or m.group(2), fields[m.group(2)]))
+                continue
+            if re.fullmatch(r'[A-Za-z_]\w*=\w+', t):  # a constant argument: no bits
+                continue
+            if not re.fullmatch(r'[01.\-]+', t):
+                raise SystemExit(f'{path}: {what}: no bits {t!r}')
+            bits += list(t)
+        if len(bits) != width:
+            raise SystemExit(f'{path}: {what}: {len(bits)} bits, not {width}')
+        return bits, flds
+
+    for line in lines:
+        s = line.strip()
+        if s.startswith('#'):
+            block.append(s[1:].strip())
+            continue
+        if not s:
+            if block and blank_before and len(block) == 1 and block[0][:1].islower():
+                pass  # a section's heading over the patterns after it
+            block, blank_before, fmt_note = [], True, None
+            continue
+        note = ' '.join(b for b in block if b) or None
+        before, block, blank_before = blank_before, [], False
+        if s == '{':
+            depth += 1
+            groups.append([])
+            continue
+        if s == '}':
+            depth -= 1
+            continue
+        w = s.split()
+        if w[0].startswith('%'):
+            fields[w[0][1:]] = [(int(lo), int(n.lstrip('s'))) for lo, n in (seg.split(':') for seg in w[1:])]
+        elif w[0].startswith('&'):
+            pass
+        elif w[0].startswith('@'):
+            fmt_note = note or fmt_note
+            formats[w[0][1:]] = layout(w[1:], w[0]) + (fmt_note,)
+        else:
+            bits, flds = layout(w[1:], w[0])
+            fmt = next((t[1:] for t in w[1:] if t.startswith('@')), None)
+            if fmt:
+                fbits, fflds, _ = formats[fmt]
+                bits = [f if b == '.' else b for b, f in zip(bits, fbits)]
+                flds = fflds + flds
+            for _, segs in flds:  # the bits of a field put together from several places
+                for lo, n in segs:
+                    for b in range(lo, lo + n):
+                        if bits[width - 1 - b] == '.':
+                            bits[width - 1 - b] = 'f'
+            bits = ['-' if b == '.' else b for b in bits]
+            if note and before and len(note.split()) <= 12 and note[:1].islower() and '(' not in note:
+                note = None  # a section's heading, not the pattern's note
+            pat = {'name': w[0], 'bits': bits, 'fields': flds, 'format': fmt,
+                   'format_note': formats[fmt][2] if fmt else None, 'note': note, 'order': len(pats),
+                   'group': groups[-1] if depth else None}
+            if depth:
+                groups[-1].append(w[0])
+            pats.append(pat)
+    return pats
+
+
+def field_bits(segs):
+    """A field's bits as the tables write them: 31:26, or 53:52, 50, 35:34 for one put together"""
+    return ', '.join(f'{lo + n - 1}:{lo}' if n > 1 else f'{lo}' for lo, n in segs)
+
+
+def build_decoded(site, root, g, out_rows):
+    gid, base = g['id'], os.path.join(root, g['dir'])
+    width = g['width']
+    manual = (g['name'], gid, f'The Sail and the encodings\' file are ScarletNX\'s (GPL-3.0-or-later); its encodings '
+                              f'are from {g["encodings"]}.')
+    pats = parse_decodetree(os.path.join(base, g['decode']), width)
+    ops, fuses, family, files = parse_roots(base, g['roots'])
+    defs = load_gpu_sail(base, g['dir'], g['sails'] + [f for f in files if f not in g['sails']])
+
+    def fn_of(name):
+        return ops.get(g['prefix'] + name)
+
+    # a page per pattern; its group the roots' family (a roots file each), else the Sail's section of its operation
+    pages = {}
+    for p in pats:
+        f = fn_of(p['name'])
+        if not f:
+            grp = 'Without Sail'
+        elif files:
+            grp = family[g['prefix'] + p['name']]
+        else:
+            d = defs.get('execute_' + f[0])
+            grp = (d and d['snx'][-1].section) or family[g['prefix'] + p['name']]
+        grp = grp[0].upper() + grp[1:]
+        pages[p['name']] = {'title': p['name'], 'pat': p, 'groups': [grp], 'sail': bool(f)}
+    groups = []
+    for page in pages.values():
+        if page['groups'][0] not in groups:
+            groups.append(page['groups'][0])
+    if 'Without Sail' in groups:
+        groups.remove('Without Sail')
+        groups.append('Without Sail')
+
+    def slug(text):
+        words, out = re.sub(r'[^a-z0-9]+', ' ', text.lower()).split(), ''
+        for w in words:
+            if out and len(out) + 1 + len(w) > 32:
+                break
+            out = f'{out}-{w}' if out else w
+        return out
+
+    gslug = {grp: slug(grp) for grp in groups}
+    executes = {}
+    for key in sorted((k for k in pages if fn_of(k)), key=lambda k: fn_of(k)[1]):  # the page of the roots' first
+        f = fn_of(key)
+        if f:
+            executes.setdefault('execute_' + f[0], key)
+    fused = {}
+    for fn, opcs in fuses:
+        for opc in opcs:
+            fused.setdefault(opc[len(g['prefix']):], []).append(fn)
+    helpers = sorted(n for n in defs if n not in executes)
+    enum_members = {}
+    for n in helpers:
+        for d in defs[n]['snx']:
+            if d.kind == 'enum':
+                for m in IDENT.findall(d.text.split('=', 1)[1]):
+                    enum_members.setdefault(m, n)
+
+    def links(up):
+        table = {n: f'{up}fn/{n}.html' for n in helpers}
+        table.update({m: f'{up}fn/{e}.html' for m, e in enum_members.items()})
+        table.update({n: f'{up}{k}.html' for n, k in executes.items()})
+        return table
+
+    top_links = links('')
+    used_by = gpu_used_by(defs, enum_members)
+    shared_fn = {}  # an operation several opcodes run: how many
+    for f, _ in ops.values():
+        shared_fn[f] = shared_fn.get(f, 0) + 1
+
+    for key, page in sorted(pages.items()):
+        p = page['pat']
+        rel = f'{gid}/{key}.html'
+        f = fn_of(key)
+        sail_fields = []
+        if f:
+            sail_fields, _ = gpu_fields(defs, 'execute_' + f[0])
+        for fn in fused.get(key, []):
+            for part in (fn + '_ok', fn):
+                sail_fields += gpu_fields(defs, part)[0]
+
+        # the encoding: the fixed bits, and every field of the file (one put together from several places, each
+        # place a field of its own, named by the bits of the field's value it holds)
+        enc_fields = []
+        for name, segs in p['fields']:
+            if len(segs) == 1:
+                enc_fields.append((name, segs[0][0], segs[0][1]))
+                continue
+            top = sum(n for _, n in segs)
+            for lo, n in segs:
+                enc_fields.append((f'{name}[{top - 1}:{top - n}]' if n > 1 else f'{name}[{top - 1}]', lo, n))
+                top -= n
+        fixed = {width - 1 - k: b for k, b in enumerate(p['bits']) if b in '01'}
+        enc = Encoding(width, {b: fixed.get(b) for b in range(width)}, enc_fields)
+
+        # the fields' table: each field of the file, and which of the Sail's functions read it (or bits of it); then
+        # what the Sail reads outside them
+        readers, outside = {name: [] for name, _ in p['fields']}, []
+        spans = {name: set(b for lo, n in segs for b in range(lo, lo + n)) for name, segs in p['fields']}
+        for name, lo, n, src in sail_fields:
+            bits_read = set(range(lo, lo + n))
+            whole = next((fn for fn, segs in p['fields'] if (lo, n) in segs), None)  # it, or a piece of it
+            if whole:
+                what = src
+            else:
+                whole = next((fn for fn in spans if bits_read <= spans[fn]), None)
+                what = f'{src} ({lo + n - 1}:{lo})' if n > 1 else f'{src} ({lo})'
+            if whole:
+                if what not in readers[whole]:
+                    readers[whole].append(what)
+            elif (name, lo, n, src) not in outside:
+                outside.append((name, lo, n, src))
+        rows = [(name, segs[0][0] + segs[0][1], f'<tr><td>{html.escape(name)}</td><td>{field_bits(segs)}</td>'
+                       f'<td>{html.escape(", ".join(readers[name]))}</td></tr>') for name, segs in p['fields']]
+        rows += [(name, lo + n, f'<tr><td>{html.escape(name)}</td><td>{field_bits([(lo, n)])}</td>'
+                                f'<td>{html.escape(src)} (not a field of the file)</td></tr>')
+                 for name, lo, n, src in outside]
+        rows.sort(key=lambda r: -r[1])
+        table = ('<table class="fields"><tr><th>Field</th><th>Bits</th><th>The Sail reads it in</th></tr>'
+                 + ''.join(r[2] for r in rows) + '</table>')
+        shared_note = (f'<p>Its operation is {shared_fn[f[0]]} opcodes\' (<code>Form()</code> tells them apart), so '
+                       f'it may read the fields of their layouts too.</p>' if f and shared_fn[f[0]] > 1 else '')
+
+        pattern = ''.join('x' if b == 'f' else b for b in p['bits'])
+        pattern = ' '.join(pattern[i:i + 4] for i in range(0, width, 4))
+        if not f:
+            runs = '<p>ScarletNX\'s Sail has no operation for it: the translator\'s own code takes it, or refuses it.</p>'
+        else:
+            runs = f'<p>Runs <a href="#execute_{f[0]}">execute_{f[0]}</a> with <code>Form()</code> {f[1]}.</p>'
+        info = ''
+        if p['note']:
+            info += f'<p class="note">{html.escape(p["note"])}</p>'
+        if p['format']:
+            info += (f'<p>Its format is <code>@{p["format"]}</code>' + (f': {html.escape(p["format_note"])}'
+                                                                        if p['format_note'] else '') + '.</p>')
+        if p['group'] and len(p['group']) > 1:
+            info += ('<p>It is in a group of patterns that may match the same word: the decoder tries them in this '
+                     'order, and the first that matches decodes it: ' + ', '.join(n if n == key else f'<a href="{n}.html">{n}</a>'
+                                                               for n in p['group']) + '.</p>')
+        for with_links, linked in ((True, None), (True, set()), (False, None)):
+            parts = [f'<h1>{html.escape(page["title"])}</h1>',
+                     '<p class="groups">' + ' / '.join(f'<a href="{gslug[grp]}.html">{html.escape(grp)}</a>'
+                                                       for grp in page['groups']) + '</p>', LEGEND,
+                     f'<h2 class="classheading" id="{key}">Encoding</h2>', diagram(enc),
+                     f'<p class="bits">bits {width - 1}:0: {pattern}</p>', info, runs,
+                     '<h3>Fields</h3>' + shared_note + table]
+            if f and 'execute_' + f[0] in defs:
+                d = defs['execute_' + f[0]]['snx'][-1]
+                parts.append(f'<h2 class="pseudocode" id="execute_{f[0]}">Operation <a class="src" '
+                             f'href="{site.source_link(d)}">Sail</a></h2>')
+                if d.comment:
+                    parts.append(f'<p>{html.escape(d.comment)}</p>')
+                parts.append(code(body(d), top_links, f'{key}.html', with_links, linked))
+            for fn in fused.get(key, []):
+                if fn not in defs:
+                    continue
+                d = defs[fn]['snx'][-1]
+                parts.append(f'<h2 class="pseudocode">Fusion {fn} <a class="src" href="{site.source_link(d)}">Sail</a></h2>')
+                if d.comment:
+                    parts.append(f'<p>{html.escape(d.comment)}</p>')
+                for part in (fn + '_ok', fn):
+                    if part in defs:
+                        parts.append(code(defs[part]['snx'][-1].text, top_links, f'{key}.html', with_links, linked))
+            text = site.page(key, page['title'], '\n'.join(x for x in parts if x), 1, manual=manual)
+            if len(text.encode()) <= MAX_BYTES or not with_links:
+                break
+        site.write(rel, text)
+        mask = sum(1 << (width - 1 - k) for k, b in enumerate(p['bits']) if b in '01')
+        value = sum(1 << (width - 1 - k) for k, b in enumerate(p['bits']) if b == '1')
+        out_rows.append([key, f'{rel}#{key}', g['set'], page['groups'][0], f'{mask:x}', f'{value:x}', '0', '0',
+                         str(p['order'])])
+
+    with_sail = sum(1 for p in pages.values() if p['sail'])
+    gpu_pages(site, g, manual, defs, helpers, used_by, executes, pages, groups, gslug, links,
+              f'laid out as Arm\'s reference lays an instruction out: each encoding\'s diagram (its bits and fields '
+              f'from <code>{g["decode"]}</code>, and which the Sail reads) and the operation in ScarletNX\'s Sail. '
+              f'{len(pages)} instructions; {with_sail} with Sail.')
     return len(pages), len(pats)
 
 
@@ -1458,7 +1793,7 @@ def build_nvn(site, root, rows, here):
          f'<h2>Types</h2><ul><li><a href="enums.html">Enums</a> ({sum(1 for t in types.values() if t["kind"] == "enum")})</li>'
          f'<li><a href="types.html">Objects, structures, typedefs and callbacks</a> '
          f'({sum(1 for t in types.values() if t["kind"] != "enum")})</li></ul>'
-         '<p>The <a href="../">ARM ISA</a>, the <a href="../sm53/">Maxwell ISA</a> and the <a href="../sm86/">Ampere ISA</a>.</p>',
+         + other_manuals({'id': 'nvn'}),
          1, search=True)
     return len(funcs), s2
 
@@ -1482,12 +1817,15 @@ def main(argv):
         return 2
     root = argv[0]
     out = argv[1] if len(argv) == 2 else os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '_site', 'manual')
-    commit = commit or find_commit(root, [a['dir'] for a in ARCHES] + [GPU_DIR, NVN_DIR, VK_FORMATS])
+    commit = commit or find_commit(root, [a['dir'] for a in ARCHES] + [GPU_DIR] + [g['dir'] for g in DECODED]
+                                   + [NVN_DIR, VK_FORMATS])
     here = os.path.dirname(os.path.abspath(__file__))
 
     # the manual is made whole each time: what the Sail no longer has goes
-    for a in ARCHES + GPUS:
+    for a in ARCHES + GPUS + DECODED:
         shutil.rmtree(os.path.join(out, a['id']), ignore_errors=True)
+    BUILT.update(g['id'] for g in GPUS if os.path.exists(os.path.join(root, GPU_DIR, g['decode'])))
+    BUILT.update(g['id'] for g in DECODED if os.path.exists(os.path.join(root, g['dir'], g['decode'])))
     site = Site(out, commit)
     summary = []
     for a in ARCHES:
@@ -1511,6 +1849,17 @@ def main(argv):
                        '[' + ','.join('"' + str(v).replace('\\', '\\\\').replace('"', '\\"') + '"' for v in r) + ']'
                        for r in rows) + '\n]);\nwindow.ARM = ARM;\n')
         gpus.append(f'<li><a href="{g["id"]}/">{g["name"]}</a>: {g["title"]} ({n_pages} instructions, {n_pats} encodings)</li>')
+    for g in DECODED:
+        if g['id'] not in BUILT:
+            continue
+        rows = []
+        n_pages, n_pats = build_decoded(site, root, g, rows)
+        site.write(f'{g["id"]}/data.js', '// The search\'s data (tools/gen-manual.py): title, page, instruction set, '
+                   'group, mask, value (of the whole word), none, and the order of the encodings\' file\n'
+                   'var ARM = (window.ARM || []).concat([\n' + ',\n'.join(
+                       '[' + ','.join('"' + str(v).replace('\\', '\\\\').replace('"', '\\"') + '"' for v in r) + ']'
+                       for r in rows) + '\n]);\nwindow.ARM = ARM;\n')
+        gpus.append(f'<li><a href="{g["id"]}/">{g["name"]}</a>: {g["title"]} ({n_pages} instructions)</li>')
     nvn = None
     if os.path.exists(os.path.join(root, NVN_DIR, 'nvn.hook')):
         shutil.rmtree(os.path.join(out, 'nvn'), ignore_errors=True)

@@ -40,8 +40,10 @@
         return prev[b.length];
     }
 
-    // An instruction word: 0x and hex digits, or exactly 4, 8, 16 or 32 of them. An ARM word is its value; a GPU's
-    // the 16-bit opcode the encodings' file decodes: SM53's bits 63:48, SM86's 15:0 (of the low 64 bits, the last)
+    // An instruction word: 0x and hex digits, or exactly 4, 8, 16 or 32 of them. An ARM word is its value, and a
+    // PICA200 word; a USSE word its 16 digits (JavaScript's bit operations take 32 bits: it is matched by halves);
+    // SM53's and SM86's the 16-bit opcode the encodings' file decodes: SM53's bits 63:48, SM86's 15:0 (of the low 64
+    // bits, the last)
     function word(q) {
         var m = /^(0x)?([0-9a-f]+)$/i.exec(q.replace(/[\s_]/g, ''));
         if (!m) return null;
@@ -50,12 +52,26 @@
         return {
             arm: n <= 8 ? parseInt(h, 16) : -1,
             SM53: n == 16 ? parseInt(h.substr(0, 4), 16) : (m[1] && n <= 4 ? parseInt(h, 16) : -1),
-            SM86: n == 16 || n == 32 ? parseInt(h.substr(n - 4), 16) : (m[1] && n <= 4 ? parseInt(h, 16) : -1)
+            SM86: n == 16 || n == 32 ? parseInt(h.substr(n - 4), 16) : (m[1] && n <= 4 ? parseInt(h, 16) : -1),
+            USSE: n == 16 || (m[1] && n < 16) ? pad(h) : null
         };
+    }
+
+    function pad(h) { while (h.length < 16) h = '0' + h; return h; }
+
+    // a 64-bit word's match: each half's, as an ARM word's
+    function wide(r, h) {
+        var mask = pad(r[4]), value = pad(r[5]), k;
+        if (!h) return false;
+        for (k = 0; k < 16; k += 8)
+            if (((parseInt(h.substr(k, 8), 16) & parseInt(mask.substr(k, 8), 16)) >>> 0) != parseInt(value.substr(k, 8), 16))
+                return false;
+        return true;
     }
 
     function matches(r, w) {
         if (!r[4]) return false; // a name alone (the NVN API's)
+        if (r[2] == 'USSE') return wide(r, w.USSE);
         var op = r[2] == 'SM53' || r[2] == 'SM86' ? w[r[2]] : w.arm;
         if (op < 0) return false;
         if (r[2] == 'T16' && op > 0xffff) return false;

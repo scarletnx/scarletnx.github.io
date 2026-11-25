@@ -59,6 +59,33 @@ has sm86/UIADD3.html '<td colspan="6" class="lr f">URd</td>'
 has sm86/data.js '["IADD3","sm86/IADD3.html#IADD3","SM86","form 1","fff","210","0","0","0"]'
 has sm53/data.js '["IADD","sm53/IADD.html#IADD_I","SM53","IADD (imm)","fef8","3810","0","0","3"]'
 
+# the PICA200's and the USSE's: every bit and field from the encodings' file (a format's, a field put together from
+# several places), which of the Sail's functions read each, the overlapping patterns' order, and the whole word's
+# mask and value
+for f in pica/index.html pica/ADD.html pica/MADI.html pica/arithmetic.html pica/flow-control.html pica/fn/Source.html \
+         pica/data.js usse/index.html usse/LIMM.html usse/VMOV.html usse/SOP3.html usse/moves.html usse/data.js; do
+    [ -f "$tmp/manual/$f" ] || fail "no $f"
+done
+has pica/ADD.html '<td colspan="5" class="lr f">dest</td>'                              # @arith's field
+has pica/ADD.html 'bits 31:0: 0000 00xx xxxx xxxx xxxx xxxx xxxx xxxx'
+has pica/ADD.html 'Its format is <code>@arith</code>: format 1: src1 takes the address register'
+has pica/ADD.html '<tr><td>dest</td><td>25:21</td><td>ArithDest</td></tr>'               # Field(21, 5), through a call
+has pica/ADD.html 'with <code>Form()</code> 0'
+has pica/MADI.html '<td class="l b">1</td><td class="b">1</td><td class="r b">0</td>'    # a 3-bit opcode
+has pica/arithmetic.html '<a href="ADD.html">ADD</a>'                                      # the Sail's section
+has pica/fn/Source.html '<a href="../MAD.html">MAD</a>'                                   # execute_MAD's page: the roots line's first
+has pica/data.js '["MOV","pica/MOV.html#MOV","PICA","Arithmetic","fc000000","4c000000","0","0","17"]'
+has usse/LIMM.html '<td colspan="6" class="lr f">imm[31:26]</td>'                         # %limm_imm's first piece
+has usse/LIMM.html '<tr><td>imm</td><td>49:44, 40:36, 20:0</td><td>execute_LIMM</td></tr>'
+has usse/LIMM.html 'the decoder tries them in this order'
+has usse/LIMM.html '<a href="SMP.html">SMP</a>'
+has usse/VMOV.html '<tr><td>dest_ext</td><td>51</td><td>Bit(51)</td></tr>'                 # Bit(lo) with lo = 51
+has usse/SOP3.html 'has no operation for it'
+has usse/moves.html '<a href="VMOV.html">VMOV</a>'                                        # the family of usse_data.roots
+has usse/data.js '["LIMM","usse/LIMM.html#LIMM","USSE","Moves","ff30000000000000","fc20000000000000","0","0","31"]'
+has sm53/index.html '<a href="../usse/">USSE ISA</a>'
+has index.html '<a href="pica/">PICA200 ISA</a>'
+
 # the NVN API: signatures and handlers from nvn.hook, Switch 2's marks from tools/manual/nvn-drivers.txt, nvn.h's
 # enums, and the formats' Vulkan equivalents from vk/format.c
 for f in nvn/index.html nvn/device.html nvn/command_buffer.html nvn/enums.html nvn/types.html nvn/missing.html \
