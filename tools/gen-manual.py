@@ -25,6 +25,9 @@ reference lays one out:
     swipc --ctr's dispatcher reads and writes them, and the handler.
   Android (manual/android): the Java side of src/android/framework as javadoc reads it: each public and protected
     type and member, its declaration, its doc comment (/** */), the source's groups of members (// ---- name ----).
+  nn (manual/nn): the hooks of src/nx/hle/hook/hooks.hook and src/nx/nn/*.hook by family and by namespace, each C++
+    symbol demangled (an Itanium demangler of the names the hooks use), and the SVCs of src/nx/hle/svc/hos.svc in a
+    table by number with their registers in both ABIs, laid out as tools/svcgen lays them out.
   NVN (manual/nvn): each function's signature, its doc comment (nvn.hook's ## @brief, @param, @return) and handler.
 Every name the Sail defines is a page of the shared pseudocode, which the instructions link to. Pages stay under the
 site's 16 KB: the indexes and a long definition split over pages, an instruction's links shrink to first uses.
@@ -804,7 +807,7 @@ def other_manuals(g):
     """The links of a manual's index to the other manuals made"""
     names = ['the <a href="../">ARM ISA</a>'] + [f'the <a href="../{o["id"]}/">{o["name"]}</a>' for o in GPUS + DECODED
                                                 if o is not g and o['id'] in BUILT]
-    names += [f'the <a href="../{i}/">{n}</a>' for i, n in (('nvn', 'NVN API'), ('3ds-ipc', '3DS IPC'),
+    names += [f'the <a href="../{i}/">{n}</a>' for i, n in (('nvn', 'NVN API'), ('nn', 'nn API'), ('3ds-ipc', '3DS IPC'),
                                                            ('android', 'Android API')) if i != g['id'] and i in BUILT]
     text = ', '.join(names[:-1]) + ' and ' + names[-1] if len(names) > 1 else names[0]
     return f'<p>{text[0].upper() + text[1:]}.</p>'
@@ -2507,6 +2510,939 @@ def build_android(site, root, rows):
         + lists + other_manuals({'id': 'android'}), 1, search=['android'], manual=ANDROID_MANUAL))
     return len(api), len(packages), n_members
 
+# ---- the nn API: the hooks (tools/hookgen's declarations) and the SVCs (hos.svc) ----
+
+def strip_template_args(text):
+    out, depth = '', 0
+    for ch in text:
+        if ch == '<':
+            depth += 1
+        elif ch == '>':
+            depth -= 1
+        elif depth == 0:
+            out += ch
+    return out
+
+
+class Demangler:
+    """The Itanium C++ ABI's mangled names, as far as the hooks' symbols use them: nested and unscoped names,
+    constructors and destructors, operators, template arguments, substitutions (S_, St...), template parameters,
+    the builtin types, pointers, references, cv-qualifiers, function and array types, local names. A name outside
+    that raises ValueError. The result is spelled as c++filt spells it"""
+
+    BUILTIN = {'v': 'void', 'w': 'wchar_t', 'b': 'bool', 'c': 'char', 'a': 'signed char', 'h': 'unsigned char',
+               's': 'short', 't': 'unsigned short', 'i': 'int', 'j': 'unsigned int', 'l': 'long',
+               'm': 'unsigned long', 'x': 'long long', 'y': 'unsigned long long', 'n': '__int128',
+               'o': 'unsigned __int128', 'f': 'float', 'd': 'double', 'e': 'long double', 'g': '__float128',
+               'z': '...'}
+    BUILTIN_D = {'n': 'std::nullptr_t', 's': 'char16_t', 'i': 'char32_t', 'u': 'char8_t', 'h': 'half', 'a': 'auto',
+                 'c': 'decltype(auto)'}
+    OPERATORS = {'nw': 'new', 'na': 'new[]', 'dl': 'delete', 'da': 'delete[]', 'ps': '+', 'ng': '-', 'ad': '&',
+                 'de': '*', 'co': '~', 'pl': '+', 'mi': '-', 'ml': '*', 'dv': '/', 'rm': '%', 'an': '&', 'or': '|',
+                 'eo': '^', 'aS': '=', 'pL': '+=', 'mI': '-=', 'mL': '*=', 'dV': '/=', 'rM': '%=', 'aN': '&=',
+                 'oR': '|=', 'eO': '^=', 'ls': '<<', 'rs': '>>', 'lS': '<<=', 'rS': '>>=', 'eq': '==', 'ne': '!=',
+                 'lt': '<', 'gt': '>', 'le': '<=', 'ge': '>=', 'ss': '<=>', 'nt': '!', 'aa': '&&', 'oo': '||',
+                 'pp': '++', 'mm': '--', 'cm': ',', 'pm': '->*', 'pt': '->', 'cl': '()', 'ix': '[]'}
+    STD = {'t': 'std', 'a': 'std::allocator', 'b': 'std::basic_string',
+           's': 'std::string', 'i': 'std::istream', 'o': 'std::ostream', 'd': 'std::iostream'}
+
+    def __init__(self, s):
+        self.s, self.i, self.subs, self.tparams, self.kind = s, 0, [], [], 'name'
+
+    def peek(self, n=1):
+        return self.s[self.i:self.i + n]
+
+    def take(self, what):
+        if not self.s.startswith(what, self.i):
+            raise ValueError(f'{what} expected at {self.i}')
+        self.i += len(what)
+
+    def number(self):
+        j = self.i
+        while j < len(self.s) and self.s[j].isdigit():
+            j += 1
+        if j == self.i:
+            raise ValueError(f'a number expected at {self.i}')
+        n, self.i = int(self.s[self.i:j]), j
+        return n
+
+    def seq_id(self):  # S_ is 0, S0_ 1, ..., base 36
+        if self.peek() == '_':
+            self.i += 1
+            return 0
+        j = self.i
+        while self.s[j] != '_':
+            j += 1
+        n = int(self.s[self.i:j], 36) + 1
+        self.i = j + 1
+        return n
+
+    # ---- the types, as trees: ('name', text), ('ptr' | 'ref' | 'rref' | 'const' | 'volatile', t),
+    # ('func', ret, params, quals), ('array', n, t) ----
+    def show(self, t, d=''):
+        k = t[0]
+        if k == 'name':
+            return t[1] + d
+        if k in ('ptr', 'ref', 'rref'):
+            mark = {'ptr': '*', 'ref': '&', 'rref': '&&'}[k]
+            if t[1][0] in ('func', 'array'):
+                return self.show(t[1], '(' + mark + d + ')')
+            return self.show(t[1], mark + d)
+        if k in ('const', 'volatile'):
+            if t[1][0] == 'func':
+                return self.show(t[1], d)
+            return self.show(t[1], ' ' + k + d)
+        if k == 'func':
+            params = ', '.join(self.show(p) for p in t[2] if p != ('name', 'void') or len(t[2]) > 1)
+            return self.show(t[1]) + ' ' + d + '(' + params + ')' + t[3]
+        if k == 'array':
+            return self.show(t[2], (' (' + d + ')' if d else ' ') + f'[{t[1]}]')
+        raise ValueError(k)
+
+    def type(self):
+        c = self.peek()
+        if not c:
+            raise ValueError('the name ends in a type')
+        if c == '*':  # a hook pattern's run of any characters, read as one type, as the patterns use it
+            self.i += 1
+            t = ('name', '*')
+            self.subs.append(t)
+            return t
+        if c in self.BUILTIN:
+            self.i += 1
+            return ('name', self.BUILTIN[c])
+        if c == 'D' and self.peek(2)[1:] in self.BUILTIN_D:
+            self.i += 2
+            return ('name', self.BUILTIN_D[self.s[self.i - 1]])
+        if c in 'PROKVr':
+            self.i += 1
+            if c == 'r':
+                return self.type()
+            inner = self.type()
+            t = ({'P': 'ptr', 'R': 'ref', 'O': 'rref', 'K': 'const', 'V': 'volatile'}[c], inner)
+            self.subs.append(t)
+            return t
+        if c == 'F':
+            self.i += 1
+            if self.peek() == 'Y':
+                self.i += 1
+            ret = self.type()
+            params = []
+            while self.peek() not in ('E', 'R', 'O') or self.peek(2) in ('RK', 'RV') and False:
+                if self.peek() in ('R', 'O') and self.peek(2)[1:] == 'E':
+                    break
+                params.append(self.type())
+            quals = ''
+            if self.peek() in ('R', 'O'):
+                quals = ' &' if self.peek() == 'R' else ' &&'
+                self.i += 1
+            self.take('E')
+            t = ('func', ret, params, quals)
+            self.subs.append(t)
+            return t
+        if c == 'A':
+            self.i += 1
+            n = self.number() if self.peek().isdigit() else ''
+            self.take('_')
+            t = ('array', n, self.type())
+            self.subs.append(t)
+            return t
+        if c == 'S':
+            if self.peek(2)[1:] in self.STD and self.peek(2) != 'St':
+                name = self.name_prefix_sub()
+                if self.peek() == 'I':
+                    name = name + self.template_args()
+                    t = ('name', name)
+                    self.subs.append(t)
+                    return t
+                return ('name', name)
+            if self.peek(2) == 'St':
+                t = ('name', self.unscoped())
+                if self.peek() == 'I':
+                    self.subs.append(t)
+                    t = ('name', t[1] + self.template_args())
+                self.subs.append(t)
+                return t
+            self.i += 1
+            n = self.seq_id()
+            if n >= len(self.subs) and '*' in self.s:  # past what a pattern's * stands for: unknowable here
+                return ('name', '?')
+            t = self.subs[n]
+            if self.peek() == 'I':  # a substituted template's arguments
+                t = ('name', self.show(t) + self.template_args())
+                self.subs.append(t)
+            return t
+        if c == 'T':
+            self.i += 1
+            n = self.seq_id()
+            t = self.tparams[n] if n < len(self.tparams) else ('name', f'T{n}')
+            self.subs.append(t)
+            if self.peek() == 'I':
+                t = ('name', self.show(t) + self.template_args())
+                self.subs.append(t)
+            return t
+        if c == 'N' or c.isdigit() or c == 'Z':
+            name, _ = self.name(as_type=True)
+            t = ('name', name)
+            return t
+        if c == 'M':
+            self.i += 1
+            cls = self.type()
+            member = self.type()
+            t = ('name', self.show(member, ' ' + self.show(cls) + '::*'))
+            self.subs.append(t)
+            return t
+        raise ValueError(f'type {c!r} at {self.i}')
+
+    def name_prefix_sub(self):
+        """St, Sa, Sb, Ss... as a prefix"""
+        self.i += 1
+        c = self.s[self.i]
+        self.i += 1
+        return self.STD[c]
+
+    def source_name(self):
+        n = self.number()
+        name = self.s[self.i:self.i + n]
+        self.i += n
+        return '(anonymous namespace)' if name.startswith('_GLOBAL__N') else name
+
+    def unqualified(self, prefix):
+        """A name's last part: a source name, a constructor or destructor (of prefix's last part), an operator"""
+        c = self.peek()
+        self.kind = 'name'
+        if c.isdigit():
+            name = self.source_name()
+        elif c == 'C' and self.peek(2)[1:] and self.peek(2)[1:] in '1235I':
+            self.i += 2
+            if self.s[self.i - 1] == 'I':
+                self.i += 1
+                self.type()
+            name = strip_template_args(prefix).split('::')[-1]
+            self.kind = 'ctor'
+        elif c == 'D' and self.peek(2)[1:] and self.peek(2)[1:] in '0124':
+            self.i += 2
+            name = '~' + strip_template_args(prefix).split('::')[-1]
+            self.kind = 'ctor'
+        elif c == 'L':  # an internal name
+            self.i += 1
+            name = self.source_name()
+        elif c.islower() or c == 'c':
+            code = self.peek(2)
+            if code == 'cv':
+                self.i += 2
+                name = 'operator ' + self.show(self.type())
+                self.kind = 'ctor'  # a conversion: no return type either
+            elif code in self.OPERATORS:
+                self.i += 2
+                op = self.OPERATORS[code]
+                name = 'operator' + (' ' + op if op[0].isalpha() else op)
+            elif code == 'li':
+                self.i += 2
+                name = 'operator"" ' + self.source_name()
+            else:
+                raise ValueError(f'operator {code!r}')
+        else:
+            raise ValueError(f'name {c!r} at {self.i}')
+        while self.peek() == 'B':  # an ABI tag
+            self.i += 1
+            name += f'[abi:{self.source_name()}]'
+        return name
+
+    def template_args(self):
+        self.take('I')
+        args = []
+        while self.peek() != 'E':
+            if self.peek() == 'L':
+                self.i += 1
+                if self.peek() == '_' and self.peek(2) == '_Z':
+                    self.i += 2
+                    args.append(('name', self.encoding()))
+                else:
+                    t = self.type()
+                    j = self.s.index('E', self.i)
+                    v = self.s[self.i:j].replace('n', '-', 1) if self.s[self.i:j].startswith('n') else self.s[self.i:j]
+                    self.i = j
+                    args.append(('name', self.literal(t, v)))
+                self.take('E')
+            elif self.peek() == 'J':
+                self.i += 1
+                pack = []
+                while self.peek() != 'E':
+                    pack.append(self.type())
+                self.i += 1
+                args.append(('name', ', '.join(self.show(p) for p in pack)))
+            elif self.peek() == 'X':
+                self.i += 1
+                args.append(('name', self.expression()))
+                self.take('E')
+            else:
+                args.append(self.type())
+        self.i += 1
+        self.tparams = args
+        return '<' + ', '.join(self.show(a) for a in args) + '>'
+
+    SUFFIX = {'int': '', 'unsigned int': 'u', 'long': 'l', 'unsigned long': 'ul', 'long long': 'll',
+              'unsigned long long': 'ull'}
+
+    def literal(self, t, v):
+        if t == ('name', 'bool'):
+            return {'0': 'false', '1': 'true'}.get(v, v)
+        if t[0] == 'name' and t[1] in self.SUFFIX:
+            return v + self.SUFFIX[t[1]]
+        return f'({self.show(t)}){v}'
+
+    def expression(self):
+        """The expressions of template arguments the hooks' symbols have: names (sr), literals, template
+        parameters, binary operators"""
+        code = self.peek(2)
+        if code == 'sr':
+            self.i += 2
+            if self.peek().isdigit():  # qualifiers, E, then the name
+                levels = []
+                while self.peek() != 'E':
+                    level = self.source_name()
+                    if self.peek() == 'I':
+                        level += self.template_args()
+                    levels.append(level)
+                self.i += 1
+                scope = '::'.join(levels)
+            else:
+                scope = self.show(self.type())
+            name = self.source_name()
+            if self.peek() == 'I':
+                name += self.template_args()
+            return f'{scope}::{name}'
+        if self.peek() == 'L':
+            self.i += 1
+            t = self.type()
+            j = self.s.index('E', self.i)
+            v = self.s[self.i:j]
+            v = '-' + v[1:] if v.startswith('n') else v
+            self.i = j + 1
+            return self.literal(t, v)
+        if self.peek() == 'T':
+            return self.show(self.type())
+        if code in self.OPERATORS and code not in ('nw', 'na', 'dl', 'da', 'cl', 'ix'):
+            self.i += 2
+            if code in ('ps', 'ng', 'ad', 'de', 'co', 'nt'):
+                return self.OPERATORS[code] + self.expression()
+            left = self.expression()
+            right = self.expression()
+            return f'{left} {self.OPERATORS[code]} {right}'
+        raise ValueError(f'expression {code!r}')
+
+    def unscoped(self):
+        if self.peek(2) == 'St':
+            self.i += 2
+            return 'std::' + self.unqualified('std')
+        return self.unqualified('')
+
+    def name(self, as_type=False):
+        """A name and whether it ends in template arguments (whose function encodes its return type); a name as a
+        type is a substitution too"""
+        c = self.peek()
+        if c == 'N':
+            self.i += 1
+            quals = ''
+            while self.peek() in ('r', 'V', 'K'):
+                quals = {'r': ' restrict', 'V': ' volatile', 'K': ' const'}[self.s[self.i]] + quals
+                self.i += 1
+            ref = ''
+            if self.peek() in ('R', 'O'):
+                ref = ' &' if self.peek() == 'R' else ' &&'
+                self.i += 1
+            prefix, templated, parts, last_kind = '', False, 0, 'name'
+            while self.peek() != 'E':
+                c = self.peek()
+                if c == 'S' and not (self.peek(2)[1:] in self.STD and self.peek(2) != 'St'):
+                    if self.peek(2) == 'St':
+                        self.i += 2
+                        prefix = 'std'
+                        continue
+                    self.i += 1
+                    prefix = self.show(self.subs[self.seq_id()])
+                    templated = False
+                    continue  # a substitution is in the table already
+                elif c == 'S':
+                    prefix = self.name_prefix_sub()
+                    templated = False
+                    continue
+                elif c == 'T':
+                    self.i += 1
+                    prefix = self.show(self.tparams[self.seq_id()])
+                    self.subs.append(('name', prefix))
+                    templated = False
+                    continue
+                elif c == 'I':
+                    prefix += self.template_args()
+                    templated = True
+                else:
+                    part = self.unqualified(prefix)
+                    last_kind = self.kind
+                    prefix = prefix + '::' + part if prefix else part
+                    templated = False
+                parts += 1
+                if self.peek() != 'E' or as_type:
+                    self.subs.append(('name', prefix))
+            self.i += 1
+            self.quals = quals + ref
+            self.kind = last_kind  # the last part's, not a template argument's
+            return prefix, templated
+        if c == 'Z':
+            self.i += 1
+            outer = self.encoding()
+            self.take('E')
+            if self.peek() == 's':
+                self.i += 1
+                name = outer + '::string literal'
+            else:
+                inner, templated = self.name(as_type)
+                name = outer + '::' + inner
+            if self.peek() == '_':
+                self.i += 1
+                self.number() if self.peek().isdigit() else None
+            return name, False
+        name = self.unscoped()
+        self.quals = ''
+        last_kind = self.kind
+        if self.peek() == 'I':
+            self.subs.append(('name', name))
+            name += self.template_args()
+            self.kind = last_kind
+            if as_type:
+                self.subs.append(('name', name))
+            return name, True
+        if self.peek() == 'I':
+            self.subs.append(('name', name))
+            name += self.template_args()
+            if as_type:
+                self.subs.append(('name', name))
+            return name, True
+        if as_type:
+            self.subs.append(('name', name))
+        return name, False
+
+    def encoding(self):
+        name, templated = self.name()
+        quals = self.quals
+        if self.i >= len(self.s) or self.peek() in ('E', '.'):
+            return name
+        if templated and self.kind != 'ctor':  # a template function's name: its return type first
+            ret = self.type()
+        else:
+            ret = None
+        params = []
+        while self.i < len(self.s) and self.peek() not in ('E', '.'):
+            params.append(self.type())
+        shown = ', '.join(self.show(p) for p in params if not (p == ('name', 'void') and len(params) == 1))
+        return (self.show(ret) + ' ' if ret else '') + f'{name}({shown}){quals}'
+
+
+def demangle(symbol):
+    """A symbol as c++filt spells it, or None for one not mangled or not read here"""
+    if not symbol.startswith('_Z') or symbol.count('*') > 4:
+        return None
+    try:
+        d = Demangler(symbol)
+        d.i = 2
+        text = d.encoding()
+        if d.i < len(symbol):
+            clone = symbol[d.i:]
+            if not clone.startswith('.'):
+                return None
+            text += ' [clone ' + clone + ']'
+        return text
+    except (ValueError, IndexError, KeyError):
+        return None
+
+
+NN_HOOKS = ['src/nx/hle/hook/hooks.hook']  # and every src/nx/nn/*.hook
+NN_DIR = 'src/nx/nn'
+NN_SVC = 'src/nx/hle/svc/hos.svc'
+NN_HANDLER_DIRS = ['src/nx/hle/hook', 'src/nx/nn', 'src/nx/hle/svc']
+NN_MANUAL = ('nn API', 'nn', 'The hooks\' and the SVCs\' declarations and their handlers are ScarletNX\'s '
+                             '(GPL-3.0-or-later); the SVCs\' declarations are Eden\'s, as hos.svc says.')
+
+
+def parse_hookspec(path):
+    """A file of tools/hookgen's language (hle/hook/hooks.hook's): its families, routes, structs and hooks, in order,
+    each with the comment over it (a # comment may be over a run of declarations) and its ## doc comment"""
+    items, family, block, block_id, doc, pending = [], None, None, 0, None, []
+    lines = open(path, encoding='utf-8').read().split('\n')
+    i = 0
+    while i < len(lines):
+        line, n = lines[i], i + 1
+        s = line.strip()
+        i += 1
+        if s.startswith('##'):
+            doc = (doc or []) + [s[2:].strip()]
+            continue
+        if s.startswith('#'):
+            if block is None or block[1]:  # a comment after declarations starts anew
+                block_id += 1
+                block = [[], False, block_id]
+            if not re.match(r'#\s*(SPDX-|Copyright )', s):  # the file's license, not a comment of its declarations
+                block[0].append(s[1:].strip())
+            continue
+        if not s:
+            block, doc = None, None
+            continue
+        if block is not None:
+            block[1] = True
+        comment = ' '.join(x for x in block[0] if x) if block else None
+        cid = block[2] if block else None
+        if s.startswith('struct') or s.startswith('@version') and ' struct ' in s and not ' hook ' in s:
+            text = s
+            while '}' not in text and i < len(lines):  # a struct over lines: a field a line
+                text += '\n' + lines[i].strip()
+                i += 1
+            if not re.search(r'\}\s*size\s+\w+', text) and i < len(lines):
+                text += ' ' + lines[i].strip()
+                i += 1
+            m = re.match(r'((?:@version\([^)]*\)\s*)*)struct\s+([\w:]+)\s*((?:@version\([^)]*\)\s*)*)\{(.*)\}\s*size\s+(\w+)',
+                         text, re.S)
+            if m:
+                fields = []
+                for f in re.split(r'[;\n]', m.group(4)):
+                    fm = re.match(r'\s*(.+?)\s+(\w+)\s*@\s*(\w+)\s*$', f)
+                    if fm:
+                        fields.append((fm.group(1), fm.group(2), fm.group(3)))
+                versions = pending + re.findall(r'@version\(([^)]*)\)', m.group(1) + m.group(3))
+                items.append({'kind': 'struct', 'name': m.group(2), 'fields': fields, 'size': m.group(5),
+                              'versions': versions, 'line': n, 'family': family, 'comment': comment, 'cid': cid})
+            pending, doc = [], None
+            continue
+        m = re.fullmatch(r'@version\(([^)]*)\)', s)
+        if m:  # a @version line alone: the next declaration's
+            pending.append(m.group(1))
+            continue
+        w = s.split()
+        if w[0] == 'family':
+            family = w[1]
+            items.append({'kind': 'family', 'name': w[1], 'line': n, 'comment': comment, 'cid': cid})
+            block, doc = None, None
+            continue
+        if w[0] == 'route':
+            items.append({'kind': 'route', 'symbol': w[1], 'line': n, 'comment': comment, 'cid': cid,
+                          'family': family})
+            continue
+        if w[0] == 'include':
+            continue
+        address = re.match(r'\[([0-9A-Fa-f]+):(0x[0-9A-Fa-f]+|\d+)\]\s*', s)  # a function of one build of a game
+        if address:
+            s = s[address.end():]
+        m = re.match(r'((?:(?:@version\([^)]*\)|a32)\s+)*)hook\s+(\S+?)\((.*?)\)\s*(?:->\s*(.+?))?\s*'
+                     r'((?:=|uses|pure|a32|check|@version).*)?$', s)
+        if not m:
+            raise GenError(f'{path}:{n}: a line this does not read: {s[:80]}')
+        args = []
+        depth, cur = 0, ''
+        for ch in m.group(3) + ',':
+            depth += {'[': 1, ']': -1}.get(ch, 0)
+            if ch == ',' and depth == 0:
+                if cur.strip():
+                    am = re.match(r'(.+?)\s*\b(\w+)(?:\s+(in|out|inout)\[([^\]]*)\])?$', cur.strip())
+                    args.append((am.group(1).strip(), am.group(2), am.group(3), am.group(4)) if am else
+                                (cur.strip(), '', None, None))
+                cur = ''
+            else:
+                cur += ch
+        rest = m.group(5) or ''
+        handler = re.search(r'=\s*(\w+)', rest)
+        uses = re.search(r'\buses\s+([\w:]+(?:\s*,\s*[\w:]+)*)', rest)
+        symbol = m.group(2)
+        default = re.sub(r'([a-z0-9])([A-Z])', r'\1_\2', symbol, count=1)
+        check = re.search(r'\bcheck\s+(\w+)', rest)
+        if address:
+            default = symbol
+        items.append({'kind': 'hook', 'symbol': symbol, 'args': args, 'ret': (m.group(4) or 'void').strip(),
+                      'handler': handler.group(1) if handler else default,
+                      'check': check.group(1) if check else None,
+                      'address': (address.group(1), address.group(2)) if address else None,
+                      'uses': [u.strip() for u in uses.group(1).split(',')] if uses else [],
+                      'pure': bool(re.search(r'\bpure\b', rest)),
+                      'a32': bool(re.search(r'\ba32\b', m.group(1) + ' ' + rest)),
+                      'versions': pending + re.findall(r'@version\(([^)]*)\)', m.group(1) + ' ' + rest),
+                      'line': n, 'family': family, 'comment': comment, 'cid': cid,
+                      'doc': parse_doc(doc) if doc else None})
+        pending, doc = [], None
+    return items
+
+
+def parse_svcs(path):
+    """hos.svc: the types (name, 32-bit size, 64-bit size, the handler's C type) and the SVCs (number, flags, return
+    type, name, arguments), each with its registers in each ABI, as tools/svcgen lays them out (Eden's register
+    allocator: AAPCS64's eight 8-byte registers, all parameters; AAPCS32's eight 4-byte ones, four parameters)"""
+    types, svcs = {}, []
+    for n, line in enumerate(open(path, encoding='utf-8'), 1):
+        s = line.strip()
+        if not s or s.startswith('#'):
+            continue
+        if s.startswith('type '):
+            name, s32, s64, ctype = s.split()[1:5]
+            types[name] = {'size': (int(s32), int(s64)), 'ctype': ctype}
+            continue
+        m = re.match(r'(0x[0-9A-Fa-f]+|\d+)\s+((?:(?:stub|quiet|nowarn)\s+)*)(\w+)\s+(\w+)\((.*)\)\s*;$', s)
+        if not m:
+            raise GenError(f'{path}:{n}: a line this does not read: {s[:80]}')
+        args = []
+        for a in [x.strip() for x in m.group(5).split(',') if x.strip()]:
+            am = re.match(r'(\w+)\s*(\*?)\s*(\w+)$', a)
+            star, name = am.group(2) == '*', am.group(3)
+            output = name == 'out' or 'out_' in name
+            args.append({'type': am.group(1), 'name': name, 'star': star, 'output': output and star,
+                         'regs': [None, None]})
+        svc = {'number': int(m.group(1), 0), 'flags': m.group(2).split(), 'ret': m.group(3), 'name': m.group(4),
+               'args': args, 'line': n, 'ret_regs': [[], []]}
+        for abi in (0, 1):  # 0: AAPCS32, 1: AAPCS64
+            bytes_, params = (4, 4) if abi == 0 else (8, 8)
+
+            def allocator():
+                return {'used': [False] * 8}
+
+            def single(al, ngrn):
+                if ngrn < params:
+                    if al['used'][ngrn]:
+                        raise GenError(f'{path}:{n}: register {ngrn} allocated twice')
+                    al['used'][ngrn] = True
+                    return ngrn, 1
+                for r in range(8):
+                    if not al['used'][r]:
+                        al['used'][r] = True
+                        return r, 0
+                raise GenError(f'{path}:{n}: no registers left')
+
+            def add(al, ngrn, size, align):
+                if size <= bytes_:
+                    r, inc = single(al, ngrn)
+                    return [r], inc
+                inc, regs, left = (ngrn % 2 if align else 0), [], size
+                while left > 0:
+                    r, step = single(al, ngrn + inc)
+                    regs.append(r)
+                    inc += step
+                    left -= bytes_
+                return regs, inc
+
+            ins, outs, ngrn = allocator(), allocator(), 0
+            for a in args:
+                if a['output']:
+                    ngrn += 1
+                    continue
+                a['regs'][abi], inc = add(ins, ngrn, types[a['type']]['size'][abi], 1)
+                ngrn += inc
+            ngrn = 0
+            if types[svc['ret']]['size'][abi]:
+                svc['ret_regs'][abi], inc = add(outs, ngrn, types[svc['ret']]['size'][abi], 0)
+                ngrn += inc
+            for a in args:
+                if a['output']:
+                    a['regs'][abi], inc = add(outs, ngrn, types[a['type']]['size'][abi], 0)
+                    ngrn += inc
+        svcs.append(svc)
+    return types, svcs
+
+
+def build_nn(site, root, rows):
+    files = [f for f in NN_HOOKS if os.path.exists(os.path.join(root, f))]
+    nn_dir = os.path.join(root, NN_DIR)
+    if os.path.isdir(nn_dir):
+        files += sorted(f'{NN_DIR}/{f}' for f in os.listdir(nn_dir) if f.endswith('.hook'))
+    handlers = {}
+    for d in NN_HANDLER_DIRS:
+        full = os.path.join(root, d)
+        if not os.path.isdir(full):
+            continue
+        for fname in sorted(os.listdir(full)):
+            if not fname.endswith('.c'):
+                continue
+            lines = open(os.path.join(full, fname), encoding='utf-8', errors='replace').read().split('\n')
+            macros = {}  # #define M(name, ...) ... prefix##name##suffix(CPU* ...: the handlers M(x) defines
+            for k, line in enumerate(lines):
+                dm = re.match(r'#define\s+(\w+)\((\w+)[^)]*\)', line)
+                if dm:
+                    text, j = line, k
+                    while text.rstrip().endswith('\\') and j + 1 < len(lines):
+                        j += 1
+                        text += lines[j]
+                    hm = re.search(r'\b(\w*)##\s*' + dm.group(2) + r'\s*(?:##\s*(\w+))?\s*\((?:CPU|SnxArmCPU)\b', text)
+                    if hm:
+                        macros[dm.group(1)] = (hm.group(1), hm.group(2) or '')
+            for k, line in enumerate(lines, 1):
+                # a function's definition at the start of a line: a handler, an SVC's, a pattern's check
+                m = re.match(r'(?:static\s+|inline\s+)*[A-Za-z_][\w]*[\s\*]+(?:[\w\s\*]*?[\s\*])?(\w+)\(', line)
+                if m and not line.rstrip().endswith(';') and m.group(1) not in ('if', 'while', 'for', 'switch', 'return'):
+                    handlers.setdefault(m.group(1), (f'{d}/{fname}', k))
+                mm = re.match(r'\s*(\w+)\((\w+)', line)
+                if mm and mm.group(1) in macros and not line.startswith('#'):
+                    pre, post = macros[mm.group(1)]
+                    handlers.setdefault(pre + mm.group(2) + post, (f'{d}/{fname}', k))
+    src = f'{GITHUB}/{site.commit[:12]}'
+
+    def handler_html(name):
+        h = handlers.get(name)
+        return (f'<a href="{src}/{h[0]}#L{h[1]}"><code>{name}</code></a> ({h[0].rsplit("/", 1)[1]})' if h
+                else f'<code>{name}</code>')
+
+    families, structs, routes = {}, {}, []
+    for f in files:
+        try:
+            items = parse_hookspec(os.path.join(root, f))
+        except Exception as e:  # a file this doesn't read: its families are left out
+            site.failed(f, e)
+            continue
+        for it in items:
+            it['file'] = f
+            if it['kind'] == 'family':
+                families.setdefault(it['name'], {'name': it['name'], 'file': f, 'line': it['line'], 'items': [],
+                                                 'comment': it['comment']})
+            elif it['kind'] == 'route':
+                routes.append(it)
+            elif it['family']:
+                families[it['family']]['items'].append(it)
+            if it['kind'] == 'struct':
+                structs.setdefault(it['name'], []).append(it)
+
+    def version_text(v):
+        key = re.match(r'\s*(sdk|nvn|movie)\b', v)
+        name = {'sdk': 'SDK', 'nvn': 'NVN', 'movie': 'movie'}[key.group(1)] if key else 'SDK'
+        return name + ' ' + (v[key.end():] if key else v).strip()
+
+    def tags(it):
+        out = [version_text(v) for v in it.get('versions', [])]
+        if it.get('a32'):
+            out.append('32-bit')
+        if it.get('pure'):
+            out.append('pure')
+        if '*' in it.get('symbol', ''):
+            out.append('pattern')
+        return ''.join(f' <span class="tag">{html.escape(t)}</span>' for t in out)
+
+    def display(symbol):
+        d = demangle(symbol)
+        return d, (strip_template_args(d.split('(')[0]) if d else symbol)
+
+    # the families' pages: their hooks by the comments over them, their structs
+    struct_at, anchors, seen = {}, {}, {}
+    for fam in families.values():
+        for it in fam['items']:
+            base = it['symbol'] if it['kind'] == 'hook' else 'struct-' + it['name'].replace('::', '-')
+            k = seen.get(base, 0)  # one declared for several versions: an anchor each
+            seen[base] = k + 1
+            it['anchor'] = base if not k else f'{base}-{k + 1}'
+
+    def item_html(it, fam_rel):
+        if it['kind'] == 'struct':
+            rows_ = ''.join(f'<tr><td>{html.escape(f[1])}</td><td>{html.escape(f[0])}</td><td>{html.escape(f[2])}</td></tr>'
+                            for f in it['fields'])
+            return (f'<dt id="{it["anchor"]}"><code>struct {html.escape(it["name"])}</code>{tags(it)} '
+                    f'<a class="src" href="{src}/{it["file"]}#L{it["line"]}">source</a></dt><dd><table class="fields">'
+                    f'<tr><th>Field</th><th>Type</th><th>Offset</th></tr>{rows_}</table><p>Size {html.escape(it["size"])}'
+                    f'.</p></dd>')
+        d, short = display(it['symbol'])
+        args = ', '.join(html.escape(f'{t} {n}' + (f' {b}[{l}]' if b else '')) for t, n, b, l in it['args'])
+        lines = []
+        if d:
+            lines.append(f'<code>{html.escape(it["symbol"])}</code>' + (
+                ': a pattern, whose * matches any run of characters, so one handler takes every instance of the '
+                'template that compiles to the same code' if '*' in it['symbol'] else ''))
+        lines.append(f'As C: <code>{html.escape(it["ret"])} ({args})</code>')
+        lines.append(f'Handler: {handler_html(it["handler"])}')
+        if it['check']:
+            lines.append(f'Check: {handler_html(it["check"])}, which says whether a function the pattern matches '
+                         'is one the handler takes')
+        if it['address']:
+            lines.append(f'Address: the module of build ID <code>{html.escape(it["address"][0])}</code>, at offset '
+                         f'<code>{html.escape(it["address"][1])}</code> (a function of one build of a game, which no '
+                         'symbol names)')
+        if it['uses']:
+            lines.append('Uses: ' + ', '.join(
+                f'<a href="{struct_at[u]}">{html.escape(u)}</a>' if u in struct_at else html.escape(u)
+                for u in it['uses']))
+        if it['pure']:
+            lines.append('Pure: the hooks_verify setting checks it against the game\'s own code on every call')
+        doc = ''
+        if it['doc']:
+            dd = it['doc']
+            doc = (f'<p>{html.escape(dd["brief"])}</p>' if dd['brief'] else '') + ''.join(
+                f'<p><code>{html.escape(n)}</code>: {html.escape(t)}</p>' for n, t in dd['params']) + (
+                f'<p>Returns: {html.escape(dd["return"])}</p>' if dd['return'] else '')
+        return (f'<dt id="{it["anchor"]}"><code>{html.escape(d or it["symbol"])}</code>{tags(it)} '
+                f'<a class="src" href="{src}/{it["file"]}#L{it["line"]}">source</a></dt><dd>{doc}<p>'
+                + '<br>'.join(lines) + '</p></dd>')
+
+    # the structs' places first (a hook links its struct): each family's page split as its items are
+    family_pages = {}
+    for fam in families.values():
+        rel = f'nn/f/{fam["name"]}.html'
+        for it in fam['items']:
+            if it['kind'] == 'struct':
+                struct_at.setdefault(it['name'], f'{fam["name"]}.html#{it["anchor"]}')
+    for fam in families.values():
+        rel = f'nn/f/{fam["name"]}.html'
+        blocks, last = [], None
+        for it in fam['items']:
+            intro = it['comment'] if it['cid'] != last and it['comment'] else None
+            last = it['cid']
+            blocks.append((intro, item_html(it, rel), it))
+        moving = fam['file'] in NN_HOOKS
+
+        def render(chunk, k, n, fam=fam, moving=moving):
+            nav = '' if n == 1 else '<p>Page ' + ' '.join(
+                (f'<a href="{fam["name"]}{"" if j == 1 else f"-{j}"}.html">{j}</a>' if j != k else f'<b>{j}</b>')
+                for j in range(1, n + 1)) + '</p>'
+            body, open_ = [], False
+            for intro, b, _ in chunk:
+                if intro or not open_:
+                    if open_:
+                        body.append('</dl>')
+                    if intro:
+                        body.append(f'<p class="note">{html.escape(intro)}</p>')
+                    body.append('<dl>')
+                    open_ = True
+                body.append(b)
+            if open_:
+                body.append('</dl>')
+            head = (f'<h1>{html.escape(fam["name"])}</h1><p class="groups">Family of <a href="{src}/{fam["file"]}#L'
+                    f'{fam["line"]}">{fam["file"]}</a>' + (' (to move to src/nx/nn)' if moving else '') +
+                    '. The hooks_off setting turns a family off by its name.</p>'
+                    + (f'<p>{html.escape(fam["comment"])}</p>' if fam['comment'] and k == 1 else ''))
+            return site.page(fam['name'], fam['name'], head + nav + '\n'.join(body) + nav, 2, manual=NN_MANUAL)
+
+        try:
+            split = split_pages(blocks, render, rel) if blocks else [(rel, [])]
+            for k, (r, chunk) in enumerate(split, 1):
+                site.write(r, render(chunk, k, len(split)))
+                for _, _, it in chunk:
+                    anchors[id(it)] = f'{r[len("nn/"):]}#{it["anchor"]}'
+        except Exception as e:  # its declarations changed in a way this doesn't read: this family alone fails
+            site.failed_page(rel, fam['name'], 2, NN_MANUAL, e)
+
+    # the namespaces: each hook by its demangled name; the C functions by family
+    spaces = {}
+    for fam in families.values():
+        for it in fam['items']:
+            if it['kind'] != 'hook' or id(it) not in anchors:
+                continue
+            d, short = display(it['symbol'])
+            if d:
+                parts = strip_template_args(short).split('::')
+                space = ('::'.join(parts[:2]) if parts[0] == 'nn' and len(parts) > 2 else parts[0] if len(parts) > 1
+                         else 'Global C++')
+            else:
+                space = 'C'
+            spaces.setdefault(space, []).append((short, d, it, fam))
+            rows.append([short, f'nn/{anchors[id(it)]}', 'nn', f'{fam["name"]}, {it["symbol"]}'])
+
+    def space_file(space):
+        return 'C-functions' if space == 'C' else re.sub(r'[^\w]+', '-', space).strip('-')
+
+    for space, entries in spaces.items():
+        entries.sort(key=lambda e: (e[0].lower(), e[2]['line']))
+        items_ = [f'<tr><td><a href="../{anchors[id(it)]}"><code>{html.escape(d or it["symbol"])}</code></a>'
+                  f'{tags(it)}</td><td><a href="../f/{fam["name"]}.html">{fam["name"]}</a></td></tr>'
+                  for short, d, it, fam in entries]
+        title = 'The C functions' if space == 'C' else space
+
+        def render(chunk, k, n, space=space, title=title):
+            stem = space_file(space)
+            nav = '' if n == 1 else '<p>Page ' + ' '.join(
+                (f'<a href="{stem}{"" if j == 1 else f"-{j}"}.html">{j}</a>' if j != k else f'<b>{j}</b>')
+                for j in range(1, n + 1)) + '</p>'
+            return site.page(title, title, f'<h1>{html.escape(title)}</h1>{nav}<table class="fields"><tr><th>Function'
+                             f'</th><th>Family</th></tr>{"".join(chunk)}</table>{nav}', 2, manual=NN_MANUAL)
+
+        rel = f'nn/n/{space_file(space)}.html'
+        try:
+            split = split_pages(items_, render, rel)
+            for k, (r, chunk) in enumerate(split, 1):
+                site.write(r, render(chunk, k, len(split)))
+        except Exception as e:
+            site.failed_page(rel, title, 2, NN_MANUAL, e)
+
+    # the SVCs: a table by number, each SVC's registers in both ABIs
+    n_svcs = 0
+    svc_path = os.path.join(root, NN_SVC)
+    svc_note = ''
+    if os.path.exists(svc_path):
+        try:
+            types, svcs = parse_svcs(svc_path)
+            n_svcs = len(svcs)
+
+            def regs(r, abi):
+                return '+'.join(('x' if abi else 'r') + str(x) for x in r) if r else ''
+
+            trs = []
+            for s in svcs:
+                ins = '<br>'.join(f'{html.escape(a["type"])} {html.escape(a["name"])}: {regs(a["regs"][1], 1)} / '
+                                  f'{regs(a["regs"][0], 0)}' for a in s['args'] if not a['output'])
+                outs = ([f'{html.escape(s["ret"])}: {regs(s["ret_regs"][1], 1)} / {regs(s["ret_regs"][0], 0)}']
+                        if s['ret_regs'][1] else []) + [
+                    f'{html.escape(a["type"])} {html.escape(a["name"])}: {regs(a["regs"][1], 1)} / {regs(a["regs"][0], 0)}'
+                    for a in s['args'] if a['output']]
+                handler = 'none: it answers NotImplemented' if 'stub' in s['flags'] else handler_html('svc_' + s['name'])
+                flags = ', '.join(f for f in s['flags'] if f != 'stub')
+                trs.append(f'<tr id="{s["name"]}"><td>0x{s["number"]:02X}</td><td><a href="{src}/{NN_SVC}#L{s["line"]}">'
+                           f'{html.escape(s["name"])}</a></td><td>{ins}</td><td>{"<br>".join(outs)}</td>'
+                           f'<td>{handler}{(" (" + flags + ")") if flags else ""}</td></tr>')
+
+            def render(chunk, k, n):
+                nav = '' if n == 1 else '<p>Page ' + ' '.join(
+                    (f'<a href="svc{"" if j == 1 else f"-{j}"}.html">{j}</a>' if j != k else f'<b>{j}</b>')
+                    for j in range(1, n + 1)) + '</p>'
+                return site.page('SVCs', 'SVCs', '<h1>SVCs</h1><p>The kernel\'s SVCs, from <a href="'
+                                 f'{src}/{NN_SVC}">hos.svc</a>, each with its registers in the 64-bit ABI and the '
+                                 '32-bit one (x / r: two registers for a value wider than one), as tools/svcgen lays '
+                                 'them out: the inputs; the outputs, the return value first (an output by pointer '
+                                 'in the declaration comes back in a register). <a href="svc-types.html">The types</a>. '
+                                 'quiet: not in the crash report\'s ring of SVCs; nowarn: no warning for InvalidHandle.'
+                                 f'</p>{nav}<table class="fields"><tr><th>SVC</th><th>Name</th><th>In</th><th>Out</th>'
+                                 f'<th>Handler</th></tr>{"".join(chunk)}</table>{nav}', 1, manual=NN_MANUAL)
+
+            split = split_pages(trs, render, 'nn/svc.html')
+            for k, (r, chunk) in enumerate(split, 1):
+                site.write(r, render(chunk, k, len(split)))
+                for tr in chunk:
+                    name = re.match(r'<tr id="(\w+)"', tr).group(1)
+                    s = next(x for x in svcs if x['name'] == name)
+                    rows.append([name, f'{r}#{name}', 'SVC', f'0x{s["number"]:02X}'])
+            site.write('nn/svc-types.html', site.page('SVC types', 'SVC types', '<h1>The SVCs\' types</h1><p>Each '
+                       'type\'s size in the 32-bit and the 64-bit ABI, and what a handler takes it as (-: a structure no '
+                       'handler takes yet).</p><table class="fields"><tr><th>Type</th><th>32-bit</th><th>64-bit</th>'
+                       '<th>Handler</th></tr>' + ''.join(
+                           f'<tr><td>{html.escape(n)}</td><td>{t["size"][0]}</td><td>{t["size"][1]}</td>'
+                           f'<td>{html.escape(t["ctype"])}</td></tr>' for n, t in types.items()) + '</table>',
+                       1, manual=NN_MANUAL))
+            svc_note = (f'<h2>SVCs</h2><p><a href="svc.html">The kernel\'s SVCs</a> ({n_svcs}): a table by number, '
+                        'each with its registers in both ABIs and its handler.</p>')
+        except Exception as e:
+            site.failed_page('nn/svc.html', 'SVCs', 1, NN_MANUAL, e)
+            svc_note = '<h2>SVCs</h2><p><a href="svc.html">The kernel\'s SVCs</a>: not made this time.</p>'
+
+    n_hooks = sum(1 for f in families.values() for it in f['items'] if it['kind'] == 'hook')
+    nn_spaces = sorted((s for s in spaces if s not in ('C',)), key=str.lower)
+    fam_rows = ''.join(f'<tr><td><a href="f/{f["name"]}.html">{f["name"]}</a></td><td>{f["file"]}</td>'
+                       f'<td>{sum(1 for it in f["items"] if it["kind"] == "hook")}</td></tr>'
+                       for f in families.values())
+    route_list = ''.join(f'<li><code>{html.escape(demangle(r["symbol"]) or r["symbol"])}</code></li>' for r in routes)
+    site.write('nn/index.html', site.page('nn API', 'nn API',
+        '<h1>nn API</h1><p>The functions of the Switch\'s SDK (nn::) and C library that ScarletNX runs natively in a '
+        'game\'s place, hooked by their symbols (tools/hookgen\'s declarations: <code>src/nx/hle/hook/hooks.hook</code>, '
+        f'whose families are to move to <code>{NN_DIR}</code>, and <code>{NN_DIR}/*.hook</code>), and the kernel\'s '
+        f'SVCs. {n_hooks} hooks in {len(families)} families. A C++ function is shown demangled; its symbol, its '
+        'arguments as the handler takes them and the handler are under it.</p>'
+        '<div id="search" data-root="../" data-placeholder="Search: a function, a symbol or an SVC"></div>'
+        '<h2>By namespace</h2><ul class="cols">' + ''.join(
+            f'<li><a href="n/{space_file(s)}.html">{html.escape(s)}</a> ({len(spaces[s])})</li>' for s in nn_spaces)
+        + (f'<li><a href="n/C-functions.html">The C functions</a> ({len(spaces["C"])})</li>' if 'C' in spaces else '')
+        + '</ul>' + svc_note
+        + f'<h2>Families</h2><table class="fields"><tr><th>Family</th><th>File</th><th>Hooks</th></tr>{fam_rows}</table>'
+        + (f'<h2>Routes</h2><p>What the runtime calls through their dispatch slots, with C of its own around them:</p>'
+           f'<ul>{route_list}</ul>' if routes else '') + other_manuals({'id': 'nn'}),
+        1, search=['nn'], manual=NN_MANUAL))
+    return n_hooks, len(families), n_svcs
+
 # ---- the NVN manual: the API ScarletNX implements (nvn.hook), its types (nvn.h), Switch 2's marked ----
 
 NVN_DIR = 'src/nx/gpu/nvn'
@@ -3021,7 +3957,7 @@ def main(argv):
     root = argv[0]
     out = argv[1] if len(argv) == 2 else os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '_site', 'manual')
     commit = commit or find_commit(root, [a['dir'] for a in ARCHES] + [GPU_DIR] + [g['dir'] for g in DECODED]
-                                   + [NVN_DIR, VK_FORMATS, CTR_DIR, ANDROID_DIR])
+                                   + [NVN_DIR, VK_FORMATS, CTR_DIR, ANDROID_DIR, NN_DIR, 'src/nx/hle/hook', 'src/nx/hle/svc'])
     here = os.path.dirname(os.path.abspath(__file__))
 
     # the manual is made whole each time: what the Sail no longer has goes
@@ -3036,6 +3972,9 @@ def main(argv):
         BUILT.add('nvn')
     if os.path.isdir(os.path.join(root, ANDROID_DIR)):
         BUILT.add('android')
+    if any(os.path.exists(os.path.join(root, f)) for f in NN_HOOKS + [NN_SVC]) or os.path.isdir(os.path.join(root, NN_DIR)):
+        BUILT.add('nn')
+    shutil.rmtree(os.path.join(out, 'nn'), ignore_errors=True)
     shutil.rmtree(os.path.join(out, 'android'), ignore_errors=True)
     shutil.rmtree(os.path.join(out, '3ds-ipc'), ignore_errors=True)
     os.makedirs(out, exist_ok=True)
@@ -3112,6 +4051,9 @@ def main(argv):
     ctr = part('3ds-ipc', '3DS IPC', CTR_MANUAL, made(
         '3ds-ipc', build_ctr_ipc, 'command, page, 3DS, service and command ID, the header word\'s mask and value, '
                                   'none, the ID')) if '3ds-ipc' in BUILT else None
+    nn = part('nn', 'nn API', NN_MANUAL, made(
+        'nn', build_nn, 'name (demangled), page, nn or SVC, the family and the symbol, or the SVC\'s number')) \
+        if 'nn' in BUILT else None
     android = part('android', 'Android API', ANDROID_MANUAL, made(
         'android', build_android, 'name, page, Java, what it is')) if 'android' in BUILT else None
     for name in ('manual.css', 'search.js'):
@@ -3131,6 +4073,9 @@ def main(argv):
                'matches.</p>' + (f'<h2>The GPUs\' instructions</h2><ul>{"".join(gpus)}</ul>' if gpus else '')
                + (f'<h2>The 3DS\'s services</h2><ul><li><a href="3ds-ipc/">3DS IPC</a>: the commands of the services\' '
                   f'schemas, word by word ({ctr[0]} interfaces, {ctr[1]} commands)</li></ul>' if ctr else '')
+               + (f'<h2>The nn API</h2><ul><li><a href="nn/">nn API</a>: the SDK\'s and the C library\'s functions '
+                  f'ScarletNX runs natively, by their symbols, and the kernel\'s SVCs ({nn[0]} hooks in {nn[1]} families, '
+                  f'{nn[2]} SVCs)</li></ul>' if nn else '')
                + (f'<h2>The Android API</h2><ul><li><a href="android/">Android API</a>: the Java side of the framework '
                   f'ScarletNX gives an Android app ({android[0]} types in {android[1]} packages, {android[2]} members)'
                   f'</li></ul>' if android else ''),

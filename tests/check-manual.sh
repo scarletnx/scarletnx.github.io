@@ -164,6 +164,45 @@ has android/data.js '["setContentView","android/c/android.app.Activity.html#setC
 has index.html '<a href="android/">Android API</a>'
 has 3ds-ipc/index.html '<a href="../android/">Android API</a>'
 
+# the nn API: the hooks of hle/hook/hooks.hook and nn/*.hook by family and namespace, C++ symbols demangled as c++filt
+# spells them, the handlers (a macro's too), the structs; the SVCs of hle/svc/hos.svc with their registers as svcgen
+# lays them out
+for f in nn/index.html nn/data.js nn/f/libc.html nn/f/os_light.html nn/f/nn_time.html nn/n/nn-time.html \
+         nn/n/C-functions.html nn/svc.html nn/svc-types.html; do
+    [ -f "$tmp/manual/$f" ] || fail "no $f"
+done
+has nn/f/nn_time.html '<code>nn::time::CalculateSpanBetween(nn::TimeSpan*, nn::time::ClockSnapshot const&amp;, nn::time::ClockSnapshot const&amp;)</code>'
+has nn/f/os_light.html 'std::__1::basic_string&lt;char, std::__1::char_traits&lt;char&gt;, std::__1::allocator&lt;char&gt;&gt;::basic_string[abi:v15007]&lt;std::nullptr_t&gt;(char const*)'
+has nn/index.html 'nn::init::Start(unsigned long, unsigned long, void (*)(), void (*)(), void (*)())'   # a route
+has nn/f/nn_time.html '<span class="tag">SDK &lt; 1.0.0</span> <span class="tag">32-bit</span>'
+has nn/f/nn_time.html 'id="_ZN2nn4time19StandardSteadyClock3nowEv-2"'                    # declared again for 32-bit
+has nn/f/nn_time.html '/src/nx/nn/time.c#L5"><code>nntime_steady_now</code></a> (time.c)'
+has nn/f/libc.html '/src/nx/hle/hook/libc.c#L10"><code>libc_isalnum</code></a>'             # CTYPE(isalnum)
+has nn/f/libc.html 'As C: <code>void* (void* dst out[size], const void* src in[size], u64 size)</code>'
+has nn/f/libc.html '<span class="tag">pure</span>'
+has nn/f/libc.html '<p>Compares a and b, as strcmp does</p>'                                     # a ## doc comment
+has nn/f/libc.html '<p>the C library (libc.c): the guest&#x27;s own byte loops become the host&#x27;s</p>'   # the family's
+has nn/f/libc.html '<p class="note">the character classes (libc_std.c): the host&#x27;s, on the guest&#x27;s characters</p>'
+has nn/f/os_light.html '<tr><td>waiter</td><td>u32</td><td>0x4</td></tr>'                        # a struct over lines
+has nn/f/os_light.html 'id="struct-nn-os-LightEventType-2"'
+has nn/f/os_light.html 'Uses: <a href="os_light.html#struct-nn-os-LightEventType">nn::os::LightEventType</a>'
+has nn/f/os_light.html '(to move to src/nx/nn)'
+grep -q 'SPDX' "$tmp/manual/nn/f/nn_time.html" && fail "a hook file's license is a comment of its family"
+has nn/f/alloc.html 'std::__1::__vector_base&lt;*, std::__1::allocator&lt;*&gt;&gt;::~__vector_base()</code> <span class="tag">pattern</span>'
+has nn/f/alloc.html 'Check: <a href="https://github.com/scarletnx/ScarletNX/blob/0123456789ab/src/nx/hle/hook/libc.c#L14"><code>alloc_vector_shape</code></a>'
+has nn/f/alloc.html 'Address: the module of build ID <code>0123456789abcdef0123456789abcdef01234567</code>, at offset <code>0x1a2b40</code>'
+has nn/n/nn-time.html '<a href="../f/nn_time.html#_ZN2nn4time10InitializeEv"><code>nn::time::Initialize()</code></a>'
+has nn/svc.html '<td>0x08</td><td><a href'                                                      # by number
+has nn/svc.html 'int32_t priority: x4 / r0<br>int32_t core_id: x5 / r4'                         # Switchbrew's CreateThread
+has nn/svc.html 'int64_t ns: x0 / r0+r1'
+has nn/svc.html 'uint64_t out_affinity_mask: x2 / r2+r3'
+has nn/svc.html 'none: it answers NotImplemented'                                                # a stub
+has nn/svc.html '/src/nx/hle/svc/svc.c#L6"><code>svc_SleepThread</code></a> (svc.c) (quiet)'
+has nn/svc-types.html '<tr><td>Address</td><td>4</td><td>8</td><td>u64</td></tr>'
+has nn/data.js '["nn::time::Initialize","nn/f/nn_time.html#_ZN2nn4time10InitializeEv","nn","nn_time, _ZN2nn4time10InitializeEv"]'
+has nn/data.js '["CreateThread","nn/svc.html#CreateThread","SVC","0x08"]'
+has index.html '<a href="nn/">nn API</a>'
+
 # the same Sail makes the same manual
 python3 tools/gen-manual.py tests/sail "$tmp/again" --commit 0123456789abcdef0123456789abcdef01234567 >/dev/null
 diff -r "$tmp/manual" "$tmp/again" >/dev/null || fail "two runs differ"

@@ -49,6 +49,9 @@ jobs:
             src/vita/gpu
             src/3ds/services
             src/android/framework
+            src/nx/hle/hook
+            src/nx/hle/svc
+            src/nx/nn
       - id: site
         run: |
           status=0

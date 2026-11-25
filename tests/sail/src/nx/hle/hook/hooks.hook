@@ -1,0 +1,30 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 the ScarletNX contributors
+# Cut from ScarletNX's hle/hook/hooks.hook for tests/check-manual.sh
+
+# What a game's linker calls last: through its dispatch slot
+route _ZN2nn4init5StartEmmPFvvES2_S2_
+
+# the C library (libc.c): the guest's own byte loops become the host's
+family libc
+hook memcpy(void* dst out[size], const void* src in[size], u64 size) -> void* = hook_memmove pure
+## @brief Compares a and b, as strcmp does
+hook strcmp(addr a, addr b) -> i32 = libc_strcmp
+# the character classes (libc_std.c): the host's, on the guest's characters
+hook isalnum(i32 ch) -> i32 = libc_isalnum
+
+family os_light
+struct nn::os::LightEventType @version(>= 6.5.0, <= 12.3.1) { u32 waiter @0x0; bool auto_clear @0x4; bool initialized @0x5 } size 0xc
+struct nn::os::LightEventType @version(>= 13.3.0) {
+    bool auto_clear @0x0
+    bool initialized @0x1
+    u32 waiter @0x4
+} size 0x8
+@version(>= 6.5.0, <= 12.3.1)
+hook _ZN2nn2os20InitializeLightEventEPNS0_14LightEventTypeEbNS0_14EventClearModeE(addr e, bool signaled, u32 mode) = os_light_event_init_old uses nn::os::LightEventType
+hook _ZNSt3__112basic_stringIcNS_11char_traitsIcEENS_9allocatorIcEEEC1B6v15007IDnEEPKc(addr this, const char* s) = string_init
+
+# std::vector<T>'s storage, for a T with nothing to destroy: every instance of the destructor is the same code
+family alloc
+hook _ZNSt3__113__vector_baseI*NS_9allocatorI*EEED1Ev(addr self) = alloc_vector_free check alloc_vector_shape
+[0123456789abcdef0123456789abcdef01234567:0x1a2b40] hook game_mode_set(u32 mode)

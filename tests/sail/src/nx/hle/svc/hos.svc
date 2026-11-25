@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 the ScarletNX contributors
+# Cut from ScarletNX's hle/svc/hos.svc for tests/check-manual.sh
+type void 0 0 void
+type bool 1 1 u8
+type int32_t 4 4 i32
+type int64_t 8 8 i64
+type uint32_t 4 4 u32
+type uint64_t 8 8 u64
+type Result 4 4 u32
+type Handle 4 4 u32
+type Address 4 8 u64
+type Size 4 8 u64
+type ThreadFunc 4 8 u64
+type PhysicalAddress 8 8 u64
+type ArbitrationType 4 4 u32
+type BreakReason 4 4 u32
+type CodeMemoryOperation 4 4 u32
+type DebugThreadParam 4 4 u32
+type DeviceName 4 4 u32
+type HardwareBreakPointRegisterName 4 4 u32
+type InfoType 4 4 u32
+type InterruptType 4 4 u32
+type IoPoolType 4 4 u32
+type KernelDebugType 4 4 u32
+type KernelTraceState 4 4 u32
+type LimitableResource 4 4 u32
+type MemoryMapping 4 4 u32
+type MemoryPermission 4 4 u32
+type PageInfo 4 4 u32
+type ProcessActivity 4 4 u32
+type ProcessInfoType 4 4 u32
+type SignalType 4 4 u32
+type SystemInfoType 4 4 u32
+type ThreadActivity 4 4 u32
+type LastThreadContext 16 32 -
+type PhysicalMemoryInfo 16 24 -
+type SecureMonitorArguments 32 64 -
+0x01 Result SetHeapSize(Address* out_address, Size size);
+0x08 Result CreateThread(Handle* out_handle, ThreadFunc func, Address arg, Address stack_bottom, int32_t priority, int32_t core_id);
+0x0B quiet void SleepThread(int64_t ns);
+0x0E Result GetThreadCoreMask(int32_t* out_core_id, uint64_t* out_affinity_mask, Handle thread_handle);
+0x20 stub Result SendSyncRequestLight(Handle session_handle);

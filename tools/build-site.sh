@@ -1,8 +1,8 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-3.0-or-later
 # tools/build-site.sh SCARLETNX [OUT]: the whole site, made from its sources into OUT (_site), as GitHub Pages
-# serves it: the main page and its images, the ISA manuals (ARM's and the GPUs'), the NVN API, the 3DS IPC and the
-# Android API (tools/gen-manual.py, from a ScarletNX checkout) in manual/, ScarletNX's documentation
+# serves it: the main page and its images, the ISA manuals (ARM's and the GPUs'), the NVN API, the nn API, the 3DS
+# IPC and the Android API (tools/gen-manual.py, from a ScarletNX checkout) in manual/, ScarletNX's documentation
 # (tools/gen-docs.py, from its docs/) in manual/snx/, the book (tools/gen-book.py, from book/) in manual/cs-book/.
 # Then tools/check-site.py checks every page of it. Nothing it makes is committed: .github/workflows/site.yml runs
 # it and deploys OUT.

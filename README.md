@@ -22,7 +22,10 @@ marked, by `tools/manual/nvn-drivers.txt` (the drivers' procedure tables, which 
 and the 3DS IPC (`manual/3ds-ipc/`): the commands of ScarletNX's `src/3ds/services/*.swipc`, each request's and
 response's words as `swipc --ctr`'s dispatcher reads and writes them, with the handler, and the Android API
 (`manual/android/`): the Java side of ScarletNX's `src/android/framework` as javadoc reads it, each public and
-protected type and member with its declaration, doc comment and the source's groups. It is the one part with CSS (`manual.css`) and JavaScript (the search, `search.js`: a name, the nearest names, or the
+protected type and member with its declaration, doc comment and the source's groups, and the nn API (`manual/nn/`):
+the SDK's and C library's functions ScarletNX hooks (`src/nx/hle/hook/hooks.hook`, `src/nx/nn/*.hook`) by family
+and namespace, C++ symbols demangled, with their handlers, and the kernel's SVCs (`src/nx/hle/svc/hos.svc`) in a
+table by number with each one's registers in both ABIs. It is the one part with CSS (`manual.css`) and JavaScript (the search, `search.js`: a name, the nearest names, or the
 encodings an instruction word matches), from files and small, and its pages read without them. It is made, by the
 site's workflow from ScarletNX's `main`, or from a checkout (into `_site/manual/`):
 

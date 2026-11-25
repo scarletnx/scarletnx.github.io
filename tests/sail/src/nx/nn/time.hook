@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 the ScarletNX contributors
+#
+# Cut from ScarletNX's nn/time.hook for tests/check-manual.sh
+# The native nn::time (time.c), for tools/hookgen, in the language of hle/hook/hooks.hook.
+# nn::time: the clocks, the time zone and the clock snapshots, with no time:u session and no shared memory. Every
+# function that reads the state the SDK keeps behind Initialize is here, with Initialize, so that state stays empty.
+family nn_time
+hook _ZN2nn4time10InitializeEv() -> u32 = nntime_initialize a32 @version(< 1.0.0)
+hook _ZN2nn4time19StandardSteadyClock3nowEv() -> i64 = nntime_steady_now
+@version(< 1.0.0) a32 hook _ZN2nn4time19StandardSteadyClock3nowEv(addr out) = nntime_steady_now_out
+hook _ZN2nn4time20CalculateSpanBetweenEPNS_8TimeSpanERKNS0_13ClockSnapshotES5_(addr out, addr a, addr b) -> bool = nntime_span_between
