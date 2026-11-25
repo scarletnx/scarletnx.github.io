@@ -203,6 +203,22 @@ has nn/data.js '["nn::time::Initialize","nn/f/nn_time.html#_ZN2nn4time10Initiali
 has nn/data.js '["CreateThread","nn/svc.html#CreateThread","SVC","0x08"]'
 has index.html '<a href="nn/">nn API</a>'
 
+# Driver bugs: extension_bans.txt as one table, sortable (sort.js), its page up to 128 KB; the other projects' file:line
+# linked at the revisions its header names, ScarletNX's commits linked, the comment over each line's group
+for f in driver-bugs/index.html sort.js; do
+    [ -f "$tmp/manual/$f" ] || fail "no $f"
+done
+has driver-bugs/index.html '<table class="fields" id="bugs"><thead><tr><th>line</th><th>key</th><th>action</th>'
+has driver-bugs/index.html '<script src="../sort.js"></script>'
+has driver-bugs/index.html '<td><code>VK_<wbr>EXT_<wbr>vertex_<wbr>input_<wbr>dynamic_<wbr>state</code></td><td>off</td><td>nvidia</td><td>&lt; 580.119.02</td>'
+has driver-bugs/index.html 'ANGLE <a href="https://chromium.googlesource.com/angle/angle/+/97d96dab70/src/libANGLE/renderer/vulkan/vk_renderer.cpp#6632">vk_renderer.cpp:6632</a>'
+has driver-bugs/index.html 'ScarletNX <a href="https://github.com/scarletnx/ScarletNX/commit/5722fc560">5722fc560</a>'
+has driver-bugs/index.html '>Dynamic vertex input</td>'                                   # the group's area
+has driver-bugs/index.html 'title="Fragment inputs (render.c&#x27;s draw_varying: a draw&#x27;s position generic is read from the fragment&#x27;s own place, and an unculled'
+has driver-bugs/index.html '<dt>versions</dt><dd>* for all of them, or bounds'              # the header's fields
+has index.html '<a href="driver-bugs/">Driver bugs</a>'
+[ "$(grep -o "<tr><td data-sort" "$tmp/manual/driver-bugs/index.html" | wc -l | tr -d " ")" = 6 ] || fail "driver-bugs: not 6 rows"
+
 # the same Sail makes the same manual
 python3 tools/gen-manual.py tests/sail "$tmp/again" --commit 0123456789abcdef0123456789abcdef01234567 >/dev/null
 diff -r "$tmp/manual" "$tmp/again" >/dev/null || fail "two runs differ"

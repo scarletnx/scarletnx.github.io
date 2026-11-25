@@ -1,0 +1,69 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 the ScarletNX contributors
+# Cut from ScarletNX's common/gpu/vk/extension_bans.txt for tests/check-manual.sh
+#
+# The drivers known to break a Vulkan extension or feature: which driver, which versions, on which system, what breaks,
+# and who found it. The renderer reads this before it turns anything on (common/gpu/vk/extension_bans.c): an "off" line takes
+# the extension out of the device's list, or turns the feature off where the renderer can do without it, and the log
+# says which, on which device, driver and version, and why. A "warn" line is only said: a ban another project lifted,
+# one not proven for the way this renderer uses the feature on a driver that runs here, or a part it has no way
+# around. On NVIDIA's, AMD's and Intel's own drivers, which nobody here runs, another project's ban is off until a
+# tester's run shows the renderer does without it. A "prefer" line is the other way round: the way its key names is
+# taken on the drivers listed and on no other (vk_prefer), where a measure or the console's result showed that driver
+# to do better with it; no driver or vendor is compared in the code. Compiled in
+# (cmake/vk_extension_bans.cmake); tests/vk_extension_bans.c reads it, and "snx-test-vk-bans --devices" lists the lines
+# that hold for this machine's drivers. docs/layers/gpu/driver-quirks.md shows every line by driver, beside the quirks
+# the code works around by itself: "scripts/check-docs.py --bans" writes those rows from this file after a change to
+# it, and docs_check fails while they differ.
+#
+# Each extension the renderer can use has a setting of its own (vk_ext_<its name in lowercase>, Graphics > Vulkan
+# Extensions), auto by default: auto leaves the extension to this table, on goes over every line on it, off takes it out
+# of the device's list. The log says each extension's value in effect and why (extension_bans.c).
+#
+# A line per ban, its fields between |, in the header's order:
+#   key       an extension (VK_EXT_custom_border_color), taken out of the device's list; or a feature, property,
+#             dynamic state, format or call (shaderFloat16, VK_DYNAMIC_STATE_CULL_MODE, an extension's feature as
+#             VK_EXT_extended_dynamic_state3.extendedDynamicState3ColorBlendEquation), turned off where the renderer
+#             asks for it (vk_ban). The log names an "off" line that holds and nothing asked for
+#   action    off, warn or prefer
+#   driver    one of the names below (VkDriverId), or * for each driver (its versions are * then)
+#   versions  * for all of them, or bounds in the driver's own numbering: < V, <= V, >= V, > V, or a lower bound then an
+#             upper one (>= 512.676 < 512.680). NVIDIA's are A.B.C[.D] (580.119.02); Intel's Windows driver gives the
+#             last two of its four numbers (27.20.100.9684 or 100.9684); MoltenVK's are A.B.C (1.2.11); every other
+#             driver's are VK_MAKE_VERSION's A.B.C: Mesa's release (25.0.3; a -devel build is the release before's
+#             .99), Qualcomm's 512.800.48, Arm's r48p0 as 48.0.0, AMD's 2.0.302
+#   system    any, or a list of linux, android, windows, macos, ios, freebsd, openbsd, netbsd
+#   devices   *, or a list of the GPUs' deviceID (VkPhysicalDeviceProperties): 0x6020200 is an Adreno 622
+#   breaks    what goes wrong, as it reads after the driver and its versions: "NVIDIA's driver before 580.119.02 ...";
+#             on a prefer line, what the driver does better with the way than without
+#   source    where it is known from: a commit, a file and line at a commit, an issue
+#   retest    the case that tests it again: headless:ARGS (tests/vulkan_headless.c given ARGS), amberlith:SUITE[: CASE],
+#             or new:headless: or new:amberlith: and the case still to be written (edenprobe: and new:edenprobe:,
+#             Amberlith's name before 1.0.0, are still read)
+#   checked   never, or the date we last tested it and what we saw: 2026-11-04 broken on 512.800.48
+#   override  -, or the setting that goes over the line (KEY=VALUE), which the code owning that setting applies: it
+#             turns an off line's key on anyway, and a prefer line's way off
+#
+# Drivers: amd-proprietary amdvlk radv nvidia intel-windows anv powervr qualcomm mali swiftshader ggp broadcom lavapipe
+# moltenvk coreavi juice verisilicon turnip v3dv panvk samsung venus dozen nvk powervr-mesa honeykrisp vulkansc
+# kosmickrisp gfxstream apesoft
+#
+# The other projects' sources, read at: ANGLE 97d96dab70 (src/libANGLE/renderer/vulkan/vk_renderer.cpp), DXVK
+# 829e377d2d (src/dxvk/dxvk_device_info.cpp), vkd3d-proton db5628e2af (libs/vkd3d/device.c), Dolphin 257a6d0eac
+# (Source/Core/VideoCommon/DriverDetails.cpp), PPSSPP 9f286ee4ca (Common/GPU/Vulkan/thin3d_vulkan.cpp); yuzu's and
+# Eden's commits by their hash, Eden's with the PR it came in (src/video_core/vulkan_common/vulkan_device.cpp); Eden's
+# driver bug list is its docs/DriverBugs.md at 9cf3a04af3, and :N the line of a row in it.
+
+key | action | driver | versions | system | devices | breaks | source | retest | checked | override
+
+# Dynamic vertex input (gpu/vk/vertex_input.c: vertex_input_dynamic_state=auto keeps off what holds here, on goes over it)
+VK_EXT_vertex_input_dynamic_state | off | nvidia | < 580.119.02 | any | * | breaks dynamic vertex input | Eden PR 3379 (9b1f6801a5, 2026-02-05) | headless:--vertex-input-dynamic-state=on | never | vertex_input_dynamic_state=on
+VK_EXT_vertex_input_dynamic_state | off | intel-windows | < 27.20.100.0 | any | * | breaks dynamic vertex input | yuzu 69f9b97e7e (2021-06-15), bounded in ddbf851ef6 (2022-12-27), kept by Eden; Eden's driver bug list:24 | headless:--vertex-input-dynamic-state=on | never | vertex_input_dynamic_state=on
+VK_EXT_vertex_input_dynamic_state | off | intel-windows | >= 27.20.100.0 | any | * | still has issues with dynamic vertex input by ANGLE's account, which keeps it off on every version | ANGLE vk_renderer.cpp:6632, anglebug 42265637 | headless:--vertex-input-dynamic-state=on | never | -
+VK_EXT_vertex_input_dynamic_state | off | qualcomm | * | android | * | draws edenprobe's coherence suite wrong with dynamic vertex input | ScarletNX 5722fc560 (2026-11-04); ANGLE vk_renderer.cpp:6632 keeps it off too (anglebug 381384988) | amberlith:coherence | 2026-11-04 broken on 512.800.48 | vertex_input_dynamic_state=on
+VK_EXT_vertex_input_dynamic_state | off | mali | < 48.0.0 | any | * | applies vkCmdBindVertexBuffers2's strides to the wrong binding (Arm errata SDEN-3735689) | ANGLE vk_renderer.cpp:6632 | headless:--vertex-input-dynamic-state=on | never | vertex_input_dynamic_state=on
+
+# Fragment inputs (render.c's draw_varying: a draw's position generic is read from the fragment's own place, and an
+# unculled quad's inputs from its vertices' values, on every driver but those below, whose own interpolation is taken)
+Location | prefer | nvidia | * | any | * | interpolates the inputs of a huge primitive it clips with the position's precision, as the console does, where AMD's, Intel's and Arm's GPUs lose a generic that holds the position by more than a pixel: it needs no varying pass, which cost two games 4 and 7 points of GPU time on every draw | Eden PR 4575 (position_varying_pass.cpp, vk_pipeline_cache.cpp); ScarletNX 153da38c63 (2026-11-10) | headless: | never | -
+

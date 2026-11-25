@@ -52,6 +52,7 @@ jobs:
             src/nx/hle/hook
             src/nx/hle/svc
             src/nx/nn
+            src/common/gpu/vk
       - id: site
         run: |
           status=0

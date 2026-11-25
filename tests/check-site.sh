@@ -21,4 +21,13 @@ python3 tools/check-site.py $big >/dev/null || { echo "a 60000-byte page of the 
 head -c 66000 /dev/zero | tr '\0' 'x' > $big
 python3 tools/check-site.py $big | grep -q 'over 65536' || { echo "a 66000-byte page of the book passed"; rm -f $big; exit 1; }
 rm -f $big
+# the driver bugs' page has 128 KB of its own; another manual's page has 16
+tmpd=$(mktemp -d) || exit 1
+mkdir -p "$tmpd/manual/driver-bugs" "$tmpd/manual/other"
+python3 -c 'import sys; open(sys.argv[1], "w").write("<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>x</title></head><body><p>" + "x" * 60000 + "</p></body></html>")' "$tmpd/manual/driver-bugs/index.html"
+cp "$tmpd/manual/driver-bugs/index.html" "$tmpd/manual/other/index.html"
+out=$(python3 tools/check-site.py "$tmpd")
+case "$out" in *driver-bugs*) rm -rf "$tmpd"; echo "manual/driver-bugs: 60 KB refused"; exit 1 ;; esac
+case "$out" in *other/index.html*) ;; *) rm -rf "$tmpd"; echo "manual/other: 60 KB passed"; exit 1 ;; esac
+rm -rf "$tmpd"
 echo "check-site: passed"

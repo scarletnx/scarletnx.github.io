@@ -28,6 +28,8 @@ reference lays one out:
   nn (manual/nn): the hooks of src/nx/hle/hook/hooks.hook and src/nx/nn/*.hook by family and by namespace, each C++
     symbol demangled (an Itanium demangler of the names the hooks use), and the SVCs of src/nx/hle/svc/hos.svc in a
     table by number with their registers in both ABIs, laid out as tools/svcgen lays them out.
+  Driver bugs (manual/driver-bugs): src/common/gpu/vk/extension_bans.txt as one table, which sort.js sorts by a
+    column; its page may be 128 KB.
   NVN (manual/nvn): each function's signature, its doc comment (nvn.hook's ## @brief, @param, @return) and handler.
 Every name the Sail defines is a page of the shared pseudocode, which the instructions link to. Pages stay under the
 site's 16 KB: the indexes and a long definition split over pages, an instruction's links shrink to first uses.
@@ -293,17 +295,17 @@ class Site:
                                                 f'ScarletNX at {self.commit[:12]}: <code>{html.escape(reason)}</code>.</p>',
                                   depth, manual=manual))
 
-    def write(self, rel, content):
+    def write(self, rel, content, limit=MAX_BYTES):
         path = os.path.join(self.out, rel)
         os.makedirs(os.path.dirname(path), exist_ok=True)
         data = content.encode('utf-8')
-        if rel.endswith('.html') and len(data) > MAX_BYTES:
-            raise GenError(f'{rel}: {len(data)} bytes, over {MAX_BYTES}')
+        if rel.endswith('.html') and len(data) > limit:
+            raise GenError(f'{rel}: {len(data)} bytes, over {limit}')
         with open(path, 'wb') as f:
             f.write(data)
         self.written.append(rel)
 
-    def page(self, rel, title, body_html, depth, search=None, manual=None):
+    def page(self, rel, title, body_html, depth, search=None, manual=None, scripts=()):
         """A page depth folders under manual/; manual: the GPU manual's (name, folder, footer) it is of"""
         up = '../' * depth
         home = up or './'
@@ -313,11 +315,11 @@ class Site:
         if manual:
             name, folder, foot = manual
             home = up + folder + '/'
-        scripts = ''
         if search:  # search.js loads the data when the box is first used
             body_html = body_html.replace('<div id="search" ', '<div id="search" data-load="' + ' '.join(
                 f'{up}{s}/data.js' for s in search) + '" ', 1)
-            scripts = f'<script src="{up}search.js"></script>'
+            scripts = (f'<script src="{up}search.js"></script>',) + tuple(scripts)
+        scripts = ''.join(x if x.startswith('<') else f'<script src="{up}{x}"></script>' for x in scripts)
         return (f'<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
                 f'<meta name="viewport" content="width=device-width, initial-scale=1">\n'
                 f'<meta name="color-scheme" content="light dark">\n<title>{html.escape(title)} - ScarletNX {name}</title>\n'
@@ -808,7 +810,8 @@ def other_manuals(g):
     names = ['the <a href="../">ARM ISA</a>'] + [f'the <a href="../{o["id"]}/">{o["name"]}</a>' for o in GPUS + DECODED
                                                 if o is not g and o['id'] in BUILT]
     names += [f'the <a href="../{i}/">{n}</a>' for i, n in (('nvn', 'NVN API'), ('nn', 'nn API'), ('3ds-ipc', '3DS IPC'),
-                                                           ('android', 'Android API')) if i != g['id'] and i in BUILT]
+                                                           ('android', 'Android API'), ('driver-bugs', 'Driver bugs'))
+              if i != g['id'] and i in BUILT]
     text = ', '.join(names[:-1]) + ' and ' + names[-1] if len(names) > 1 else names[0]
     return f'<p>{text[0].upper() + text[1:]}.</p>'
 
@@ -3443,6 +3446,131 @@ def build_nn(site, root, rows):
         1, search=['nn'], manual=NN_MANUAL))
     return n_hooks, len(families), n_svcs
 
+# ---- Driver bugs: the Vulkan drivers' known bugs (extension_bans.txt), one table, sortable ----
+
+DRIVER_BUGS = 'src/common/gpu/vk/extension_bans.txt'
+DRIVER_BUGS_MAX = 128 * 1024  # the one table's page, check-site.py's exception for manual/driver-bugs/
+DRIVER_MANUAL = ('Driver bugs', 'driver-bugs', 'The table is ScarletNX\'s (GPL-3.0-or-later).')
+# the other projects the table cites by a file's line, at the revision its header names
+DRIVER_PROJECTS = {
+    'ANGLE': 'https://chromium.googlesource.com/angle/angle/+/{rev}/{path}#{line}',
+    'DXVK': 'https://github.com/doitsujin/dxvk/blob/{rev}/{path}#L{line}',
+    'vkd3d-proton': 'https://github.com/HansKristian-Work/vkd3d-proton/blob/{rev}/{path}#L{line}',
+    'Dolphin': 'https://github.com/dolphin-emu/dolphin/blob/{rev}/{path}#L{line}',
+    'PPSSPP': 'https://github.com/hrydgard/ppsspp/blob/{rev}/{path}#L{line}',
+}
+
+
+def parse_driver_bugs(path):
+    """extension_bans.txt: its fields' names (the line of names between |), their descriptions in its header, the
+    other projects' revisions, and its rows, each with its line and the comment over its group"""
+    lines = open(path, encoding='utf-8').read().split('\n')
+    names, header, rows, group, block, blank = None, [], [], None, [], True
+    for n, line in enumerate(lines, 1):
+        s = line.strip()
+        if s.startswith('#'):
+            text = s[1:]
+            if names is None:
+                header.append(text)
+            else:
+                if blank:
+                    block = []
+                block.append(text.strip())
+                group = ' '.join(block)
+            blank = False
+            continue
+        if not s:
+            blank = True
+            continue
+        cells = [c.strip() for c in s.split('|')]
+        if names is None:
+            names = cells
+            continue
+        if len(cells) != len(names):
+            raise GenError(f'{path}:{n}: {len(cells)} fields, not {len(names)}')
+        rows.append({'line': n, 'cells': cells, 'group': group})
+        blank = False
+    if names is None:
+        raise GenError(f'{path}: no line of the fields\' names')
+    fields, cur = {}, None
+    for h in header:  # "   key       an extension..." and the lines that go on with it
+        m = re.match(r'\s{3}(\w+)\s{2,}(\S.*)$', h)
+        if m and m.group(1) in names:
+            cur = m.group(1)
+            fields[cur] = m.group(2)
+        elif cur and re.match(r'\s{6,}\S', h):
+            fields[cur] += ' ' + h.strip()
+        else:
+            cur = None
+    text = ' '.join(h.strip() for h in header)
+    revisions = {m.group(1): (m.group(2), m.group(3).split(',')[0].strip())
+                 for m in re.finditer(r'\b(' + '|'.join(re.escape(k) for k in DRIVER_PROJECTS) +
+                                      r') ([0-9a-f]{7,40}) \(([^)]+)\)', text)}
+    return names, fields, revisions, rows
+
+
+def build_driver_bugs(site, root, rows_out):
+    names, fields, revisions, rows = parse_driver_bugs(os.path.join(root, DRIVER_BUGS))
+    src = f'{GITHUB}/{site.commit[:12]}/{DRIVER_BUGS}'
+
+    def linked(text):
+        """A source's text: ScarletNX's commits and the other projects' file:line linked"""
+        out, last = [], 0
+        pat = re.compile(r'\bScarletNX ([0-9a-f]{7,40})\b|\b(' + '|'.join(re.escape(k) for k in DRIVER_PROJECTS)
+                         + r') ([\w.\-/]+):(\d+)')
+        for m in pat.finditer(text):
+            out.append(html.escape(text[last:m.start()]))
+            if m.group(1):
+                out.append(f'ScarletNX <a href="https://github.com/scarletnx/ScarletNX/commit/{m.group(1)}">'
+                           f'{m.group(1)}</a>')
+            else:
+                project, file, line = m.group(2), m.group(3), m.group(4)
+                rev = revisions.get(project)
+                if rev and rev[1].rsplit('/', 1)[-1] == file.rsplit('/', 1)[-1]:
+                    url = DRIVER_PROJECTS[project].format(rev=rev[0], path=rev[1], line=line)
+                    out.append(f'{project} <a href="{url}">{html.escape(file)}:{line}</a>')
+                else:
+                    out.append(html.escape(m.group(0)))
+            last = m.end()
+        out.append(html.escape(text[last:]))
+        return ''.join(out)
+
+    def area(group):
+        return re.split(r' \(|: |\. ', group or '', maxsplit=1)[0] if group else ''
+
+    heads = ['line'] + names + ['area']
+    trs = []
+    for r in rows:
+        cells = [f'<td data-sort="{r["line"]:05d}"><a href="{src}#L{r["line"]}">{r["line"]}</a></td>']
+        for name, value in zip(names, r['cells']):
+            shown = linked(value) if name == 'source' else html.escape(value)
+            if name == 'key':  # a long key may break after its _ and its .
+                shown = '<code>' + re.sub(r'([_.])', r'\1<wbr>', shown) + '</code>'
+            cells.append(f'<td>{shown}</td>')
+        cells.append(f'<td title="{html.escape(r["group"] or "")}">{html.escape(area(r["group"]))}</td>')
+        trs.append('<tr>' + ''.join(cells) + '</tr>')
+        rows_out.append(r)
+    counts = {}
+    for r in rows:
+        counts[r['cells'][names.index('action')] if 'action' in names else ''] = counts.get(
+            r['cells'][names.index('action')] if 'action' in names else '', 0) + 1
+    legend = ''.join(f'<dt>{html.escape(n)}</dt><dd>{html.escape(fields[n])}</dd>' for n in names if n in fields)
+    body = ('<h1>Driver bugs</h1><p>The Vulkan drivers known to break an extension or a feature the renderer uses, '
+            f'as <a href="{src}">extension_bans.txt</a> lists them: {len(rows)} lines, '
+            + ', '.join(f'{v} {html.escape(k)}' for k, v in sorted(counts.items())) +
+            '. The renderer reads it before it turns anything on: an off line takes the extension out of the device\'s '
+            'list or turns the feature off, a warn line is only said, a prefer line takes a way on the drivers it '
+            'lists alone. A header sorts the table by its column (line: the file\'s order); area is the comment over '
+            'the line\'s group, whole as its title.</p>'
+            '<div class="wide"><table class="fields" id="bugs"><thead><tr>' + ''.join(f'<th>{html.escape(h)}</th>' for h in heads)
+            + '</tr></thead><tbody>' + ''.join(trs) + '</tbody></table></div>'
+            + (f'<h2>The columns</h2><dl>{legend}<dt>area</dt><dd>the comment over the group the line is in</dd></dl>'
+               if legend else '') + other_manuals({'id': 'driver-bugs'}))
+    site.write('driver-bugs/index.html', site.page('Driver bugs', 'Driver bugs', body, 1, manual=DRIVER_MANUAL,
+                                                   scripts=('sort.js',)), limit=DRIVER_BUGS_MAX)
+    return len(rows)
+
+
 # ---- the NVN manual: the API ScarletNX implements (nvn.hook), its types (nvn.h), Switch 2's marked ----
 
 NVN_DIR = 'src/nx/gpu/nvn'
@@ -3957,7 +4085,8 @@ def main(argv):
     root = argv[0]
     out = argv[1] if len(argv) == 2 else os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '_site', 'manual')
     commit = commit or find_commit(root, [a['dir'] for a in ARCHES] + [GPU_DIR] + [g['dir'] for g in DECODED]
-                                   + [NVN_DIR, VK_FORMATS, CTR_DIR, ANDROID_DIR, NN_DIR, 'src/nx/hle/hook', 'src/nx/hle/svc'])
+                                   + [NVN_DIR, VK_FORMATS, CTR_DIR, ANDROID_DIR, NN_DIR, 'src/nx/hle/hook', 'src/nx/hle/svc',
+                                      DRIVER_BUGS])
     here = os.path.dirname(os.path.abspath(__file__))
 
     # the manual is made whole each time: what the Sail no longer has goes
@@ -3975,6 +4104,9 @@ def main(argv):
     if any(os.path.exists(os.path.join(root, f)) for f in NN_HOOKS + [NN_SVC]) or os.path.isdir(os.path.join(root, NN_DIR)):
         BUILT.add('nn')
     shutil.rmtree(os.path.join(out, 'nn'), ignore_errors=True)
+    if os.path.exists(os.path.join(root, DRIVER_BUGS)):
+        BUILT.add('driver-bugs')
+    shutil.rmtree(os.path.join(out, 'driver-bugs'), ignore_errors=True)
     shutil.rmtree(os.path.join(out, 'android'), ignore_errors=True)
     shutil.rmtree(os.path.join(out, '3ds-ipc'), ignore_errors=True)
     os.makedirs(out, exist_ok=True)
@@ -4054,9 +4186,11 @@ def main(argv):
     nn = part('nn', 'nn API', NN_MANUAL, made(
         'nn', build_nn, 'name (demangled), page, nn or SVC, the family and the symbol, or the SVC\'s number')) \
         if 'nn' in BUILT else None
+    bugs = part('driver-bugs', 'Driver bugs', DRIVER_MANUAL,
+                lambda: build_driver_bugs(site, root, [])) if 'driver-bugs' in BUILT else None
     android = part('android', 'Android API', ANDROID_MANUAL, made(
         'android', build_android, 'name, page, Java, what it is')) if 'android' in BUILT else None
-    for name in ('manual.css', 'search.js'):
+    for name in ('manual.css', 'search.js', 'sort.js'):
         shutil.copyfile(os.path.join(here, 'manual', name), os.path.join(out, name))
     license_ = os.path.join(root, ARCHES[0]['dir'], 'LICENSE')
     if os.path.exists(license_):
@@ -4076,6 +4210,9 @@ def main(argv):
                + (f'<h2>The nn API</h2><ul><li><a href="nn/">nn API</a>: the SDK\'s and the C library\'s functions '
                   f'ScarletNX runs natively, by their symbols, and the kernel\'s SVCs ({nn[0]} hooks in {nn[1]} families, '
                   f'{nn[2]} SVCs)</li></ul>' if nn else '')
+               + (f'<h2>Driver bugs</h2><ul><li><a href="driver-bugs/">Driver bugs</a>: the Vulkan drivers known to '
+                  f'break an extension or a feature the renderer uses, in one table ({bugs} lines)</li></ul>'
+                  if bugs else '')
                + (f'<h2>The Android API</h2><ul><li><a href="android/">Android API</a>: the Java side of the framework '
                   f'ScarletNX gives an Android app ({android[0]} types in {android[1]} packages, {android[2]} members)'
                   f'</li></ul>' if android else ''),

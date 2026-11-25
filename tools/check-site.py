@@ -22,6 +22,8 @@ either, and the stylesheet and the search stay small (MANUAL_CAPS).
 The math book (manual/cs-book/) goes further, as its formulas and figures need it: pages up to 64 KB, inline
 svg figures, its own stylesheet (book.css) and MathJax, which typesets the TeX of its formulas and is loaded from
 BOOK_MATHJAX alone. Its pages read without them too: the TeX is plain text.
+
+The driver bugs (manual/driver-bugs/) are one table, which sort.js sorts by a column: a page up to 128 KB.
 """
 import glob
 import html.parser
@@ -31,9 +33,12 @@ import sys
 MAX_BYTES = 16 * 1024
 NEW_ELEMENTS = {'canvas', 'video', 'audio', 'picture', 'iframe', 'svg'}
 MANUAL = 'manual/'
-MANUAL_CAPS = {'manual/manual.css': 4 * 1024, 'manual/search.js': 8 * 1024, 'manual/cs-book/book.css': 4 * 1024}
+MANUAL_CAPS = {'manual/manual.css': 4 * 1024, 'manual/search.js': 8 * 1024, 'manual/sort.js': 4 * 1024,
+               'manual/cs-book/book.css': 4 * 1024}
 BOOK = 'manual/cs-book/'
 BOOK_MAX_BYTES = 64 * 1024
+DRIVER_BUGS = 'manual/driver-bugs/'  # its one table, sortable (sort.js), up to DRIVER_BUGS_MAX_BYTES
+DRIVER_BUGS_MAX_BYTES = 128 * 1024
 BOOK_MATHJAX = 'https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-chtml.js'
 
 
@@ -86,7 +91,7 @@ def check(path, root):
     rel = os.path.relpath(os.path.abspath(path), root).replace(os.sep, '/')
     book = ('/' + rel).find('/' + BOOK) >= 0
     page = Page(path, ('/' + rel).find('/' + MANUAL) >= 0, book)
-    cap = BOOK_MAX_BYTES if book else MAX_BYTES
+    cap = BOOK_MAX_BYTES if book else DRIVER_BUGS_MAX_BYTES if ('/' + rel).find('/' + DRIVER_BUGS) >= 0 else MAX_BYTES
     if len(data) > cap:
         page.failures.append(f'{path}:1: {len(data)} bytes, over {cap}')
     page.feed(data.decode('utf-8', 'replace'))

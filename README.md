@@ -25,7 +25,9 @@ response's words as `swipc --ctr`'s dispatcher reads and writes them, with the h
 protected type and member with its declaration, doc comment and the source's groups, and the nn API (`manual/nn/`):
 the SDK's and C library's functions ScarletNX hooks (`src/nx/hle/hook/hooks.hook`, `src/nx/nn/*.hook`) by family
 and namespace, C++ symbols demangled, with their handlers, and the kernel's SVCs (`src/nx/hle/svc/hos.svc`) in a
-table by number with each one's registers in both ABIs. It is the one part with CSS (`manual.css`) and JavaScript (the search, `search.js`: a name, the nearest names, or the
+table by number with each one's registers in both ABIs, and the driver bugs (`manual/driver-bugs/`): ScarletNX's
+`src/common/gpu/vk/extension_bans.txt` as one table that its headers sort (`sort.js`), a page up to 128 KB. It is
+the one part with CSS (`manual.css`) and JavaScript (the search, `search.js`: a name, the nearest names, or the
 encodings an instruction word matches), from files and small, and its pages read without them. It is made, by the
 site's workflow from ScarletNX's `main`, or from a checkout (into `_site/manual/`):
 

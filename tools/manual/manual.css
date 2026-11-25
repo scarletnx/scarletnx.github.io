@@ -45,3 +45,9 @@ h1 .s2, h1 .s1 { font-size: .45em; vertical-align: middle; }
 /* the Android API's marks on a member: native, an empty body, deprecated */
 .tag { font-size: smaller; padding: 0 .4em; border: 1px solid #8886; white-space: nowrap; }
 dl dt { margin-top: .3em; }
+/* the driver bugs' table: its headers sort it (sort.js) */
+#bugs th button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline dotted; }
+#bugs td { vertical-align: top; }
+#bugs { font-size: 90%; }
+#bugs td:nth-child(2) { min-width: 12em; }
+.wide { overflow-x: auto; }
